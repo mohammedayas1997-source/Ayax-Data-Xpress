@@ -84,3 +84,41 @@ exports.login = async (req, res) => {
     });
   }
 };
+
+const createDedicatedAccount = async (user) => {
+  try {
+    // A. Create customer on Paystack first
+    const customer = await axios.post(
+      "https://api.paystack.co/customer",
+      {
+        email: user.email,
+        first_name: user.firstName,
+        last_name: user.lastName,
+        phone: user.phoneNumber,
+      },
+      {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      },
+    );
+
+    // B. Request Dedicated Account
+    const account = await axios.post(
+      "https://api.paystack.co/dedicated_account",
+      {
+        customer: customer.data.data.customer_code,
+        preferred_bank: "wema-bank",
+      },
+      {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      },
+    );
+
+    // C. Save Account Details to User Model
+    user.bankName = account.data.data.bank.name;
+    user.accountNumber = account.data.data.account_number;
+    user.accountName = account.data.data.account_name;
+    await user.save();
+  } catch (error) {
+    console.log("Paystack Account Error:", error.message);
+  }
+};

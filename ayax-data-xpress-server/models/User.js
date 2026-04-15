@@ -24,7 +24,7 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, "Password is required"],
     minlength: 6,
-    select: false, // Prevents password from being returned in queries by default
+    select: false,
   },
   walletBalance: {
     type: Number,
@@ -34,8 +34,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     minlength: 4,
     maxlength: 4,
-    default: "0000", // Transaction PIN for security
+    default: "0000",
   },
+  // --- SABBIN FIELDS NA PAYSTACK ---
+  paystackCustomerCode: { type: String }, // Code din user a Paystack
+  bankName: { type: String, default: "WEMA BANK" },
+  accountNumber: { type: String },
+  accountName: { type: String },
+  // ---------------------------------
   role: {
     type: String,
     enum: ["user", "agent", "admin"],
@@ -47,13 +53,18 @@ const UserSchema = new mongoose.Schema({
   },
 });
 
-// Encrypt password using bcrypt before saving to database
+// Password Encryption
 UserSchema.pre("save", async function (next) {
   if (!this.isModified("password")) {
-    next();
+    return next(); // Gyara: return next don kar ya ci gaba
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
 });
+
+// Method don duba idan password yayi daidai
+UserSchema.methods.matchPassword = async function (enteredPassword) {
+  return await bcrypt.compare(enteredPassword, this.password);
+};
 
 module.exports = mongoose.model("User", UserSchema);

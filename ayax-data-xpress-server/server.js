@@ -6,6 +6,7 @@ const authRoutes = require("./routes/authRoutes");
 const walletRoutes = require("./routes/walletRoutes");
 const vtuRoutes = require("./routes/vtuRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
+const paymentRoutes = require("./routes/paymentRoutes");
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/wallet", walletRoutes);
 app.use("/api/v1/vtu", vtuRoutes);
+app.use("/api/v1/payments", paymentRoutes);
 
 app.get("/", (req, res) => {
   res.send("Ayax Data Xpress API is Running...");
