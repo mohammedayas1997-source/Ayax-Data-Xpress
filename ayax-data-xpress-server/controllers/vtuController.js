@@ -251,40 +251,66 @@ exports.getTransactionHistory = async (req, res) => {
   }
 };
 
-// --- 5. VERIFY METER NUMBER (NEPA Lookup) ---
+// Verify Meter Logic
 exports.verifyMeter = async (req, res) => {
+  const { disco, meterNumber, meterType } = req.body;
+
   try {
-    const { disco, meterNumber, meterType } = req.body;
+    const url = `https://www.nellobytesystems.com/APIVerifyElectricityV1.asp?UserID=${process.env.CLUBKONNECT_USERID}&APIKey=${process.env.CLUBKONNECT_APIKEY}&ElectricCompany=${disco}&MeterNo=${meterNumber}&MeterType=${meterType}`;
 
-    const response = await axios.get(
-      `${process.env.CLUBKONNECT_BASE_URL}/VerifyMeterNo.asp`,
-      {
-        params: {
-          UserID: process.env.CLUBKONNECT_USERID,
-          APIKey: process.env.CLUBKONNECT_APIKEY,
-          ElectricCompany: disco,
-          MeterNo: meterNumber,
-          MeterType: meterType,
-        },
-      },
-    );
+    const response = await axios.get(url);
 
-    if (response.data.status === "SUCCESS") {
+    if (response.data.name) {
       res.status(200).json({
         success: true,
-        name: response.data.customer_name,
-        address: response.data.address,
+        name: response.data.name,
       });
     } else {
-      res.status(400).json({ success: false, message: "Invalid Meter Number" });
+      res.status(400).json({
+        success: false,
+        message: "Meter verification failed. Please check the details.",
+      });
     }
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Meter verification failed" });
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
 };
 
+// Purchase Electricity Logic
+exports.purchaseElectricity = async (req, res) => {
+  const { disco, meterNumber, amount, meterType } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const user = await User.findById(userId);
+    if (user.walletBalance < amount) {
+      return res.status(400).json({ message: "Insufficient balance" });
+    }
+
+    const requestId = `ELEC${Date.now()}`;
+    const url = `https://www.nellobytesystems.com/APIElectricityV1.asp?UserID=${process.env.CLUBKONNECT_USERID}&APIKey=${process.env.CLUBKONNECT_APIKEY}&ElectricCompany=${disco}&MeterType=${meterType}&MeterNo=${meterNumber}&Amount=${amount}&PhoneNo=${user.phone}&RequestID=${requestId}`;
+
+    const response = await axios.get(url);
+
+    if (response.data.status === "ORDER_RECEIVED") {
+      user.walletBalance -= amount;
+      await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: "Transaction successful",
+        token: response.data.token || "Pending", // Nellobyte sends token here if instant
+        orderId: response.data.orderid,
+      });
+    } else {
+      res
+        .status(400)
+        .json({ success: false, message: "Transaction failed at provider" });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Processing error" });
+  }
+};
 // --- 6. VERIFY SMARTCARD (Cable TV Lookup) ---
 exports.verifySmartCard = async (req, res) => {
   try {
@@ -318,4 +344,27 @@ exports.verifySmartCard = async (req, res) => {
       .status(500)
       .json({ success: false, message: "SmartCard verification failed" });
   }
+};
+
+// A cikin vtuController.js
+exports.buyData = async (req, res) => {
+  const user = await User.findById(req.user.id);
+  const { planId, network } = req.body;
+
+  // 1. Nemo plan din daga database/config
+  const plan = await DataPlan.findById(planId);
+
+  // 2. Saita farashi bisa ga matsayin sa
+  const finalPrice = user.role === "agent" ? plan.agentPrice : plan.userPrice;
+
+  // 3. Duba idan yana da kudi
+  if (user.walletBalance < finalPrice) {
+    return res.status(400).json({ message: "Kudin aljihunka bai isa ba" });
+  }
+
+  // 4. Rage kudi sannan ka tura API na ClubKonnect
+  user.walletBalance -= finalPrice;
+  await user.save();
+
+  // ... sauran logic na tura data
 };
