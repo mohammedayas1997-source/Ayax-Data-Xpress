@@ -1,6 +1,6 @@
 ﻿const express = require("express");
 const dotenv = require("dotenv");
-const cors = require("cors"); // 1. Ka ƙara wannan
+const cors = require("cors");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const walletRoutes = require("./routes/walletRoutes");
@@ -15,12 +15,14 @@ connectDB();
 
 const app = express();
 
-// 2. Yi amfani da CORS a nan kafin sauran routes
+// 1. CORS Configuration
 app.use(cors());
 
-app.use(express.json());
+// 2. Increase payload limit for Base64 Agent Photos (Professional Level)
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
-// Routes dinka
+// 3. Application Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/wallet", walletRoutes);
