@@ -8,7 +8,8 @@ const vtuRoutes = require("./routes/vtuRoutes");
 const webhookRoutes = require("./routes/webhookRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
-
+const support = require("./routes/supportRoutes");
+const agentRoutes = require("./routes/agentRoutes");
 dotenv.config();
 
 connectDB();
@@ -29,7 +30,8 @@ app.use("/api/v1/wallet", walletRoutes);
 app.use("/api/v1/vtu", vtuRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/admin", adminRoutes);
-
+app.use("/api/v1/support", support);
+app.use("/api/v1/agent", agentRoutes);
 app.get("/", (req, res) => {
   res.send("Ayax Data Xpress API is Running...");
 });

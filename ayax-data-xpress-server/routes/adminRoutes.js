@@ -47,6 +47,14 @@ router.put("/update-role", protect, adminOnly, updateUserRole);
 // Route domin Admin ya ga dukkan supervisors
 router.get("/supervisors", protect, adminOnly, getSupervisors);
 
+router.get(
+  "/support-activities",
+  protect,
+  authorize("admin"),
+  getSupportActivities,
+);
+router.put("/approve-refund/:id", protect, authorize("admin"), approveRefund);
+
 // Route domin Admin ya sanya wa supervisor target (Daga AssignTargetScreen)
 router.put("/assign-target", protect, adminOnly, assignTarget);
 
