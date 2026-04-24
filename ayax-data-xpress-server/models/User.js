@@ -43,28 +43,46 @@ const UserSchema = new mongoose.Schema({
   accountNumber: { type: String },
   accountName: { type: String },
 
-  // --- AGENT & SUPERVISOR MANAGEMENT ---
+  // --- AGENT, SUPERVISOR & LEADER MANAGEMENT ---
   role: {
     type: String,
-    enum: ["user", "agent", "supervisor", "admin"], // Na kara 'supervisor'
+    // Mun ƙara 'leader' a nan
+    enum: ["user", "agent", "supervisor", "leader", "admin"],
     default: "user",
   },
-  // Wannan field din zai nuna wane supervisor ne ke kula da wannan Agent din
+
+  // Idan Agent ne, wannan zai riƙe ID na Supervisor ɗinsa
   assignedSupervisor: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     default: null,
   },
-  // Targets (Domin Supervisors da Agents su ga abin da ake bukata daga gare su)
+
+  // Idan Supervisor ne, wannan zai riƙe ID na Leader ɗinsa
+  assignedLeader: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+
+  // Targets (Domin Leaders, Supervisors da Agents)
   targets: {
-    agentGoal: { type: Number, default: 0 }, // Target din register agents
-    dataGoal: { type: Number, default: 0 }, // Target din GB (misali 100GB)
+    agentGoal: { type: Number, default: 0 }, // Target na register sabbin mutane
+    dataGoal: { type: Number, default: 0 }, // Target na yawan GB da za a sayar
+    supervisorGoal: { type: Number, default: 0 }, // Target na Leader zuwa ga Supervisor
     currentMonth: { type: String }, // Misali: "April 2026"
   },
 
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  isSuspended: {
+    type: Boolean,
+    default: false,
+  },
+  address: {
+    type: String,
   },
 });
 

@@ -1,53 +1,70 @@
 const User = require("../models/User");
 const Sale = require("../models/Sale");
 
-// @desc    Get all Agents assigned to this Supervisor with full details
-// @route   GET /api/v1/supervisor/my-agents
-// @access  Private/Supervisor
-exports.getMyAgents = async (req, res) => {
+// @desc    Get All Supervisors and Overall Network Stats
+// @route   GET /api/v1/leader/dashboard
+// @access  Private/Leader
+exports.getLeaderDashboard = async (req, res) => {
   try {
-    const supervisorId = req.user._id;
+    const leaderId = req.user._id;
 
-    // 1. Fetch agents with full professional details (Phone, Address, and Image)
-    // We select fields needed for real-life tracking and contact
-    const agents = await User.find({
-      assignedSupervisor: supervisorId,
-      role: "agent",
-    }).select(
-      "surname firstName otherName email phone address state lga profileImage targets",
+    // 1. Nemo dukkan Supervisors da suke ƙarƙashin wannan Leader ɗin
+    // (Ko kuma dukkan Supervisors idan kai ne babban Leader ɗaya tilo)
+    const supervisors = await User.find({ role: "supervisor" }).select(
+      "surname firstName phone email targets",
     );
 
-    // 2. Fetch supervisor's own target data
-    const supervisor = await User.findById(supervisorId);
-
-    // 3. Professional Stats Calculation
-    // Using aggregation for better performance in a real-life environment
-    const salesStats = await Sale.aggregate([
-      { $match: { supervisorId: supervisorId } },
-      { $group: { _id: null, totalGB: { $sum: "$dataAmountGB" } } },
+    // 2. Kididdigar gaba ɗaya (Network-wide Stats)
+    // Muna son mu ga nawa ne aka sayar a dukkan rassanmu
+    const networkSales = await Sale.aggregate([
+      { $group: { _id: null, overallGB: { $sum: "$dataAmountGB" } } },
     ]);
 
-    const totalGB = salesStats.length > 0 ? salesStats[0].totalGB : 0;
+    const overallGB = networkSales.length > 0 ? networkSales[0].overallGB : 0;
+
+    // 3. Nemo yawan Agents a dukkan rukunoni
+    const totalAgentsCount = await User.countDocuments({ role: "agent" });
+
+    // 4. Shirya bayanan kowane Supervisor don Dashboard
+    const supervisorDetails = await Promise.all(
+      supervisors.map(async (sup) => {
+        // Nemo nawa ne agents ɗin kowane supervisor
+        const myAgentsCount = await User.countDocuments({
+          assignedSupervisor: sup._id,
+          role: "agent",
+        });
+
+        // Nemo nawa ne team ɗin wannan supervisor suka sayar
+        const teamSales = await Sale.aggregate([
+          { $match: { supervisorId: sup._id } },
+          { $group: { _id: null, teamGB: { $sum: "$dataAmountGB" } } },
+        ]);
+
+        return {
+          id: sup._id,
+          name: `${sup.surname} ${sup.firstName}`,
+          phone: sup.phone,
+          teamSize: myAgentsCount,
+          teamPerformance: teamSales.length > 0 ? teamSales[0].teamGB : 0,
+          targetAmount: sup.targets?.dataGoal || 0,
+        };
+      }),
+    );
 
     res.status(200).json({
       success: true,
-      stats: {
-        totalRegistered: agents.length,
-        totalDataSold: totalGB,
-        monthlyGoal: supervisor.targets?.agentGoal || 0,
-        dataGoal: supervisor.targets?.dataGoal || 0,
-        currentMonth: supervisor.targets?.currentMonth || "April 2026",
+      networkStats: {
+        totalSupervisors: supervisors.length,
+        totalAgents: totalAgentsCount,
+        overallDataSold: overallGB,
+        month: "April 2026",
       },
-      agents: agents.map((agent) => ({
-        ...agent._doc,
-        // Ensure address is formatted nicely if displayed in a list
-        fullAddress: `${agent.address}, ${agent.lga}, ${agent.state}`,
-      })),
+      supervisors: supervisorDetails,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Failed to retrieve agent data",
+      message: "Network Error: Could not fetch leader dashboard data",
       error: error.message,
     });
   }
