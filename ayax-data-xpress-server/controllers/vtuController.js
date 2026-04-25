@@ -2,9 +2,11 @@ const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const axios = require("axios");
 const DataPlan = require("../models/DataPlan");
-const Sale = require("../models/Transaction");
+const Sale = require("../models/Transaction"); // Using Transaction as placeholder for Sale
 
-// 1. BUY DATA
+/**
+ * @desc    Purchase Mobile Data with Agent Target Tracking
+ */
 exports.buyData = async (req, res) => {
   try {
     const { network, planId, phoneNumber } = req.body;
@@ -79,32 +81,34 @@ exports.buyData = async (req, res) => {
       await transaction.save();
       return res.status(400).json({
         success: false,
-        message: response.data.remarks || "Network provider unavailable",
+        message:
+          response.data.remarks ||
+          "The network provider is currently unavailable",
       });
     }
   } catch (error) {
     return res
       .status(500)
-      .json({ success: false, message: "Internal error occurred" });
+      .json({ success: false, message: "An internal error occurred." });
   }
 };
 
-// 2. BUY AIRTIME
+/**
+ * @desc    Purchase Mobile Airtime
+ */
 exports.buyAirtime = async (req, res) => {
   try {
     const { network, phoneNumber, amount } = req.body;
     const user = await User.findById(req.user.id);
-
-    if (user.walletBalance < amount) {
+    if (user.walletBalance < amount)
       return res
         .status(400)
         .json({ success: false, message: "Insufficient wallet balance" });
-    }
 
     const transaction = await Transaction.create({
       user: user._id,
       type: "airtime",
-      amount: amount,
+      amount,
       phoneNumber,
       status: "pending",
     });
@@ -138,19 +142,18 @@ exports.buyAirtime = async (req, res) => {
     } else {
       transaction.status = "failed";
       await transaction.save();
-      return res.status(400).json({
-        success: false,
-        message: response.data.remarks || "Airtime failed",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Airtime provider error" });
     }
   } catch (error) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Airtime processing error" });
+    return res.status(500).json({ success: false, message: "Airtime error" });
   }
 };
 
-// 3. VERIFY METER
+/**
+ * @desc    Verify Electricity Meter Number
+ */
 exports.verifyMeter = async (req, res) => {
   const { disco, meterNumber, meterType } = req.body;
   try {
@@ -158,19 +161,20 @@ exports.verifyMeter = async (req, res) => {
     const response = await axios.get(url);
     if (response.data.name) {
       return res.status(200).json({ success: true, name: response.data.name });
-    } else {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid Meter Number" });
     }
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid Meter Number" });
   } catch (error) {
     return res
       .status(500)
-      .json({ success: false, message: "Verification failed" });
+      .json({ success: false, message: "Meter verification failed" });
   }
 };
 
-// 4. PURCHASE ELECTRICITY
+/**
+ * @desc    Purchase Electricity Token
+ */
 exports.purchaseElectricity = async (req, res) => {
   const { disco, meterNumber, amount, meterType } = req.body;
   try {
@@ -207,11 +211,12 @@ exports.purchaseElectricity = async (req, res) => {
         amount,
         phoneNumber: meterNumber,
         status: "success",
+        reference: response.data.token || response.data.order_id,
       });
       return res.status(200).json({
         success: true,
         token: response.data.token,
-        message: "Purchase successful",
+        message: "Electricity purchase successful",
       });
     }
     return res.status(400).json({ success: false, message: "Payment failed" });
@@ -222,7 +227,9 @@ exports.purchaseElectricity = async (req, res) => {
   }
 };
 
-// 5. VERIFY SMART CARD
+/**
+ * @desc    Verify Cable TV
+ */
 exports.verifySmartCard = async (req, res) => {
   try {
     const { cable, smartCard } = req.body;
@@ -238,26 +245,32 @@ exports.verifySmartCard = async (req, res) => {
       },
     );
     if (response.data.status === "SUCCESS") {
-      return res
-        .status(200)
-        .json({ success: true, name: response.data.customer_name });
+      return res.status(200).json({
+        success: true,
+        name: response.data.customer_name,
+        currentPlan: response.data.current_plan,
+      });
     }
     return res
       .status(400)
       .json({ success: false, message: "Invalid SmartCard" });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Service error" });
+    return res.status(500).json({ success: false, message: "Service failed" });
   }
 };
 
-// 6. CABLE TV PURCHASE (Muna bukatan wannan domin karka samu error)
+/**
+ * @desc    Purchase Cable TV (Added to match your routes)
+ */
 exports.purchaseCable = async (req, res) => {
   return res
     .status(400)
-    .json({ success: false, message: "Cable TV service coming soon" });
+    .json({ success: false, message: "Cable purchase service coming soon" });
 };
 
-// 7. NIMC VALIDATION (Gyaran suna daga validateNIMC zuwa nimcValidation)
+/**
+ * @desc    NIMC Identity Validation (Renamed to match nimcValidation in routes)
+ */
 exports.nimcValidation = async (req, res) => {
   try {
     const { nin } = req.body;
@@ -278,7 +291,26 @@ exports.nimcValidation = async (req, res) => {
         .status(200)
         .json({ success: true, data: response.data.slip_details });
     }
+    return res.status(400).json({ success: false, message: "NIMC Failed" });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "NIMC failed" });
+    return res.status(500).json({ success: false, message: "NIMC error" });
+  }
+};
+
+/**
+ * @desc    Get History
+ */
+exports.getTransactionHistory = async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ user: req.user.id })
+      .sort({ createdAt: -1 })
+      .limit(20);
+    return res
+      .status(200)
+      .json({ success: true, count: transactions.length, data: transactions });
+  } catch (error) {
+    return res
+      .status(500)
+      .json({ success: false, message: "Could not fetch history" });
   }
 };
