@@ -20,10 +20,12 @@ exports.assignTarget = async (req, res) => {
       supervisor.targets = {};
     }
 
+    // Gyara: Maimakon "=" kai tsaye, mun tabbatar muna barin tsofaffin bayanan idan babu sababbi
     supervisor.targets = {
       agentGoal:
-        agentGoal !== undefined ? agentGoal : supervisor.targets.agentGoal,
-      dataGoal: dataGoal !== undefined ? dataGoal : supervisor.targets.dataGoal,
+        agentGoal !== undefined ? agentGoal : supervisor.targets.agentGoal || 0,
+      dataGoal:
+        dataGoal !== undefined ? dataGoal : supervisor.targets.dataGoal || 0,
       currentMonth:
         month ||
         supervisor.targets.currentMonth ||
@@ -34,7 +36,7 @@ exports.assignTarget = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: `Target successfully assigned to ${supervisor.surname} ${supervisor.firstName}`,
+      message: `Target successfully assigned to ${supervisor.surname || ""} ${supervisor.firstName || ""}`,
       data: supervisor.targets,
     });
   } catch (error) {
@@ -47,7 +49,6 @@ exports.assignTarget = async (req, res) => {
 };
 
 // @desc    Fetch all Supervisors for Admin overview
-// @route   GET /api/v1/admin/supervisors
 exports.getSupervisors = async (req, res) => {
   try {
     const supervisors = await User.find({ role: "supervisor" })
@@ -69,7 +70,6 @@ exports.getSupervisors = async (req, res) => {
 };
 
 // @desc    Get all registered Agents
-// @route   GET /api/v1/admin/agents
 exports.getAgents = async (req, res) => {
   try {
     const agents = await User.find({ role: "agent" })
@@ -91,7 +91,6 @@ exports.getAgents = async (req, res) => {
 };
 
 // @desc    Approve refund and log finalization
-// @route   PUT /api/v1/admin/approve-refund/:id
 exports.approveRefund = async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id);
@@ -102,9 +101,20 @@ exports.approveRefund = async (req, res) => {
         .json({ success: false, message: "No pending request found" });
     }
 
-    const user = await User.findById(transaction.userId);
-    user.walletBalance += transaction.amount;
+    // Gyara: A Transaction model dinka, field din 'user' ne ba 'userId' ba
+    const userId = transaction.user || transaction.userId;
+    const user = await User.findById(userId);
 
+    if (!user) {
+      return res
+        .status(404)
+        .json({
+          success: false,
+          message: "User for this transaction not found",
+        });
+    }
+
+    user.walletBalance += transaction.amount;
     transaction.status = "refunded";
     transaction.approvedBy = req.user._id;
     transaction.resolvedAt = Date.now();
@@ -112,8 +122,9 @@ exports.approveRefund = async (req, res) => {
     await user.save();
     await transaction.save();
 
+    // Tabbatar Activity model yana da wadannan fields din daidai
     await Activity.create({
-      staffId: req.user._id,
+      staffId: req.user._id, // Ko 'user' dangane da Schema dinka
       action: "REFUND_APPROVED",
       details: `Approved refund of ${transaction.amount} for Transaction ${transaction._id}`,
       targetUser: user._id,
@@ -129,9 +140,9 @@ exports.approveRefund = async (req, res) => {
 };
 
 // @desc    Get all activities performed by Support Staff
-// @route   GET /api/v1/admin/support-activities
 exports.getSupportActivities = async (req, res) => {
   try {
+    // Gyara: Mun kara 'catch' don tabbatar Activity model ya tashi
     const activities = await Activity.find()
       .populate("staffId", "surname firstName email")
       .populate("targetUser", "surname firstName phone")
