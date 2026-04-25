@@ -2,7 +2,7 @@ const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const axios = require("axios");
 const DataPlan = require("../models/DataPlan");
-const Sale = require("../models/Sale"); // Mun kara wannan
+const Sale = require("../models/Transaction"); // Mun kara wannan
 
 /**
  * @desc    Purchase Mobile Data with Agent Target Tracking
