@@ -85,6 +85,10 @@ app.get("/", (req, res) => {
     </div>
   `);
 });
+// Wannan shi ne zai zama "Home Page" na backend dinka
+app.get("/", (req, res) => {
+  res.status(200).send("Welcome to Ayax Data Xpress API. Server is live!");
+});
 
 // 5. Port Handling ga Vercel
 const PORT = process.env.PORT || 5000;
