@@ -54,6 +54,19 @@ app.use((err, req, res, next) => {
   });
 });
 
+const allowedOrigins = [
+  "https://www.ayaxdata.online",
+  "https://ayaxdata.online",
+  "https://ayax-data-xpress-server.vercel.app", // Domain din backend dinka na Vercel
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  }),
+);
+
 // ... sauran koda
 const PORT = process.env.PORT || 5000;
 
