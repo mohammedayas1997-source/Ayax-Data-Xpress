@@ -1,18 +1,27 @@
 const express = require("express");
 const router = express.Router();
+
+// 1. Import daga vtuController
 const {
   setPlanPrice,
   getAllUsers,
   updateUserRole,
 } = require("../controllers/vtuController");
 
-// Import sabon controller din mu na Admin
+// 2. Import daga adminController (Mun tabbatar duka functions suna nan yanzu)
 const {
   assignTarget,
   getSupervisors,
+  getAgents,
+  approveRefund,
+  getSupportActivities,
 } = require("../controllers/adminController");
-const { protect } = require("../middleware/authMiddleware");
-const Notification = require("../models/Notification"); // Tabbatar kana da wannan model din
+
+// 3. Import Middlewares
+const { protect, authorize } = require("../middleware/authMiddleware");
+
+// 4. Import Model
+const Notification = require("../models/Notification");
 
 // Middleware don duba idan mai shigowa Admin ne
 const adminOnly = (req, res, next) => {
@@ -43,19 +52,25 @@ router.post("/set-plan", protect, adminOnly, setPlanPrice);
 router.get("/users", protect, adminOnly, getAllUsers);
 router.put("/update-role", protect, adminOnly, updateUserRole);
 
-// --- AGENT & SUPERVISOR TARGET MANAGEMENT ---
+// --- AGENT & SUPERVISOR MANAGEMENT ---
 // Route domin Admin ya ga dukkan supervisors
 router.get("/supervisors", protect, adminOnly, getSupervisors);
 
+// Route domin Admin ya ga dukkan agents
+router.get("/agents", protect, adminOnly, getAgents);
+
+// Route domin Admin ya sanya wa supervisor target
+router.put("/assign-target", protect, adminOnly, assignTarget);
+
+// --- SUPPORT & REFUND MANAGEMENT ---
+// Amfani da authorize("admin") ko adminOnly duka zasu yi aiki
 router.get(
   "/support-activities",
   protect,
   authorize("admin"),
   getSupportActivities,
 );
-router.put("/approve-refund/:id", protect, authorize("admin"), approveRefund);
 
-// Route domin Admin ya sanya wa supervisor target (Daga AssignTargetScreen)
-router.put("/assign-target", protect, adminOnly, assignTarget);
+router.put("/approve-refund/:id", protect, authorize("admin"), approveRefund);
 
 module.exports = router;

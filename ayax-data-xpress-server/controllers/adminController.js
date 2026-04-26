@@ -106,12 +106,10 @@ exports.approveRefund = async (req, res) => {
     const user = await User.findById(userId);
 
     if (!user) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "User for this transaction not found",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "User for this transaction not found",
+      });
     }
 
     user.walletBalance += transaction.amount;
