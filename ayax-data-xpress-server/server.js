@@ -73,6 +73,19 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Wannan shi ne zai hana 404 a babban domain dinka
+app.get("/", (req, res) => {
+  res.status(200).send(`
+    <div style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
+      <h1 style="color: #2c3e50;">Ayax Data Xpress API</h1>
+      <p style="color: #7f8c8d; font-size: 18px;">The backend server is running successfully!</p>
+      <div style="margin-top: 20px; padding: 15px; background: #f4f4f4; border-radius: 8px; display: inline-block;">
+        Status: <span style="color: #27ae60; font-weight: bold;">ONLINE</span>
+      </div>
+    </div>
+  `);
+});
+
 // 5. Port Handling ga Vercel
 const PORT = process.env.PORT || 5000;
 
