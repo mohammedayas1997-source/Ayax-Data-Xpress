@@ -248,3 +248,17 @@ exports.verifySmartCard = async (req, res) => {
 exports.purchaseCable = async (req, res) => {
   res.status(400).json({ message: "Cable purchase logic not added yet" });
 };
+// Add this to the bottom of vtuController.js
+exports.getTransactionStatus = async (req, res) => {
+  try {
+    const { reference } = req.params;
+    // Nan gaba za ka iya sa koda ta duba status a ClubKonnect
+    res.status(200).json({
+      success: true,
+      status: "Processing",
+      reference,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
