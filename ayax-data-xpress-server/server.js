@@ -5,11 +5,10 @@ const connectDB = require("./config/db");
 
 // 1. Load Environment Variables
 dotenv.config();
-
-// 2. Connect Database
-// A Vercel, yana da kyau mu bar connectDB() ya rinka gudana a matsayin background process
-connectDB();
-
+// 2. Connect Database (With Error Handling for Vercel)
+connectDB().catch((err) => {
+  console.error("MongoDB Connection Failed:", err.message);
+});
 const app = express();
 
 // 3. Optimized CORS Configuration
