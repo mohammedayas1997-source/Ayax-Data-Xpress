@@ -2,7 +2,7 @@ const User = require("../models/User");
 const Transaction = require("../models/Transaction");
 const axios = require("axios");
 const DataPlan = require("../models/DataPlan");
-const Sale = require("../models/Sale"); // Mun tabbatar da muna amfani da Sale model na asali
+const Sale = require("../models/Sale");
 
 /**
  * @desc    Purchase Mobile Data with Agent Target Tracking
@@ -10,7 +10,7 @@ const Sale = require("../models/Sale"); // Mun tabbatar da muna amfani da Sale m
 exports.buyData = async (req, res) => {
   try {
     const { network, planId, phoneNumber } = req.body;
-    const userId = req.user._id; // Amfani da _id ya fi tabbas
+    const userId = req.user._id;
 
     const [user, plan] = await Promise.all([
       User.findById(userId),
@@ -34,7 +34,6 @@ exports.buyData = async (req, res) => {
         .json({ success: false, message: "Insufficient wallet balance" });
     }
 
-    // 1. Create Transaction (Pending)
     const transaction = await Transaction.create({
       user: user._id,
       type: "data",
@@ -43,7 +42,6 @@ exports.buyData = async (req, res) => {
       status: "pending",
     });
 
-    // 2. Kira ClubKonnect API
     const response = await axios.get(
       `${process.env.CLUBKONNECT_BASE_URL}/Data.asp`,
       {
@@ -55,7 +53,7 @@ exports.buyData = async (req, res) => {
           MobileNumber: phoneNumber,
           RequestID: `AyaxData_${Date.now()}`,
         },
-        timeout: 30000, // Tabbatar cewa API bai wuce sakan 30 ba
+        timeout: 30000,
       },
     );
 
@@ -63,7 +61,6 @@ exports.buyData = async (req, res) => {
       response.data.status === "ORDER_RECEIVED" ||
       response.data.status === "SUCCESS"
     ) {
-      // Update User Wallet (Atomic operation)
       await User.findByIdAndUpdate(userId, {
         $inc: { walletBalance: -finalPrice },
       });
@@ -72,7 +69,6 @@ exports.buyData = async (req, res) => {
       transaction.reference = response.data.order_id || "CK_SUCCESS";
       await transaction.save();
 
-      // 3. TARGET TRACKING: Idan agent ne, a yi record na tallan sa
       if (user.role === "agent" && user.assignedSupervisor) {
         await Sale.create({
           agentId: user._id,
@@ -174,15 +170,13 @@ exports.buyAirtime = async (req, res) => {
   }
 };
 
-// ... (Ragowar methods din kamar verifyMeter suma su bi wannan tsarin na timeout da error handling)
-
 /**
  * @desc    NIMC Identity Validation
  */
 exports.nimcValidation = async (req, res) => {
   try {
     const { nin } = req.body;
-    const cost = 1000; // Price per NIN check
+    const cost = 1000;
     const user = await User.findById(req.user._id);
 
     if (user.walletBalance < cost) {
@@ -194,10 +188,7 @@ exports.nimcValidation = async (req, res) => {
 
     const response = await axios.post(
       process.env.NIMC_API_ENDPOINT,
-      {
-        api_key: process.env.NIMC_API_KEY,
-        nin,
-      },
+      { api_key: process.env.NIMC_API_KEY, nin },
       { timeout: 40000 },
     );
 
@@ -227,7 +218,7 @@ exports.getTransactionHistory = async (req, res) => {
     const transactions = await Transaction.find({ user: req.user._id })
       .sort({ createdAt: -1 })
       .limit(30)
-      .lean(); // Faster performance
+      .lean();
 
     return res
       .status(200)
@@ -237,4 +228,23 @@ exports.getTransactionHistory = async (req, res) => {
       .status(500)
       .json({ success: false, message: "Could not fetch history" });
   }
+};
+
+/**
+ * @desc    Electricity & Cable TV Placeholders (Important for Routes)
+ * Na sanya wadannan ne domin dukan routes dinka suyi aiki ba tare da 500 error ba
+ */
+exports.verifyMeter = async (req, res) => {
+  res
+    .status(400)
+    .json({ message: "Electricity verification logic not added yet" });
+};
+exports.purchaseElectricity = async (req, res) => {
+  res.status(400).json({ message: "Electricity purchase logic not added yet" });
+};
+exports.verifySmartCard = async (req, res) => {
+  res.status(400).json({ message: "Cable verification logic not added yet" });
+};
+exports.purchaseCable = async (req, res) => {
+  res.status(400).json({ message: "Cable purchase logic not added yet" });
 };
