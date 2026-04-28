@@ -1,20 +1,29 @@
 const mongoose = require("mongoose");
 
 const connectDB = async () => {
-  // Idan har akwai connection, kar a sake bude wani
+  // 1. Idan har akwai connection (1 = connected, 2 = connecting), kar a sake bude wani
   if (mongoose.connection.readyState >= 1) {
     return;
   }
 
   try {
+    // 2. Tabbatar da MONGO_URI yana nan
+    if (!process.env.MONGO_URI) {
+      console.error("MONGO_URI is not defined in environment variables");
+      return;
+    }
+
     const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000, // Idan bai samu DB ba cikin sakan 5, ya dakata
-      socketTimeoutMS: 45000, // Ya bar connection din a bude na tsawon lokaci
+      // Wadannan options din sun dace da Mongoose 6+
+      serverSelectionTimeoutMS: 10000, // Na kara zuwa sakan 10 don Vercel ya samu lokaci
+      socketTimeoutMS: 45000,
     });
+
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error(`Error: ${error.message}`);
-    // A Vercel, zai fi kyau mu bar error handler na server.js ya kula da wannan
+    console.error(`MongoDB Connection Error: ${error.message}`);
+    // A Vercel, kar mu kira process.exit(1) domin zai kashe function din gaba daya
+    // Mun bar shi ya yi throw don server.js ya sani
     throw error;
   }
 };

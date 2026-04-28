@@ -4,22 +4,28 @@ const {
   getBalance,
   initializePayment,
   verifyPayment,
-  fundWalletManual, // Wannan shi ne tsohon 'fundWallet' dinka don testing
+  fundWalletManual,
 } = require("../controllers/walletController");
-const { protect } = require("../middleware/authMiddleware");
 
-// Dukkan wadannan hanyoyin (routes) suna bukatar mutum ya yi login (Protected)
+// Mun tabbatar da sunan authMiddleware don gudun kuskure a Vercel
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-// 1. Duba kudin da ke cikin wallet
-router.get("/balance", protect, getBalance);
+// --- WALLET & PAYMENT ROUTES ---
 
-// 2. Fara biyan kudi ta Paystack (Zai ba ka Payment Link)
-router.post("/initialize", protect, initializePayment);
+// Duk waɗannan routes ɗin suna buƙatar login
+router.use(protect);
 
-// 3. Tabbatar da biyan kudi bayan mutum ya gama (Verify transaction)
-router.get("/verify/:reference", protect, verifyPayment);
+// 1. Duba kuɗin da ke cikin wallet
+router.get("/balance", getBalance);
 
-// 4. Saka kudi na gwaji (Don 'Development' kawai, zaka iya goge shi idan ka gama)
-router.post("/fund-manual", protect, fundWalletManual);
+// 2. Fara biyan kuɗi ta Paystack (Zai dawo da authorization_url)
+router.post("/initialize", initializePayment);
+
+// 3. Tabbatar da biyan kuɗi (Manual verification daga Frontend)
+router.get("/verify/:reference", verifyPayment);
+
+// 4. Saka kuɗi na gwaji ko Manual Funding (ADMIN KAWAI)
+// MUHIMMI: Mun sanya authorize('admin') don kare wannan route ɗin
+router.post("/fund-manual", authorize("admin"), fundWalletManual);
 
 module.exports = router;

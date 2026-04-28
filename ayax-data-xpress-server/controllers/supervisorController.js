@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Sale = require("../models/Sale");
 
@@ -6,16 +7,13 @@ const Sale = require("../models/Sale");
 // @access  Private/Leader
 exports.getLeaderDashboard = async (req, res) => {
   try {
-    const leaderId = req.user._id;
+    // 1. Nemo dukkan Supervisors
+    // Mun yi amfani da .lean() don koda ta yi sauri
+    const supervisors = await User.find({ role: "supervisor" })
+      .select("surname firstName phone email targets")
+      .lean();
 
-    // 1. Nemo dukkan Supervisors da suke ƙarƙashin wannan Leader ɗin
-    // (Ko kuma dukkan Supervisors idan kai ne babban Leader ɗaya tilo)
-    const supervisors = await User.find({ role: "supervisor" }).select(
-      "surname firstName phone email targets",
-    );
-
-    // 2. Kididdigar gaba ɗaya (Network-wide Stats)
-    // Muna son mu ga nawa ne aka sayar a dukkan rassanmu
+    // 2. Kididdigar gaba daya (Network-wide Stats)
     const networkSales = await Sale.aggregate([
       { $group: { _id: null, overallGB: { $sum: "$dataAmountGB" } } },
     ]);
@@ -25,27 +23,36 @@ exports.getLeaderDashboard = async (req, res) => {
     // 3. Nemo yawan Agents a dukkan rukunoni
     const totalAgentsCount = await User.countDocuments({ role: "agent" });
 
-    // 4. Shirya bayanan kowane Supervisor don Dashboard
+    // 4. Optimization: Nemo team sales na kowa a kiran aggregate guda daya (maimakon kiran sa a loop)
+    const allTeamSales = await Sale.aggregate([
+      {
+        $group: {
+          _id: "$supervisorId",
+          teamGB: { $sum: "$dataAmountGB" },
+        },
+      },
+    ]);
+
+    // Mayar da team sales din zuwa "Map" don mu nemo na kowa cikin sauki
+    const salesMap = new Map(
+      allTeamSales.map((item) => [String(item._id), item.teamGB]),
+    );
+
+    // 5. Shirya bayanan kowane Supervisor
     const supervisorDetails = await Promise.all(
       supervisors.map(async (sup) => {
-        // Nemo nawa ne agents ɗin kowane supervisor
+        // Nemo nawa ne agents din kowane supervisor
         const myAgentsCount = await User.countDocuments({
           assignedSupervisor: sup._id,
           role: "agent",
         });
 
-        // Nemo nawa ne team ɗin wannan supervisor suka sayar
-        const teamSales = await Sale.aggregate([
-          { $match: { supervisorId: sup._id } },
-          { $group: { _id: null, teamGB: { $sum: "$dataAmountGB" } } },
-        ]);
-
         return {
           id: sup._id,
-          name: `${sup.surname} ${sup.firstName}`,
+          name: `${sup.surname || ""} ${sup.firstName || ""}`.trim(),
           phone: sup.phone,
           teamSize: myAgentsCount,
-          teamPerformance: teamSales.length > 0 ? teamSales[0].teamGB : 0,
+          teamPerformance: salesMap.get(String(sup._id)) || 0, // Nemo daga Map dinmu
           targetAmount: sup.targets?.dataGoal || 0,
         };
       }),
@@ -57,7 +64,10 @@ exports.getLeaderDashboard = async (req, res) => {
         totalSupervisors: supervisors.length,
         totalAgents: totalAgentsCount,
         overallDataSold: overallGB,
-        month: "April 2026",
+        month: new Date().toLocaleString("default", {
+          month: "long",
+          year: "numeric",
+        }),
       },
       supervisors: supervisorDetails,
     });

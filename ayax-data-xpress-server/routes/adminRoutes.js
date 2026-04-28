@@ -1,76 +1,43 @@
 const express = require("express");
 const router = express.Router();
 
-// 1. Import daga vtuController
-const {
-  setPlanPrice,
-  getAllUsers,
-  updateUserRole,
-} = require("../controllers/vtuController");
-
-// 2. Import daga adminController (Mun tabbatar duka functions suna nan yanzu)
-const {
-  assignTarget,
-  getSupervisors,
-  getAgents,
-  approveRefund,
-  getSupportActivities,
-} = require("../controllers/adminController");
-
-// 3. Import Middlewares
+// 1. Middlewares
 const { protect, authorize } = require("../middleware/authMiddleware");
 
-// 4. Import Model
-const Notification = require("../models/Notification");
+// 2. Controllers
+const vtuController = require("../controllers/vtuController");
+const adminController = require("../controllers/adminController");
+const dataPlanController = require("../controllers/dataPlanController");
+// Na kara Notification controller don routes dinka su yi kyau
+const notificationController = require("../controllers/notificationController");
 
-// Middleware don duba idan mai shigowa Admin ne
-const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === "admin") {
-    next();
-  } else {
-    res.status(403).json({ message: "Access denied. Admins only." });
-  }
-};
+// --- ADMIN ROUTES (Private/Admin Only) ---
 
-// --- NOTIFICATION MANAGEMENT ---
-router.post("/send-notification", protect, adminOnly, async (req, res) => {
-  try {
-    const { title, message, type } = req.body;
-    const notification = await Notification.create({ title, message, type });
-    res.status(201).json({ success: true, notification });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Error sending notification" });
-  }
-});
+// Duk wani route da yake karkashin wannan, sai Admin ne kawai zai iya taba shi
+router.use(protect);
+router.use(authorize("admin"));
 
-// --- PRICING & PLAN MANAGEMENT ---
-router.post("/set-plan", protect, adminOnly, setPlanPrice);
+// 1. Notification Management
+router.post("/send-notification", notificationController.createNotification);
+router.get("/all-notifications", notificationController.getNotifications);
 
-// --- USER & ROLE MANAGEMENT ---
-router.get("/users", protect, adminOnly, getAllUsers);
-router.put("/update-role", protect, adminOnly, updateUserRole);
+// 2. Data Plan & Pricing
+router.post("/set-plan", dataPlanController.setPlanPrice);
+router.get("/get-plans", dataPlanController.getPlans); // Don Admin ya ga duka plans din
 
-// --- AGENT & SUPERVISOR MANAGEMENT ---
-// Route domin Admin ya ga dukkan supervisors
-router.get("/supervisors", protect, adminOnly, getSupervisors);
+// 3. User & Role Management
+router.get("/users", vtuController.getAllUsers);
+router.put("/update-role", vtuController.updateUserRole);
+router.put("/suspend-user/:id", adminController.suspendUser); // Kar ka manta da wannan don tsaro!
 
-// Route domin Admin ya ga dukkan agents
-router.get("/agents", protect, adminOnly, getAgents);
+// 4. Hierarchy Management (Supervisors & Agents)
+router.get("/supervisors", adminController.getSupervisors);
+router.get("/agents", adminController.getAgents);
+router.put("/assign-target", adminController.assignTarget);
 
-// Route domin Admin ya sanya wa supervisor target
-router.put("/assign-target", protect, adminOnly, assignTarget);
-
-// --- SUPPORT & REFUND MANAGEMENT ---
-// Amfani da authorize("admin") ko adminOnly duka zasu yi aiki
-router.get(
-  "/support-activities",
-  protect,
-  authorize("admin"),
-  getSupportActivities,
-);
-
-router.put("/approve-refund/:id", protect, authorize("admin"), approveRefund);
+// 5. Support & Financial Oversight
+router.get("/support-activities", adminController.getSupportActivities);
+router.get("/pending-refunds", adminController.getPendingRefunds);
+router.put("/approve-refund/:id", adminController.approveRefund);
 
 module.exports = router;

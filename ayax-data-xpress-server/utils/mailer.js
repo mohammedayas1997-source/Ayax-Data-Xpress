@@ -2,16 +2,19 @@ const nodemailer = require("nodemailer");
 
 /**
  * Professional Mailer Configuration
- * Using Ayax Data Solutions business email
+ * Ana amfani da Environment Variables don tsaro
  */
-
 const transporter = nodemailer.createTransport({
-  host: "mail.ayaxdata.online", // Ko 'smtppro.zoho.com' ko na host dinka
-  port: 465, // Port 465 na SSL ne (wanda aka fi sani da Secure)
-  secure: true, // true domin muna amfani da SSL
+  host: process.env.EMAIL_HOST || "mail.ayaxdata.online",
+  port: 465,
+  secure: true,
   auth: {
-    user: "support@ayaxdata.online", // Business Email dinka
-    pass: "Ayas1997@", // Password din email din
+    user: process.env.EMAIL_USER || "support@ayaxdata.online",
+    pass: process.env.EMAIL_PASS || "Ayas1997@", // Shawarata: Sanya wannan a .env file
+  },
+  // Wannan yana taimakawa wurin hana kuskuren SSL a wasu sabobin
+  tls: {
+    rejectUnauthorized: false,
   },
 });
 
@@ -20,17 +23,20 @@ const transporter = nodemailer.createTransport({
  */
 const sendMail = async (to, subject, html) => {
   try {
+    // Tabbatar da cewa hadin gwiwa (connection) yana da kyau
+    await transporter.verify();
+
     const info = await transporter.sendMail({
-      from: '"Ayax Data Xpress" <support@ayaxdata.online>',
+      from: `"Ayax Data Xpress" <${process.env.EMAIL_USER || "support@ayaxdata.online"}>`,
       to: to,
       subject: subject,
       html: html,
     });
 
-    console.log("Email sent successfully: %s", info.messageId);
+    console.log("[AYAX MAIL] Sent: %s", info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error("Email Sending Failed:", error);
+    console.error("[AYAX MAIL] Error:", error.message);
     return { success: false, error: error.message };
   }
 };

@@ -8,18 +8,20 @@ const {
   downloadSupervisorReport,
   assignAgentToSupervisor,
   unassignAgent,
-  toggleSupervisorStatus, // Kada ka manta da wannan don Suspending
-  createNewSupervisor, // Don daukar sabon supervisor
-  getAutomaticFullReport, // Don babban report
-  getAllAgents, // Don lissafin agents a picker
+  toggleSupervisorStatus,
+  createNewSupervisor,
+  getAutomaticFullReport,
+  getAllAgents,
 } = require("../controllers/leaderController");
 
-const { protect, authorize } = require("../middleware/auth");
+// GYARA: Mun tabbatar da sunan authMiddleware don gudun kuskure a Vercel
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-// Dukkan hanyoyin Leader suna bukatar kariya (Protect)
+// Dukkan hanyoyin Leader suna bukatar kariya
 router.use(protect);
 
 // --- 1. Dashboard & Management ---
+// Mun bar 'admin' a nan domin kaima Admin ne za ka iya ganin komai
 router.get("/dashboard", authorize("leader", "admin"), getLeaderDashboard);
 router.get("/all-agents", authorize("leader", "admin"), getAllAgents);
 
@@ -29,6 +31,7 @@ router.post(
   authorize("leader", "admin"),
   createNewSupervisor,
 );
+
 router.patch(
   "/toggle-status/:supervisorId",
   authorize("leader", "admin"),
@@ -41,11 +44,13 @@ router.post(
   authorize("leader", "admin"),
   assignSupervisorTarget,
 );
+
 router.get(
   "/download-report/:supervisorId",
   authorize("leader", "admin"),
   downloadSupervisorReport,
 );
+
 router.get(
   "/full-report",
   authorize("leader", "admin"),
@@ -58,6 +63,7 @@ router.post(
   authorize("leader", "admin"),
   assignAgentToSupervisor,
 );
+
 router.post("/unassign-agent", authorize("leader", "admin"), unassignAgent);
 
 module.exports = router;

@@ -4,7 +4,7 @@ const Activity = require("../models/Activity");
 
 // @desc    Assign monthly targets to a Supervisor
 // @route   PUT /api/v1/admin/assign-target
-exports.assignTarget = async (req, res) => {
+const assignTarget = async (req, res) => {
   try {
     const { supervisorId, agentGoal, dataGoal, month } = req.body;
     const supervisor = await User.findById(supervisorId);
@@ -20,7 +20,6 @@ exports.assignTarget = async (req, res) => {
       supervisor.targets = {};
     }
 
-    // Gyara: Maimakon "=" kai tsaye, mun tabbatar muna barin tsofaffin bayanan idan babu sababbi
     supervisor.targets = {
       agentGoal:
         agentGoal !== undefined ? agentGoal : supervisor.targets.agentGoal || 0,
@@ -49,7 +48,7 @@ exports.assignTarget = async (req, res) => {
 };
 
 // @desc    Fetch all Supervisors for Admin overview
-exports.getSupervisors = async (req, res) => {
+const getSupervisors = async (req, res) => {
   try {
     const supervisors = await User.find({ role: "supervisor" })
       .select("-password")
@@ -70,7 +69,7 @@ exports.getSupervisors = async (req, res) => {
 };
 
 // @desc    Get all registered Agents
-exports.getAgents = async (req, res) => {
+const getAgents = async (req, res) => {
   try {
     const agents = await User.find({ role: "agent" })
       .select("-password")
@@ -91,17 +90,17 @@ exports.getAgents = async (req, res) => {
 };
 
 // @desc    Approve refund and log finalization
-exports.approveRefund = async (req, res) => {
+const approveRefund = async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id);
 
     if (!transaction || transaction.status !== "pending-refund") {
-      return res
-        .status(400)
-        .json({ success: false, message: "No pending request found" });
+      return res.status(400).json({
+        success: false,
+        message: "No pending refund request found for this transaction",
+      });
     }
 
-    // Gyara: A Transaction model dinka, field din 'user' ne ba 'userId' ba
     const userId = transaction.user || transaction.userId;
     const user = await User.findById(userId);
 
@@ -112,7 +111,8 @@ exports.approveRefund = async (req, res) => {
       });
     }
 
-    user.walletBalance += transaction.amount;
+    // Atomic update
+    user.walletBalance += Number(transaction.amount);
     transaction.status = "refunded";
     transaction.approvedBy = req.user._id;
     transaction.resolvedAt = Date.now();
@@ -120,9 +120,8 @@ exports.approveRefund = async (req, res) => {
     await user.save();
     await transaction.save();
 
-    // Tabbatar Activity model yana da wadannan fields din daidai
     await Activity.create({
-      staffId: req.user._id, // Ko 'user' dangane da Schema dinka
+      staffId: req.user._id,
       action: "REFUND_APPROVED",
       details: `Approved refund of ${transaction.amount} for Transaction ${transaction._id}`,
       targetUser: user._id,
@@ -137,10 +136,49 @@ exports.approveRefund = async (req, res) => {
   }
 };
 
-// @desc    Get all activities performed by Support Staff
-exports.getSupportActivities = async (req, res) => {
+// @desc    Get all users for Admin
+const getAllUsers = async (req, res) => {
   try {
-    // Gyara: Mun kara 'catch' don tabbatar Activity model ya tashi
+    const users = await User.find().select("-password").sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      count: users.length,
+      data: users,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Update User Role
+const updateUserRole = async (req, res) => {
+  try {
+    const { userId, role } = req.body;
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { role },
+      { new: true, runValidators: true },
+    );
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `User role updated to ${role}`,
+      data: user,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get support activities
+const getSupportActivities = async (req, res) => {
+  try {
     const activities = await Activity.find()
       .populate("staffId", "surname firstName email")
       .populate("targetUser", "surname firstName phone")
@@ -154,4 +192,16 @@ exports.getSupportActivities = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
+};
+
+// --- Standardized Export Block ---
+// MUN GYARA NAN: Dole dukkan ayyukan su fito ta nan
+module.exports = {
+  assignTarget,
+  getSupervisors,
+  getAgents,
+  approveRefund,
+  getSupportActivities,
+  getAllUsers, // Na kara wannan
+  updateUserRole, // Na kara wannan
 };

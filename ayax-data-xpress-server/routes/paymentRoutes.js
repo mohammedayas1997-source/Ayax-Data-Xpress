@@ -1,8 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const { paystackWebhook } = require("../controllers/paymentController");
 
-// Wannan URL din zai zama: your-app.vercel.app/api/v1/payments/webhook
-router.post("/webhook", paystackWebhook);
+// Tabbatar da cewa sunan ya yi daidai da yadda aka yi export a paymentController.js
+const { handlePaystackWebhook } = require("../controllers/paymentController");
+
+// URL: /api/v1/payments/webhook
+// MUHIMMI: Paystack Webhook baya bukatar 'protect' middleware domin sako ne daga Paystack ba daga user ba
+router.post("/webhook", handlePaystackWebhook);
 
 module.exports = router;

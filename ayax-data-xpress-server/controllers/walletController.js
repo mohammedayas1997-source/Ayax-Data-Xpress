@@ -1,16 +1,14 @@
 const User = require("../models/User");
-const Transaction = require("../models/Transaction"); // Muna bukatar wannan don records
+const Transaction = require("../models/Transaction");
 const axios = require("axios");
 
 // @desc    Get current user's wallet balance
-// @route   GET /api/v1/wallet/balance
-// @access  Private
 exports.getBalance = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id).select("walletBalance");
     res.status(200).json({
       success: true,
-      balance: user.walletBalance,
+      balance: user.walletBalance || 0,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: "Server Error" });
@@ -18,24 +16,26 @@ exports.getBalance = async (req, res) => {
 };
 
 // @desc    Initialize Paystack Payment
-// @route   POST /api/v1/wallet/initialize
-// @access  Private
 exports.initializePayment = async (req, res) => {
   try {
     const { amount } = req.body;
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user._id);
 
-    // Paystack tana karbar kudi ne a matsayin Kobo (N1 = 100 Kobo)
-    const amountInKobo = amount * 100;
+    if (!amount || amount < 100) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Minimum funding amount is N100" });
+    }
+
+    const amountInKobo = Math.round(Number(amount) * 100);
 
     const response = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
         email: user.email,
         amount: amountInKobo,
-        metadata: {
-          userId: user._id,
-        },
+        metadata: { userId: user._id },
+        callback_url: `${process.env.FRONTEND_URL}/wallet/verify`, // Tabbatar ka saka wannan a .env
       },
       {
         headers: {
@@ -47,21 +47,30 @@ exports.initializePayment = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      data: response.data.data, // Wannan zai bayar da 'authorization_url'
+      data: response.data.data,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ success: false, message: "Payment initialization failed" });
+    res.status(500).json({
+      success: false,
+      message: "Payment initialization failed",
+      error: error.message,
+    });
   }
 };
 
 // @desc    Verify Paystack Payment and Fund Wallet
-// @route   GET /api/v1/wallet/verify/:reference
-// @access  Private
 exports.verifyPayment = async (req, res) => {
   try {
     const { reference } = req.params;
+
+    // 1. RIGAKAFIN DOUBLE FUNDING
+    // Duba idan an riga an yi amfani da wannan reference din a Transaction model
+    const alreadyProcessed = await Transaction.findOne({ reference });
+    if (alreadyProcessed) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Transaction already processed" });
+    }
 
     const response = await axios.get(
       `https://api.paystack.co/transaction/verify/${reference}`,
@@ -76,26 +85,27 @@ exports.verifyPayment = async (req, res) => {
       const amountInNaira = response.data.data.amount / 100;
       const userId = response.data.data.metadata.userId;
 
-      // 1. Nemo User
-      const user = await User.findById(userId);
+      // 2. ATOMIC UPDATE: Kara kudi ba tare da hadarin race condition ba
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { walletBalance: amountInNaira } },
+        { new: true },
+      );
 
-      // 2. Kara kudi a Wallet
-      user.walletBalance += amountInNaira;
-      await user.save();
-
-      // 3. Yi record din transaction
+      // 3. Record Transaction
       await Transaction.create({
         user: userId,
         type: "deposit",
         amount: amountInNaira,
         status: "success",
         reference: reference,
+        details: "Wallet funding via Paystack App",
       });
 
       res.status(200).json({
         success: true,
         message: "Wallet funded successfully!",
-        balance: user.walletBalance,
+        balance: updatedUser.walletBalance,
       });
     } else {
       res
@@ -103,17 +113,26 @@ exports.verifyPayment = async (req, res) => {
         .json({ success: false, message: "Payment not successful" });
     }
   } catch (error) {
-    res.status(500).json({ success: false, message: "Verification error" });
+    res.status(500).json({
+      success: false,
+      message: "Verification error",
+      error: error.message,
+    });
   }
 };
 
-// @desc    Credit wallet (Simulated for development - KEEP FOR TESTING ONLY)
+// @desc    Credit wallet (Testing Only)
 exports.fundWalletManual = async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(403).json({ message: "Not allowed in production" });
+  }
   try {
     const { amount } = req.body;
-    const user = await User.findById(req.user.id);
-    user.walletBalance += Number(amount);
-    await user.save();
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $inc: { walletBalance: Number(amount) } },
+      { new: true },
+    );
 
     res.status(200).json({
       success: true,
