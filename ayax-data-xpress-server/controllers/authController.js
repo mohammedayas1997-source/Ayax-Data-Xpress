@@ -1,97 +1,137 @@
-const axios = require("axios");
 const User = require("../models/User");
-const Transaction = require("../models/Transaction"); // Muna bukatar wannan don yin record
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const axios = require("axios");
 
-// 1. Verify Meter Number
-exports.verifyMeter = async (req, res) => {
-  const { electricCompany, meterNo, meterType } = req.body;
+// --- Helper: Generate and Send JWT Token ---
+const sendToken = (user, statusCode, res) => {
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: "30d",
+  });
 
-  if (!electricCompany || !meterNo || !meterType) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Missing required fields" });
-  }
+  res.status(statusCode).json({
+    success: true,
+    token,
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      balance: user.walletBalance,
+      role: user.role,
+    },
+  });
+};
 
+// @desc    Register a new user
+exports.register = async (req, res) => {
   try {
-    const url = `https://www.nellobytesystems.com/APIVerifyElectricityV1.asp?UserID=${process.env.CLUBKONNECT_USERID}&APIKey=${process.env.CLUBKONNECT_APIKEY}&ElectricCompany=${electricCompany}&MeterNo=${meterNo}&MeterType=${meterType}`;
+    const { name, email, phone, password, role, state, lga, address } =
+      req.body;
 
-    const response = await axios.get(url, { timeout: 15000 }); // Sanya timeout gudun Vercel timeout
-
-    // Nellobyte response check
-    if (response.data && response.data.name) {
-      res.status(200).json({ success: true, customerName: response.data.name });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: response.data.remark || "Invalid Meter Number or Company",
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Meter verification service unavailable",
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password,
+      role: role || "user",
+      state: role === "agent" ? state : undefined,
+      lga: role === "agent" ? lga : undefined,
+      address: role === "agent" ? address : undefined,
     });
+
+    // Create Paystack Dedicated Account (Background)
+    createDedicatedAccount(user);
+
+    sendToken(user, 201, res);
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
-// 2. Process Electricity Payment
-exports.buyElectricity = async (req, res) => {
-  const { electricCompany, meterNo, meterType, amount, phoneNo } = req.body;
-  const userId = req.user._id; // Amfani da _id ya fi tabbas
-
+// @desc    Authenticate user & get token
+exports.login = async (req, res) => {
   try {
-    // 1. Nemo User
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const { email, password } = req.body;
 
-    // 2. Tabbatar da kudi
-    const amountNum = Number(amount);
-    if (user.walletBalance < amountNum) {
-      return res.status(400).json({ message: "Insufficient Wallet Balance" });
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Please provide email and password" });
     }
 
-    const requestId = `ELEC${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    const url = `https://www.nellobytesystems.com/APIElectricityV1.asp?UserID=${process.env.CLUBKONNECT_USERID}&APIKey=${process.env.CLUBKONNECT_APIKEY}&ElectricCompany=${electricCompany}&MeterType=${meterType}&MeterNo=${meterNo}&Amount=${amountNum}&PhoneNo=${phoneNo}&RequestID=${requestId}`;
-
-    // 3. Kira API
-    const response = await axios.get(url, { timeout: 30000 });
-
-    if (
-      response.data &&
-      (response.data.status === "ORDER_RECEIVED" ||
-        response.data.status === "ORDER_COMPLETED")
-    ) {
-      // 4. Cire kudi (Atomic Update is better, but this is fine for now)
-      user.walletBalance -= amountNum;
-      await user.save();
-
-      // 5. Yi record na Transaction domin nan gaba idan an samu refund
-      await Transaction.create({
-        user: userId,
-        type: "electricity",
-        amount: amountNum,
-        status: "success",
-        reference: response.data.orderid || requestId,
-        details: `Electricity payment for ${meterNo} (${electricCompany})`,
-      });
-
-      res.status(200).json({
-        success: true,
-        message: "Payment Successful",
-        orderId: response.data.orderid,
-        token: response.data.metertoken || "Pending", // Wasu kamfanonin suna bada token nan take
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: response.data.remark || "Transaction failed from provider",
-      });
+    const user = await User.findOne({ email }).select("+password");
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
     }
+
+    sendToken(user, 200, res);
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Payment processing error",
-      error: error.message,
+    res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+// @desc    Get current logged in user (Sabo - Wannan kake nema a routes)
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    res.status(200).json({ success: true, data: user });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// --- Password & Reset Placeholder (Don server ya tashi) ---
+// Idan baka rubuta logic din su ba tukuna, bar su a haka don kar server ya bada error
+exports.forgotPassword = async (req, res) => {
+  res.status(500).json({ message: "Not implemented" });
+};
+exports.resetPassword = async (req, res) => {
+  res.status(500).json({ message: "Not implemented" });
+};
+exports.updatePassword = async (req, res) => {
+  res.status(500).json({ message: "Not implemented" });
+};
+exports.updatePin = async (req, res) => {
+  res.status(500).json({ message: "Not implemented" });
+};
+
+// --- Paystack Dedicated Account Logic ---
+const createDedicatedAccount = async (user) => {
+  try {
+    const customer = await axios.post(
+      "https://api.paystack.co/customer",
+      {
+        email: user.email,
+        first_name: user.name.split(" ")[0] || "User",
+        last_name: user.name.split(" ")[1] || "Ayax",
+        phone: user.phone,
+      },
+      {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      },
+    );
+
+    const account = await axios.post(
+      "https://api.paystack.co/dedicated_account",
+      {
+        customer: customer.data.data.customer_code,
+        preferred_bank: "wema-bank",
+      },
+      {
+        headers: { Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}` },
+      },
+    );
+
+    await User.findByIdAndUpdate(user._id, {
+      paystackCustomerCode: customer.data.data.customer_code,
+      bankName: account.data.data.bank.name,
+      accountNumber: account.data.data.account_number,
+      accountName: account.data.data.account_name,
     });
+  } catch (error) {
+    console.log("Paystack Error:", error.message);
   }
 };

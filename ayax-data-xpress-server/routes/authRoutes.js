@@ -1,40 +1,20 @@
 const express = require("express");
 const router = express.Router();
 
-// Shigo da dukkan ayyukan (functions) daga controller
-const {
-  register,
-  login,
-  getMe,
-  forgotPassword,
-  resetPassword,
-  updatePin,
-  updatePassword,
-} = require("../controllers/authController");
+// Shigo da dukkan ayyukan
+const authController = require("../controllers/authController");
 
-const { protect } = require("../middleware/authMiddleware");
+// Mu duba idan kowane aiki yana nan kafin mu yi amfani da shi
+const register = authController.register;
+const login = authController.login;
+const forgotPassword = authController.forgotPassword;
+const resetPassword = authController.resetPassword;
 
-// --- PUBLIC ROUTES (Kowa zai iya shiga) ---
-
-// URL: /api/v1/auth/register
+// Idan daya daga cikinsu babu shi, Express zai bada wancan error din.
+// Tabbatar kowane daya yana da controller a authController.js
 router.post("/register", register);
-
-// URL: /api/v1/auth/login
 router.post("/login", login);
-
-// Password Recovery
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
-
-// --- PRIVATE ROUTES (Sai wanda ya yi login) ---
-
-// URL: /api/v1/auth/me (Don loda profile da balance)
-router.get("/me", protect, getMe);
-
-// URL: /api/v1/auth/update-password
-router.put("/update-password", protect, updatePassword);
-
-// URL: /api/v1/auth/update-pin (Domin canza transaction PIN)
-router.put("/update-pin", protect, updatePin);
 
 module.exports = router;
