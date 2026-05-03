@@ -61,12 +61,13 @@ const agentRoutes = require("./routes/agentRoutes");
 const leaderRoutes = require("./routes/leaderRoutes");
 const supervisorRoutes = require("./routes/supervisorRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const nimcRoutes = require("./routes/nimcRoutes");
 // Tabbatar sunan fayil din ya dace (idan "superadminRoutes.js" ne, rubuta shi haka)
 const superAdminRoutes = require("./routes/superAdminRoutes");
 // --- ROUTES REGISTRATION ---
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/support", supportRoutes);
-
+app.use("/api/v1/nimc", nimcRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/wallet", walletRoutes);
 app.use("/api/v1/vtu", vtuRoutes);

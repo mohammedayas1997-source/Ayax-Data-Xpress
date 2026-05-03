@@ -197,7 +197,7 @@ const getPendingRefunds = async (req, res) => {
   }
 };
 
-// GWAUBA: Duka ayyukan an fitar dasu anan
+// Duka ayyukan ana fitar dasu anan don amfani a Router
 module.exports = {
   assignTarget,
   getSupervisors,
