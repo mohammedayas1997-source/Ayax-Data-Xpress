@@ -1,5 +1,9 @@
 {
   "dependencies": {
-    "@react-native-picker/picker": "^2.11.4"
+    "@react-native-picker/picker": "^2.11.4",
+    "cloudinary": "^2.10.0",
+    "expo-image-picker": "^55.0.19",
+    "multer": "^2.1.1",
+    "multer-storage-cloudinary": "^4.0.0"
   }
 }
