@@ -9,7 +9,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, "Email is required"],
       unique: true,
-      lowercase: true, // Don gudun kuskure wurin login
+      lowercase: true,
       match: [
         /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
         "Please provide a valid email address",
@@ -24,19 +24,19 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, "Password is required"],
       minlength: 6,
-      select: false, // Wannan zai kare password kar ya fito a queries
+      select: false,
     },
     walletBalance: {
       type: Number,
       default: 0.0,
-      min: [0, "Wallet balance cannot be negative"], // Rigakafi don kar balance ya zama minus
+      min: [0, "Wallet balance cannot be negative"],
     },
     pin: {
       type: String,
       minlength: 4,
       maxlength: 4,
       default: "0000",
-      select: false, // Kare PIN don tsaro
+      select: false,
     },
 
     // PAYSTACK DEDICATED ACCOUNTS
@@ -45,19 +45,29 @@ const UserSchema = new mongoose.Schema(
     accountNumber: { type: String },
     accountName: { type: String },
 
-    // ROLE MANAGEMENT
+    // ROLE MANAGEMENT (An kara 'superadmin' a nan)
     role: {
       type: String,
-      enum: ["user", "agent", "supervisor", "leader", "admin", "support"],
+      enum: [
+        "user",
+        "agent",
+        "supervisor",
+        "leader",
+        "admin",
+        "superadmin",
+        "support",
+      ],
       default: "user",
     },
 
-    // RELATIONSHIPS
+    // RELATIONSHIPS (Hierarchical Structure)
+    // Wanda ya kawo Agent (Supervisor ne)
     assignedSupervisor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
+    // Wanda ya kawo Supervisor (Leader ne)
     assignedLeader: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -67,7 +77,7 @@ const UserSchema = new mongoose.Schema(
     // TARGETS LOGIC
     targets: {
       agentGoal: { type: Number, default: 0 },
-      dataGoal: { type: Number, default: 0 },
+      dataGoal: { type: Number, default: 0 }, // Misali: 500GB
       supervisorGoal: { type: Number, default: 0 },
       currentMonth: { type: String },
     },
@@ -76,23 +86,30 @@ const UserSchema = new mongoose.Schema(
     address: { type: String },
   },
   {
-    timestamps: true, // Wannan zai baka createdAt da updatedAt kai tsaye
+    timestamps: true,
   },
 );
 
-// Password Encryption
+// --- MIDDLEWARES (PASSWORD & PIN ENCRYPTION) ---
+
+// Zamu hada su guri daya don code din ya fi kyau (Optimization)
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  // Hash Password idan aka sauya shi
+  if (this.isModified("password")) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+  }
+
+  // Hash PIN idan aka sauya shi
+  if (this.isModified("pin")) {
+    const salt = await bcrypt.genSalt(10);
+    this.pin = await bcrypt.hash(this.pin, salt);
+  }
+
+  next();
 });
 
-// Hash PIN before saving (For Security)
-UserSchema.pre("save", async function (next) {
-  if (!this.isModified("pin")) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.pin = await bcrypt.hash(this.pin, salt);
-});
+// --- METHODS ---
 
 // Method don duba password
 UserSchema.methods.matchPassword = async function (enteredPassword) {
@@ -104,4 +121,5 @@ UserSchema.methods.matchPin = async function (enteredPin) {
   return await bcrypt.compare(enteredPin, this.pin);
 };
 
-module.exports = mongoose.model("User", UserSchema);
+// Rigakafi don kada wani ya sake gina model din (Dole ga Vercel)
+module.exports = mongoose.models.User || mongoose.model("User", UserSchema);

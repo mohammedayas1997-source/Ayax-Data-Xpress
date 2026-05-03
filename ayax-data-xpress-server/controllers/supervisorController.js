@@ -1,58 +1,115 @@
-const mongoose = require("mongoose");
 const User = require("../models/User");
 const Sale = require("../models/Sale");
+const mongoose = require("mongoose");
 
-// @desc    Get All Supervisors and Overall Network Stats
-// @route   GET /api/v1/leader/dashboard
-// @access  Private/Leader
+// 1. Ganin Agents na Supervisor (getMyAgents)
+exports.getMyAgents = async (req, res) => {
+  try {
+    const agents = await User.find({
+      assignedSupervisor: req.user._id,
+      role: "agent",
+    }).select("firstName surname phone email targets");
+
+    res.status(200).json({ success: true, data: agents });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// 2. Ganin yadda kowane Agent yake kokari (getAgentSalesSummary)
+exports.getAgentSalesSummary = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+
+    const stats = await Sale.aggregate([
+      { $match: { agentId: new mongoose.Types.ObjectId(agentId) } },
+      {
+        $group: {
+          _id: null,
+          totalGB: { $sum: "$dataAmountGB" },
+          totalAmount: { $sum: "$amount" },
+        },
+      },
+    ]);
+
+    const performance =
+      stats.length > 0 ? stats[0] : { totalGB: 0, totalAmount: 0 };
+    res.status(200).json({ success: true, data: performance });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// 3. Ba Agent Target (assignTargetToAgent)
+exports.assignTargetToAgent = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const { dataGoal } = req.body;
+
+    const agent = await User.findOneAndUpdate(
+      { _id: agentId, role: "agent", assignedSupervisor: req.user._id },
+      {
+        $set: {
+          "targets.dataGoal": dataGoal,
+          "targets.currentMonth": new Date().toLocaleString("default", {
+            month: "long",
+          }),
+        },
+      },
+      { new: true },
+    );
+
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        message: "Agent not found or not assigned to you",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Target assigned successfully",
+      targets: agent.targets,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// 4. Leader Dashboard (Wanda ka turo - na bar shi don kariya)
 exports.getLeaderDashboard = async (req, res) => {
   try {
-    // 1. Nemo dukkan Supervisors
-    // Mun yi amfani da .lean() don koda ta yi sauri
     const supervisors = await User.find({ role: "supervisor" })
       .select("surname firstName phone email targets")
       .lean();
 
-    // 2. Kididdigar gaba daya (Network-wide Stats)
     const networkSales = await Sale.aggregate([
       { $group: { _id: null, overallGB: { $sum: "$dataAmountGB" } } },
     ]);
 
     const overallGB = networkSales.length > 0 ? networkSales[0].overallGB : 0;
-
-    // 3. Nemo yawan Agents a dukkan rukunoni
     const totalAgentsCount = await User.countDocuments({ role: "agent" });
 
-    // 4. Optimization: Nemo team sales na kowa a kiran aggregate guda daya (maimakon kiran sa a loop)
     const allTeamSales = await Sale.aggregate([
-      {
-        $group: {
-          _id: "$supervisorId",
-          teamGB: { $sum: "$dataAmountGB" },
-        },
-      },
+      { $group: { _id: "$supervisorId", teamGB: { $sum: "$dataAmountGB" } } },
     ]);
 
-    // Mayar da team sales din zuwa "Map" don mu nemo na kowa cikin sauki
     const salesMap = new Map(
       allTeamSales.map((item) => [String(item._id), item.teamGB]),
     );
 
-    // 5. Shirya bayanan kowane Supervisor
     const supervisorDetails = await Promise.all(
       supervisors.map(async (sup) => {
-        // Nemo nawa ne agents din kowane supervisor
         const myAgentsCount = await User.countDocuments({
           assignedSupervisor: sup._id,
           role: "agent",
         });
-
         return {
           id: sup._id,
           name: `${sup.surname || ""} ${sup.firstName || ""}`.trim(),
           phone: sup.phone,
           teamSize: myAgentsCount,
-          teamPerformance: salesMap.get(String(sup._id)) || 0, // Nemo daga Map dinmu
+          teamPerformance: salesMap.get(String(sup._id)) || 0,
           targetAmount: sup.targets?.dataGoal || 0,
         };
       }),
@@ -72,10 +129,6 @@ exports.getLeaderDashboard = async (req, res) => {
       supervisors: supervisorDetails,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Network Error: Could not fetch leader dashboard data",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };

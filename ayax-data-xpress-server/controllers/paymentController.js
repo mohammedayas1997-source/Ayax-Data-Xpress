@@ -60,3 +60,19 @@ exports.paystackWebhook = async (req, res) => {
     res.status(200).send("Error occurred but webhook acknowledged");
   }
 };
+// controllers/paymentController.js
+
+exports.handlePaystackWebhook = async (req, res) => {
+  try {
+    // Paystack zai turo event a cikin req.body
+    const event = req.body;
+    console.log("Paystack Webhook Received:", event.event);
+
+    // Nan gaba za ka sa koda ta biyan kudi (Funding Wallet)
+
+    res.status(200).send("Webhook Received");
+  } catch (error) {
+    console.error("Webhook Error:", error.message);
+    res.status(500).json({ message: "Webhook Error" });
+  }
+};

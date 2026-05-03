@@ -5,15 +5,12 @@ const router = express.Router();
 const { protect, authorize } = require("../middleware/authMiddleware");
 
 // 2. Controllers
-const vtuController = require("../controllers/vtuController");
+// Tabbatar sunayen fayilolin sun yi daidai da yadda suke a folder (Case-sensitive)
 const adminController = require("../controllers/adminController");
 const dataPlanController = require("../controllers/dataPlanController");
-// Na kara Notification controller don routes dinka su yi kyau
 const notificationController = require("../controllers/notificationController");
 
-// --- ADMIN ROUTES (Private/Admin Only) ---
-
-// Duk wani route da yake karkashin wannan, sai Admin ne kawai zai iya taba shi
+// --- ADMIN ROUTES ---
 router.use(protect);
 router.use(authorize("admin"));
 
@@ -23,14 +20,14 @@ router.get("/all-notifications", notificationController.getNotifications);
 
 // 2. Data Plan & Pricing
 router.post("/set-plan", dataPlanController.setPlanPrice);
-router.get("/get-plans", dataPlanController.getPlans); // Don Admin ya ga duka plans din
+router.get("/get-plans", dataPlanController.getPlans);
 
-// 3. User & Role Management
-router.get("/users", vtuController.getAllUsers);
-router.put("/update-role", vtuController.updateUserRole);
-router.put("/suspend-user/:id", adminController.suspendUser); // Kar ka manta da wannan don tsaro!
+// 3. User & Role Management (An dawo da su karkashin adminController domin sune a ciki)
+router.get("/users", adminController.getAllUsers);
+router.put("/update-role", adminController.updateUserRole);
+router.put("/suspend-user/:id", adminController.suspendUser);
 
-// 4. Hierarchy Management (Supervisors & Agents)
+// 4. Hierarchy Management
 router.get("/supervisors", adminController.getSupervisors);
 router.get("/agents", adminController.getAgents);
 router.put("/assign-target", adminController.assignTarget);

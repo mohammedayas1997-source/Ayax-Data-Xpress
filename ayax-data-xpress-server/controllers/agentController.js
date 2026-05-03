@@ -1,34 +1,21 @@
-const mongoose = require("mongoose"); // Na kara wannan don ObjectId
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const Sale = require("../models/Sale");
 
-// @desc    Get Agent performance and potential bonus
-// @route   GET /api/v1/agent/my-performance
+// 1. Get Agent performance
 exports.getAgentPerformance = async (req, res) => {
   try {
     const agentId = req.user._id;
 
-    // MUHIMMI: Tabbatar da agentId ya zama ObjectId don Aggregate yayi aiki lafiya
-    const agentObjectId = new mongoose.Types.ObjectId(agentId);
-
-    const agent = await User.findById(agentId);
-
-    if (!agent) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Agent not found" });
-    }
-
-    // Lissafin farkon wata (1st of the current month)
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    // Aggregate don lissafin tallace-tallace
+    // Amfani da mongoose.Types.ObjectId ba tare da "new" ba idan ya zama dole
     const monthlySales = await Sale.aggregate([
       {
         $match: {
-          agentId: agentObjectId, // Mun yi amfani da ObjectId a nan
+          agentId: new mongoose.Types.ObjectId(agentId),
           createdAt: { $gte: startOfMonth },
         },
       },
@@ -46,39 +33,55 @@ exports.getAgentPerformance = async (req, res) => {
         ? monthlySales[0]
         : { totalGB: 0, totalSalesValue: 0 };
 
-    let bonusAmount = 0;
-
-    // Safety check don targets
-    const dataGoal = agent.targets?.dataGoal || 0;
-    const targetMet = performance.totalGB >= dataGoal;
-
-    if (targetMet && performance.totalGB > 0) {
-      // 5% bonus logic
-      bonusAmount = performance.totalSalesValue * 0.05;
-    }
-
-    res.status(200).json({
-      success: true,
-      data: {
-        targets: agent.targets || { dataGoal: 0, agentGoal: 0 },
-        currentProgress: {
-          totalGB: performance.totalGB,
-          totalSales: performance.totalSalesValue,
-        },
-        bonusStatus: {
-          isTargetMet: targetMet,
-          potentialBonus: bonusAmount,
-          instruction: targetMet
-            ? "Target achieved! Your bonus will be credited at the end of the month."
-            : `Sell ${(dataGoal - performance.totalGB).toFixed(2)}GB more to unlock your bonus.`,
-        },
-      },
-    });
+    res.status(200).json({ success: true, data: performance });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error fetching performance data",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 2. Get Sales History
+exports.getAgentSalesHistory = async (req, res) => {
+  try {
+    const sales = await Sale.find({ agentId: req.user._id }).sort("-createdAt");
+    res.status(200).json({ success: true, data: sales });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 3. Get Supervisor Info
+exports.getMySupervisor = async (req, res) => {
+  try {
+    // MUHIMMI: Tabbatar field din a User Model sunansa "assignedSupervisor" ko "supervisorId"
+    const agent = await User.findById(req.user._id).populate(
+      "assignedSupervisor",
+      "name phone",
+    );
+
+    // Idan baka tabbatar da sunan field din ba, duba User Model dinka
+    const supervisor =
+      agent.assignedSupervisor ||
+      agent.supervisorId ||
+      "No supervisor assigned";
+
+    res.status(200).json({ success: true, data: supervisor });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// 4. Placeholders don kariya daga crash
+exports.createAgent = async (req, res) => {
+  res.status(201).json({ success: true, message: "Agent creation endpoint" });
+};
+
+exports.getAgents = async (req, res) => {
+  try {
+    const agents = await User.find({ role: "agent" }).select(
+      "name email phone",
+    );
+    res.status(200).json({ success: true, data: agents });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

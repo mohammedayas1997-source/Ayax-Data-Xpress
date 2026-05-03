@@ -1,13 +1,17 @@
 const User = require("../models/User");
-const { Parser } = require("json2csv");
 const TargetHistory = require("../models/TargetHistory");
 const mongoose = require("mongoose");
 
 // @desc    Leader assigns target to a Supervisor
-// @route   POST /api/v1/leader/assign-target
 exports.assignSupervisorTarget = async (req, res) => {
   try {
     const { supervisorId, dataGoal, agentGoal, month } = req.body;
+
+    if (!supervisorId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Please provide supervisorId" });
+    }
 
     const supervisor = await User.findOne({
       _id: supervisorId,
@@ -20,24 +24,23 @@ exports.assignSupervisorTarget = async (req, res) => {
         .json({ success: false, message: "Supervisor not found" });
     }
 
-    // Safety check don targets object
-    if (!supervisor.targets) supervisor.targets = {};
+    // Amfani da "obj || {}" don gujewa "undefined" errors
+    const currentTargets = supervisor.targets || {};
 
-    supervisor.targets.dataGoal = dataGoal || supervisor.targets.dataGoal || 0;
-    supervisor.targets.agentGoal =
-      agentGoal || supervisor.targets.agentGoal || 0;
-    supervisor.targets.currentMonth =
-      month ||
-      supervisor.targets.currentMonth ||
-      new Date().toLocaleString("default", { month: "long" });
+    supervisor.targets = {
+      dataGoal: Number(dataGoal) || currentTargets.dataGoal || 0,
+      agentGoal: Number(agentGoal) || currentTargets.agentGoal || 0,
+      currentMonth:
+        month || new Date().toLocaleString("en-US", { month: "long" }),
+    };
 
     supervisor.assignedLeader = req.user._id;
-
+    supervisor.markModified("targets");
     await supervisor.save();
 
     res.status(200).json({
       success: true,
-      message: `Target assigned successfully`,
+      message: "Target assigned successfully",
       targets: supervisor.targets,
     });
   } catch (error) {
@@ -45,7 +48,7 @@ exports.assignSupervisorTarget = async (req, res) => {
   }
 };
 
-// @desc    Download Report as CSV
+// @desc    Download Report as CSV (Simple Version to avoid json2csv crash)
 exports.downloadSupervisorReport = async (req, res) => {
   try {
     const { supervisorId } = req.params;
@@ -53,47 +56,31 @@ exports.downloadSupervisorReport = async (req, res) => {
       .sort("-createdAt")
       .lean();
 
-    if (!history.length) {
+    if (!history || history.length === 0) {
       return res
         .status(404)
         .json({ success: false, message: "No history found" });
     }
 
-    const fields = [
-      "month",
-      "dataGoal",
-      "achievedData",
-      "agentGoal",
-      "achievedAgents",
-      "status",
-    ];
-    const parser = new Parser({ fields });
-    const csv = parser.parse(history);
-
-    res.header("Content-Type", "text/csv");
-    res.attachment(`Report_${supervisorId}.csv`);
-    return res.send(csv);
+    // Idan baka bukatar CSV yanzu-yanzu, turo JSON kawai don mu ga server ta tashi
+    res.status(200).json({ success: true, data: history });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 };
 
-// @desc    Toggle Supervisor Status (Active/Suspended)
+// @desc    Toggle Supervisor Status
 exports.toggleSupervisorStatus = async (req, res) => {
   try {
-    const { supervisorId } = req.params;
-    const user = await User.findById(supervisorId);
-
+    const user = await User.findById(req.params.supervisorId);
     if (!user)
       return res.status(404).json({ success: false, message: "Not found" });
 
     user.isSuspended = !user.isSuspended;
     await user.save();
-
-    res.json({
-      success: true,
-      message: `Supervisor is now ${user.isSuspended ? "Suspended" : "Active"}`,
-    });
+    res
+      .status(200)
+      .json({ success: true, message: `Status: ${user.isSuspended}` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -102,13 +89,8 @@ exports.toggleSupervisorStatus = async (req, res) => {
 // @desc    Create New Supervisor
 exports.createNewSupervisor = async (req, res) => {
   try {
-    const { name, email, phone, password, address } = req.body;
     const newSup = await User.create({
-      name,
-      email,
-      phone,
-      password,
-      address,
+      ...req.body,
       role: "supervisor",
       assignedLeader: req.user._id,
     });
@@ -121,41 +103,25 @@ exports.createNewSupervisor = async (req, res) => {
 // @desc    Get Detailed Stats for Leader Dashboard
 exports.getLeaderDashboard = async (req, res) => {
   try {
-    const leaderId = new mongoose.Types.ObjectId(req.user._id);
-
     const supervisors = await User.find({
       role: "supervisor",
-      assignedLeader: leaderId,
+      assignedLeader: req.user._id,
     }).lean();
-
     const supDetails = await Promise.all(
       supervisors.map(async (sup) => {
         const agentsCount = await User.countDocuments({
           role: "agent",
           assignedSupervisor: sup._id,
         });
-
         return {
           id: sup._id,
           name: sup.name,
-          phone: sup.phone,
-          isSuspended: sup.isSuspended,
           teamSize: agentsCount,
-          targets: sup.targets || {},
+          targets: sup.targets || { dataGoal: 0, agentGoal: 0 },
         };
       }),
     );
-
-    const totalAgentsCount = await User.countDocuments({ role: "agent" });
-
-    res.status(200).json({
-      success: true,
-      networkStats: {
-        totalSupervisors: supervisors.length,
-        totalAgents: totalAgentsCount,
-      },
-      supervisors: supDetails,
-    });
+    res.status(200).json({ success: true, supervisors: supDetails });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -164,21 +130,16 @@ exports.getLeaderDashboard = async (req, res) => {
 // @desc    Assign Agent to Supervisor
 exports.assignAgentToSupervisor = async (req, res) => {
   try {
-    const { agentId, supervisorId } = req.body;
     const agent = await User.findOneAndUpdate(
-      { _id: agentId, role: "agent" },
-      { assignedSupervisor: supervisorId },
+      { _id: req.body.agentId, role: "agent" },
+      { assignedSupervisor: req.body.supervisorId },
       { new: true },
     );
-
     if (!agent)
       return res
         .status(404)
         .json({ success: false, message: "Agent not found" });
-
-    res
-      .status(200)
-      .json({ success: true, message: "Agent assigned successfully" });
+    res.status(200).json({ success: true, message: "Assigned" });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -189,9 +150,7 @@ exports.getAllAgents = async (req, res) => {
   try {
     const agents = await User.find({ role: "agent" })
       .populate("assignedSupervisor", "name")
-      .select("name phone assignedSupervisor")
       .lean();
-
     res.status(200).json({ success: true, agents });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

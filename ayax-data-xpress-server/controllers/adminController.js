@@ -47,7 +47,7 @@ const assignTarget = async (req, res) => {
   }
 };
 
-// @desc    Fetch all Supervisors for Admin overview
+// @desc    Fetch all Supervisors
 const getSupervisors = async (req, res) => {
   try {
     const supervisors = await User.find({ role: "supervisor" })
@@ -60,11 +60,7 @@ const getSupervisors = async (req, res) => {
       data: supervisors,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch supervisors",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -81,15 +77,11 @@ const getAgents = async (req, res) => {
       data: agents,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Error retrieving agents list",
-      error: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Approve refund and log finalization
+// @desc    Approve refund
 const approveRefund = async (req, res) => {
   try {
     const transaction = await Transaction.findById(req.params.id);
@@ -97,7 +89,7 @@ const approveRefund = async (req, res) => {
     if (!transaction || transaction.status !== "pending-refund") {
       return res.status(400).json({
         success: false,
-        message: "No pending refund request found for this transaction",
+        message: "No pending refund request found",
       });
     }
 
@@ -105,13 +97,12 @@ const approveRefund = async (req, res) => {
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User for this transaction not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    // Atomic update
+    // Process Refund
     user.walletBalance += Number(transaction.amount);
     transaction.status = "refunded";
     transaction.approvedBy = req.user._id;
@@ -120,88 +111,101 @@ const approveRefund = async (req, res) => {
     await user.save();
     await transaction.save();
 
+    // Log activity
     await Activity.create({
       staffId: req.user._id,
       action: "REFUND_APPROVED",
-      details: `Approved refund of ${transaction.amount} for Transaction ${transaction._id}`,
+      details: `Refunded ${transaction.amount} for TX: ${transaction._id}`,
       targetUser: user._id,
     });
 
-    res.status(200).json({
-      success: true,
-      message: "Refund approved and activity logged",
-    });
+    res.status(200).json({ success: true, message: "Refund approved" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get all users for Admin
+// @desc    Get all users
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find().select("-password").sort({ createdAt: -1 });
-    res.status(200).json({
-      success: true,
-      count: users.length,
-      data: users,
-    });
+    res.status(200).json({ success: true, count: users.length, data: users });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Update User Role
+// @desc    Update Role
 const updateUserRole = async (req, res) => {
   try {
     const { userId, role } = req.body;
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { role },
-      { new: true, runValidators: true },
-    );
-
-    if (!user) {
+    const user = await User.findByIdAndUpdate(userId, { role }, { new: true });
+    if (!user)
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: `User role updated to ${role}`,
-      data: user,
-    });
+    res.status(200).json({ success: true, data: user });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// @desc    Get support activities
+// @desc    Suspend User
+const suspendUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+
+    user.status = user.status === "suspended" ? "active" : "suspended";
+    await user.save();
+
+    res
+      .status(200)
+      .json({ success: true, message: `User is now ${user.status}` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get activities
 const getSupportActivities = async (req, res) => {
   try {
     const activities = await Activity.find()
       .populate("staffId", "surname firstName email")
       .populate("targetUser", "surname firstName phone")
       .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: activities.length,
-      data: activities,
-    });
+    res.status(200).json({ success: true, data: activities });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// --- Standardized Export Block ---
-// MUN GYARA NAN: Dole dukkan ayyukan su fito ta nan
+// @desc    Get pending refunds
+const getPendingRefunds = async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ status: "pending-refund" })
+      .populate("user", "surname firstName phone")
+      .sort({ createdAt: -1 });
+    res
+      .status(200)
+      .json({ success: true, count: transactions.length, data: transactions });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// GWAUBA: Duka ayyukan an fitar dasu anan
 module.exports = {
   assignTarget,
   getSupervisors,
   getAgents,
   approveRefund,
+  getAllUsers,
+  updateUserRole,
+  suspendUser,
   getSupportActivities,
-  getAllUsers, // Na kara wannan
-  updateUserRole, // Na kara wannan
+  getPendingRefunds,
 };
