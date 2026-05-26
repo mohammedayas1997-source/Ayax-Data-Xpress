@@ -126,7 +126,7 @@ const LoginScreen = ({ navigation }) => {
 
     // Zaɓi URL dangane da wanda yake login (User ko Supervisor)
     const loginUrl = isSupervisor
-      ? "https://ayax-data-xpress-server.onrender.com/api/v1/supervisor/login"
+      ? "https://ayax-data-xpress-server.onrender.com/api/v1/auth/supervisor-login"
       : "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login";
 
     try {
