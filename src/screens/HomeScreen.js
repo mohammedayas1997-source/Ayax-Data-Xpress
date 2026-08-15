@@ -54,7 +54,6 @@ const HomeScreen = ({ navigation }) => {
       });
 
       if (response.data && response.data.success) {
-        // Centralized data object to prevent "Undefined" errors
         setUserData(response.data.user || response.data.data);
       }
     } catch (err) {
@@ -123,14 +122,14 @@ const HomeScreen = ({ navigation }) => {
             </View>
             <TouchableOpacity
               onPress={(e) => {
-                e.stopPropagation(); // Wannan yana dakatar da event ɗin daga isa ga sauran abubuwa
-                navigation.navigate("Notifications"); // Ko kuma sunan shafin naka
+                e.stopPropagation();
+                navigation.navigate("Notifications");
               }}
             >
               <Ionicons
                 name="notifications-outline"
                 size={28}
-                color="#0f172a"
+                color={isDarkMode ? "#fff" : "#0f172a"}
               />
             </TouchableOpacity>
           </View>
@@ -215,50 +214,33 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </LinearGradient>
 
-          {/* 2. Funding Accounts Section - REAL LIVE DATA */}
+          {/* 2. Quick Funding Options Section */}
           <Text
             style={[
               styles.sectionLabel,
               { color: isDarkMode ? "#fff" : "#1e293b" },
             ]}
           >
-            Automatic Funding Accounts
+            Quick Wallet Funding
           </Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.bankScroll}
           >
-            {userData?.accountNumber ? (
-              <BankCard
-                bank={userData.bankName || "Wema Bank"}
-                acc={userData.accountNumber}
-                code="WB"
-                onCopy={() => copyToClipboard(userData.accountNumber)}
-              />
-            ) : (
-              <BankCard
-                bank="Initializing..."
-                acc="Generating Account"
-                code=".."
-                onCopy={() =>
-                  Alert.alert(
-                    "Wait",
-                    "Your unique virtual account is being provisioned.",
-                  )
-                }
-              />
-            )}
-            <BankCard
-              bank="Paystack Terminal"
-              acc="Automated Funding"
-              code="PAY"
-              onCopy={() =>
-                Alert.alert(
-                  "Note",
-                  "Transfer to the Wema account for instant wallet credit.",
-                )
-              }
+            <FundingCard
+              title="Automated Bank Transfer"
+              desc="Instant deposit via your assigned bank"
+              icon="card"
+              color="#38bdf8"
+              onPress={() => navigation.navigate("FundWallet")}
+            />
+            <FundingCard
+              title="Online Payment Gateway"
+              desc="Fund instantly using Card / USSD"
+              icon="flash"
+              color="#22c55e"
+              onPress={() => navigation.navigate("FundWallet")}
             />
           </ScrollView>
 
@@ -271,7 +253,12 @@ const HomeScreen = ({ navigation }) => {
           >
             Our Services
           </Text>
-          <View style={styles.servicesContainer}>
+          <View
+            style={[
+              styles.servicesContainer,
+              { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+            ]}
+          >
             <View style={styles.grid}>
               <ServiceItem
                 icon="wifi"
@@ -326,6 +313,7 @@ const HomeScreen = ({ navigation }) => {
                 icon="shield-alt"
                 color="#1e40af"
                 label="NIN Valid"
+                isDarkMode={isDarkMode}
                 onPress={() => navigation.navigate("NINValidation")}
               />
               <ServiceItem
@@ -372,7 +360,12 @@ const HomeScreen = ({ navigation }) => {
       </ImageBackground>
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomTab}>
+      <View
+        style={[
+          styles.bottomTab,
+          { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+        ]}
+      >
         <TabItem icon="home" label="Home" active onPress={() => {}} />
         <TabItem
           icon="time-outline"
@@ -397,24 +390,29 @@ const HomeScreen = ({ navigation }) => {
 };
 
 // Sub-Components
-const BankCard = ({ bank, acc, code, onCopy }) => (
-  <TouchableOpacity style={styles.bankBox} onPress={onCopy}>
+const FundingCard = ({ title, desc, icon, color, onPress }) => (
+  <TouchableOpacity style={styles.bankBox} onPress={onPress}>
     <View style={styles.bankInfo}>
-      <View style={styles.bankLogoCircle}>
-        <Text style={styles.bankLogoText}>{code}</Text>
+      <View style={[styles.bankLogoCircle, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon} size={20} color={color} />
       </View>
-      <View>
-        <Text style={styles.bankTitle}>{bank}</Text>
-        <Text style={styles.accNo}>{acc}</Text>
+      <View style={{ flex: 1, paddingRight: 5 }}>
+        <Text style={styles.bankTitle}>{title}</Text>
+        <Text style={styles.accNo} numberOfLines={1}>{desc}</Text>
       </View>
     </View>
-    <Ionicons name="copy-outline" size={18} color="#1e40af" />
+    <Ionicons name="chevron-forward" size={18} color="#1e40af" />
   </TouchableOpacity>
 );
 
 const ServiceItem = ({ icon, label, color, onPress, isDarkMode }) => (
   <TouchableOpacity style={styles.gridItem} onPress={onPress}>
-    <View style={styles.iconBox}>
+    <View
+      style={[
+        styles.iconBox,
+        { backgroundColor: isDarkMode ? "#1e293b" : "#f8fafc" },
+      ]}
+    >
       <FontAwesome5 name={icon} size={20} color={color} />
     </View>
 
@@ -454,7 +452,6 @@ const TabItem = ({ icon, label, active, onPress }) => (
   </TouchableOpacity>
 );
 
-// Styles are consistent with your design
 const styles = StyleSheet.create({
   mainContainer: { flex: 1, backgroundColor: "#f8fafc" },
   backgroundImage: { flex: 1, width: "100%", height: "100%" },
@@ -545,7 +542,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#1e40af",
   },
-  bankInfo: { flexDirection: "row", alignItems: "center" },
+  bankInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
   bankLogoCircle: {
     width: 38,
     height: 38,
@@ -555,9 +552,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
-  bankLogoText: { color: "#1e40af", fontWeight: "bold", fontSize: 12 },
-  bankTitle: { fontSize: 12, color: "#64748b" },
-  accNo: { fontSize: 17, color: "#0f172a", fontWeight: "bold" },
+  bankTitle: { fontSize: 11, color: "#64748b", fontWeight: "600" },
+  accNo: { fontSize: 13, color: "#0f172a", fontWeight: "bold" },
   servicesContainer: {
     borderRadius: 28,
     padding: 20,
@@ -599,7 +595,7 @@ const styles = StyleSheet.create({
   footerBranding: {
     marginTop: 30,
     paddingBottom: 40,
-    backgroundColor: "#f8fafc",
+    backgroundColor: "transparent",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     paddingTop: 20,

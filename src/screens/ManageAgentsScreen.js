@@ -10,10 +10,12 @@ import {
 } from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { API_URL } from "../constants";
 
-const ManageAgentsScreen = () => {
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
+const ManageAgentsScreen = ({ navigation }) => {
   const [agents, setAgents] = useState([]);
   const [supervisors, setSupervisors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,14 +27,32 @@ const ManageAgentsScreen = () => {
 
   const fetchData = async () => {
     try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+      };
+
       const [agentsRes, supsRes] = await Promise.all([
-        axios.get(`${API_URL}/leader/all-agents`), // Ka tabbatar kana da wannan route din
-        axios.get(`${API_URL}/leader/dashboard`), // Don samun list na supervisors
+        axios.get(`${BASE_URL}/leader/all-agents`, config),
+        axios.get(`${BASE_URL}/leader/dashboard`, config),
       ]);
-      setAgents(agentsRes.data.agents);
-      setSupervisors(supsRes.data.supervisors);
+
+      setAgents(agentsRes.data.agents || agentsRes.data.data || []);
+      const supList = supsRes.data.supervisors || supsRes.data.data?.supervisors || [];
+      setSupervisors(supList);
     } catch (error) {
-      Alert.alert("Error", "Could not fetch agents or supervisors");
+      if (error.response && error.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Fetch Agents Error:", error);
+        Alert.alert("Error", "Could not fetch agents or supervisors");
+      }
     } finally {
       setLoading(false);
     }
@@ -45,12 +65,19 @@ const ManageAgentsScreen = () => {
     }
 
     try {
-      const response = await axios.post(`${API_URL}/leader/assign-agent`, {
-        agentId,
-        supervisorId,
-      });
+      const token = await AsyncStorage.getItem("userToken");
+      const config = { headers: { Authorization: `Bearer ${token}` } };
 
-      if (response.data.success) {
+      const response = await axios.post(
+        `${BASE_URL}/leader/assign-agent`,
+        {
+          agentId,
+          supervisorId,
+        },
+        config
+      );
+
+      if (response.data.success || response.data) {
         Alert.alert("Success", "Agent reassigned successfully");
         fetchData(); // Refresh list
       }
@@ -59,57 +86,68 @@ const ManageAgentsScreen = () => {
     }
   };
 
-  const renderAgent = ({ item }) => (
-    <View style={styles.agentCard}>
-      <View style={styles.agentHeader}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <FontAwesome5 name="user-alt" size={20} color="#1e3a8a" />
-          <View style={{ marginLeft: 12 }}>
-            <Text style={styles.agentName}>{item.name}</Text>
-            <Text style={styles.agentPhone}>{item.phone}</Text>
+  const renderAgent = ({ item }) => {
+    const agentId = item._id || item.id;
+    return (
+      <View style={styles.agentCard}>
+        <View style={styles.agentHeader}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <FontAwesome5 name="user-alt" size={20} color="#1e3a8a" />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.agentName}>
+                {item.name || `${item.firstName || ""} ${item.surname || ""}`}
+              </Text>
+              <Text style={styles.agentPhone}>{item.phone || item.phoneNumber}</Text>
+            </View>
           </View>
+          <MaterialIcons
+            name="verified"
+            size={20}
+            color={item.assignedSupervisor ? "#22c55e" : "#94a3b8"}
+          />
         </View>
-        <MaterialIcons
-          name="verified"
-          size={20}
-          color={item.assignedSupervisor ? "#22c55e" : "#94a3b8"}
-        />
-      </View>
 
-      <Text style={styles.currentSup}>
-        Current Supervisor:{" "}
-        <Text style={{ fontWeight: "bold", color: "#d4af37" }}>
-          {item.assignedSupervisor?.name || "Unassigned"}
+        <Text style={styles.currentSup}>
+          Current Supervisor:{" "}
+          <Text style={{ fontWeight: "bold", color: "#d4af37" }}>
+            {item.assignedSupervisor?.name || item.assignedSupervisor?.firstName || "Unassigned"}
+          </Text>
         </Text>
-      </Text>
 
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={selectedSupervisor[item._id]}
-          onValueChange={(value) =>
-            setSelectedSupervisor({ ...selectedSupervisor, [item._id]: value })
-          }
-          style={styles.picker}
-        >
-          <Picker.Item label="Select New Supervisor..." value="" />
-          {supervisors.map((sup) => (
-            <Picker.Item key={sup.id} label={sup.name} value={sup.id} />
-          ))}
-        </Picker>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={selectedSupervisor[agentId]}
+            onValueChange={(value) =>
+              setSelectedSupervisor({ ...selectedSupervisor, [agentId]: value })
+            }
+            style={styles.picker}
+          >
+            <Picker.Item label="Select New Supervisor..." value="" />
+            {supervisors.map((sup) => (
+              <Picker.Item
+                key={sup.id || sup._id}
+                label={sup.name || `${sup.firstName || ""} ${sup.surname || ""}`}
+                value={sup.id || sup._id}
+              />
+            ))}
+          </Picker>
 
-        <TouchableOpacity
-          style={styles.transferBtn}
-          onPress={() => handleAssign(item._id, selectedSupervisor[item._id])}
-        >
-          <MaterialIcons name="swap-horiz" size={24} color="white" />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.transferBtn}
+            onPress={() => handleAssign(agentId, selectedSupervisor[agentId])}
+          >
+            <MaterialIcons name="swap-horiz" size={24} color="white" />
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   if (loading)
     return (
-      <ActivityIndicator size="large" color="#1e3a8a" style={{ flex: 1 }} />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f1f5f9" }}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
+      </View>
     );
 
   return (
@@ -123,7 +161,7 @@ const ManageAgentsScreen = () => {
 
       <FlatList
         data={agents}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         renderItem={renderAgent}
         contentContainerStyle={{ padding: 15 }}
       />

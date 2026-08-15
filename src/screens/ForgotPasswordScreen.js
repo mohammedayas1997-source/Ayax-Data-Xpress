@@ -15,6 +15,8 @@ import {
 import axios from "axios";
 import { Ionicons } from "@expo/vector-icons";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -39,14 +41,15 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Points to your production-ready API endpoint
+      // Points to your production-ready Render API endpoint
       const response = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/auth/forgot-password",
+        `${BASE_URL}/auth/forgot-password`,
         { email },
         { timeout: 15000 }, // 15 second timeout for slow connections
       );
 
-      if (response.data.success || response.status === 200) {
+      const result = response.data;
+      if (result.success || response.status === 200) {
         Alert.alert(
           "Check Your Inbox",
           "If an account exists with that email, you will receive password reset instructions shortly.",
@@ -56,6 +59,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
     } catch (error) {
       const errorMessage =
         error.response?.data?.message ||
+        error.message ||
         "Unable to connect to the server. Please check your internet and try again.";
       Alert.alert("Request Failed", errorMessage);
     } finally {

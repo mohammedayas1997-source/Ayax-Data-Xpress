@@ -7,38 +7,69 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import axios from "axios";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const ProfileScreen = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Amfani da useFocusEffect domin Refreshing automatic idan an dawo daga Edit Profile
+  // Amfani da useFocusEffect domin Refreshing automatic daga sabar idan an dawo daga Edit Profile
   useFocusEffect(
     useCallback(() => {
-      const fetchUser = async () => {
-        try {
-          const jsonValue = await AsyncStorage.getItem("userData");
-          if (jsonValue != null) {
-            setUserData(JSON.parse(jsonValue));
-          }
-        } catch (e) {
-          console.error("Critical: Error synchronizing profile data:", e);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchUser();
-    }, []),
+      fetchUserProfile();
+    }, [])
   );
+
+  const fetchUserProfile = async () => {
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      // Dauko sabbin bayanai daga sabar
+      const response = await axios.get(`${BASE_URL}/auth/profile`, config);
+      const user = response.data.user || response.data.data || response.data;
+
+      if (user) {
+        setUserData(user);
+        // Sabunta a cikin AsyncStorage
+        await AsyncStorage.setItem("userData", JSON.stringify(user));
+      }
+    } catch (e) {
+      if (e.response && e.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Error fetching profile from server:", e);
+        // Idan akwai matsala tanetwork, gwada dauka daga AsyncStorage
+        try {
+          const cachedValue = await AsyncStorage.getItem("userData");
+          if (cachedValue != null) {
+            setUserData(JSON.parse(cachedValue));
+          }
+        } catch (cacheErr) {
+          console.error("Error reading cache:", cacheErr);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color="#1e3a8a" />
       </View>
     );
@@ -60,7 +91,7 @@ const ProfileScreen = ({ navigation }) => {
           )}
         </View>
         <Text style={styles.name}>
-          {userData?.firstName} {userData?.surname}
+          {userData?.firstName || ""} {userData?.surname || userData?.lastName || ""}
         </Text>
         <Text style={styles.email}>{userData?.email}</Text>
       </View>
@@ -75,18 +106,18 @@ const ProfileScreen = ({ navigation }) => {
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Primary Contact</Text>
               <Text style={styles.infoValue}>
-                {userData?.phone || "Not Configured"}
+                {userData?.phone || userData?.phoneNumber || "Not Configured"}
               </Text>
             </View>
           </View>
 
-          {/* Date of Birth Field - SABO */}
+          {/* Date of Birth Field */}
           <View style={styles.infoItem}>
             <Ionicons name="calendar-outline" size={20} color="#1e3a8a" />
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Date of Birth</Text>
               <Text style={styles.infoValue}>
-                {userData?.dob || "Not Provided"}
+                {userData?.dob ? new Date(userData.dob).toLocaleDateString() : "Not Provided"}
               </Text>
             </View>
           </View>

@@ -9,27 +9,65 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const AssignTargetScreen = ({ navigation }) => {
+  const [loading, setLoading] = useState(false);
   const [targetData, setTargetData] = useState({
-    supervisorName: "Sir Idris Bapetel", // Wannan zai iya zuwa daga dropdown a gaba
+    supervisorId: "65e4a1b2c3d4e5f6a7b8c9d1", // Za a iya canza shi idan akwai picker
+    supervisorName: "Sir Idris Bapetel",
     agentGoal: "",
     dataGoal: "",
-    month: "April 2026",
+    month: "August 2026",
   });
 
-  const handleAssign = () => {
+  const handleAssign = async () => {
     if (!targetData.agentGoal || !targetData.dataGoal) {
       return Alert.alert("Required", "Don Allah cika dukkan bayanan target.");
     }
 
-    // A nan ne zamu kira API din Backend a gaba
-    Alert.alert(
-      "Target Set!",
-      `An bawa ${targetData.supervisorName} target din register agents ${targetData.agentGoal} da kuma sayar da ${targetData.dataGoal}GB a watan ${targetData.month}.`,
-      [{ text: "OK", onPress: () => navigation.goBack() }],
-    );
+    try {
+      setLoading(true);
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        setLoading(false);
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
+      const payload = {
+        supervisorId: targetData.supervisorId,
+        agentGoal: Number(targetData.agentGoal),
+        dataGoal: Number(targetData.dataGoal),
+        month: targetData.month,
+      };
+
+      await axios.post(`${BASE_URL}/admin/assign-target`, payload, config);
+
+      Alert.alert(
+        "Target Set Successfully!",
+        `An bawa ${targetData.supervisorName} target din register agents ${targetData.agentGoal} da kuma sayar da ${targetData.dataGoal}GB a watan ${targetData.month}.`,
+        [{ text: "OK", onPress: () => navigation.goBack() }]
+      );
+    } catch (err) {
+      console.error("Assign Target Error:", err);
+      const errorMsg = err.response?.data?.message || "Kuskure wajen tura bayanan target zuwa server.";
+      Alert.alert("Error", errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -44,7 +82,7 @@ const AssignTargetScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.formCard}>
-          {/* Supervisor Selection (Static for now) */}
+          {/* Supervisor Selection */}
           <Text style={styles.label}>Selected Supervisor</Text>
           <View style={styles.readOnlyBox}>
             <Text style={styles.readOnlyText}>{targetData.supervisorName}</Text>
@@ -57,6 +95,7 @@ const AssignTargetScreen = ({ navigation }) => {
               style={styles.input}
               placeholder="e.g. 10"
               keyboardType="numeric"
+              placeholderTextColor="#94a3b8"
               value={targetData.agentGoal}
               onChangeText={(text) =>
                 setTargetData({ ...targetData, agentGoal: text })
@@ -72,6 +111,7 @@ const AssignTargetScreen = ({ navigation }) => {
               style={styles.input}
               placeholder="e.g. 100"
               keyboardType="numeric"
+              placeholderTextColor="#94a3b8"
               value={targetData.dataGoal}
               onChangeText={(text) =>
                 setTargetData({ ...targetData, dataGoal: text })
@@ -86,13 +126,22 @@ const AssignTargetScreen = ({ navigation }) => {
             <Text style={styles.readOnlyText}>{targetData.month}</Text>
           </View>
 
-          <TouchableOpacity style={styles.assignBtn} onPress={handleAssign}>
-            <Text style={styles.assignBtnText}>ACTIVATE TARGET</Text>
+          <TouchableOpacity
+            style={styles.assignBtn}
+            onPress={handleAssign}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.assignBtnText}>ACTIVATE TARGET</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.cancelBtn}
             onPress={() => navigation.goBack()}
+            disabled={loading}
           >
             <Text style={styles.cancelBtnText}>Cancel</Text>
           </TouchableOpacity>

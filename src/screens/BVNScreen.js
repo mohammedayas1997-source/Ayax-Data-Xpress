@@ -16,6 +16,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const VerificationScreen = ({ navigation }) => {
   const [view, setView] = useState("list");
   const [selectedTask, setSelectedTask] = useState(null);
@@ -87,12 +89,21 @@ const VerificationScreen = ({ navigation }) => {
     if (!formData.searchValue || !formData.pin) {
       return Alert.alert("Error", "Fill all fields");
     }
+    if (formData.pin.length < 4) {
+      return Alert.alert("Error", "Enter your 4-digit Transaction PIN");
+    }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const res = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/verify",
+        `${BASE_URL}/verify`,
         {
           type: selectedTask.id,
           value: formData.searchValue,
@@ -102,14 +113,17 @@ const VerificationScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (res.data.success) {
-        setVerificationResult(res.data.data);
+      const result = res.data;
+      if (result.success || result.status === "success") {
+        setVerificationResult(result.data || result);
         setView("result");
+      } else {
+        throw new Error(result.message || "Verification failed");
       }
     } catch (err) {
       Alert.alert(
         "Failed",
-        err.response?.data?.message || "Verification Error",
+        err.response?.data?.message || err.message || "Verification Error",
       );
     } finally {
       setLoading(false);
@@ -117,29 +131,33 @@ const VerificationScreen = ({ navigation }) => {
   };
 
   const generatePDF = async (data) => {
-    const html = `
-      <html>
-        <body style="padding: 50px; font-family: sans-serif;">
-          <h1 style="text-align: center; color: #0a1d37;">AYAX VERIFICATION SLIP</h1>
-          <hr/>
-          <p><b>Service:</b> ${selectedTask.title}</p>
-          <p><b>Name:</b> ${data.firstName} ${data.lastName}</p>
-          <p><b>ID Used:</b> ${formData.searchValue}</p>
-          <p><b>Date:</b> ${new Date().toDateString()}</p>
-          <div style="margin-top: 50px; border: 1px solid #ccc; padding: 20px;">
-            <p>Verification Status: <b>VERIFIED</b></p>
-          </div>
-        </body>
-      </html>
-    `;
-    const { uri } = await Print.printToFileAsync({ html });
-    await Sharing.shareAsync(uri);
+    try {
+      const html = `
+        <html>
+          <body style="padding: 50px; font-family: sans-serif;">
+            <h1 style="text-align: center; color: #0a1d37;">AYAX VERIFICATION SLIP</h1>
+            <hr/>
+            <p><b>Service:</b> ${selectedTask.title}</p>
+            <p><b>Name:</b> ${data?.firstName || ""} ${data?.lastName || ""}</p>
+            <p><b>ID Used:</b> ${formData.searchValue}</p>
+            <p><b>Date:</b> ${new Date().toDateString()}</p>
+            <div style="margin-top: 50px; border: 1px solid #ccc; padding: 20px;">
+              <p>Verification Status: <b>VERIFIED</b></p>
+            </div>
+          </body>
+        </html>
+      `;
+      const { uri } = await Print.printToFileAsync({ html });
+      await Sharing.shareAsync(uri);
+    } catch (error) {
+      Alert.alert("Error", "Unable to generate or share PDF slip.");
+    }
   };
 
   if (view === "list") {
     return (
       <ScrollView style={styles.container}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
         <Text style={styles.header}>Identity Verification</Text>
 
         {services.map((s) => (
@@ -149,6 +167,7 @@ const VerificationScreen = ({ navigation }) => {
               onPress={() => {
                 setSelectedTask(s);
                 setView("form");
+                setFormData({ searchValue: "", pin: "" });
               }}
             >
               <View style={styles.iconCircle}>
@@ -170,6 +189,7 @@ const VerificationScreen = ({ navigation }) => {
                 <TextInput
                   style={styles.adminInput}
                   placeholder="New Price"
+                  placeholderTextColor="#94a3b8"
                   keyboardType="numeric"
                   onChangeText={setNewPrice}
                 />
@@ -183,13 +203,14 @@ const VerificationScreen = ({ navigation }) => {
             )}
           </View>
         ))}
+        <View style={{ height: 40 }} />
       </ScrollView>
     );
   }
 
   if (view === "form") {
     return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container}>
         <TouchableOpacity
           onPress={() => setView("list")}
           style={styles.backLink}
@@ -198,18 +219,20 @@ const VerificationScreen = ({ navigation }) => {
           <Text style={styles.backLinkText}>Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.formTitle}>{selectedTask.title}</Text>
+        <Text style={styles.formTitle}>{selectedTask?.title}</Text>
         <Text style={styles.formPrice}>
-          Service Charge: ₦{prices[selectedTask.id]}
+          Service Charge: ₦{prices[selectedTask?.id]}
         </Text>
 
         <View style={styles.inputBox}>
-          <Text style={styles.inputLabel}>{selectedTask.inputLabel}</Text>
+          <Text style={styles.inputLabel}>{selectedTask?.inputLabel}</Text>
           <TextInput
             style={styles.input}
-            placeholder={`Enter ${selectedTask.inputLabel}`}
+            placeholder={`Enter ${selectedTask?.inputLabel}`}
+            placeholderTextColor="#94a3b8"
             keyboardType="numeric"
-            maxLength={selectedTask.maxLength}
+            maxLength={selectedTask?.maxLength}
+            value={formData.searchValue}
             onChangeText={(v) => setFormData({ ...formData, searchValue: v })}
           />
         </View>
@@ -219,15 +242,17 @@ const VerificationScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="****"
+            placeholderTextColor="#94a3b8"
             secureTextEntry
             keyboardType="numeric"
             maxLength={4}
+            value={formData.pin}
             onChangeText={(v) => setFormData({ ...formData, pin: v })}
           />
         </View>
 
         <TouchableOpacity
-          style={styles.mainBtn}
+          style={[styles.mainBtn, loading && { opacity: 0.7 }]}
           onPress={handleVerify}
           disabled={loading}
         >
@@ -237,13 +262,14 @@ const VerificationScreen = ({ navigation }) => {
             <Text style={styles.mainBtnText}>VERIFY IDENTITY</Text>
           )}
         </TouchableOpacity>
-      </View>
+        <View style={{ height: 40 }} />
+      </ScrollView>
     );
   }
 
   if (view === "result") {
     return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container}>
         <View style={styles.successCard}>
           <Ionicons name="checkmark-circle" size={80} color="#10b981" />
           <Text style={styles.successTitle}>Verification Successful</Text>
@@ -251,7 +277,7 @@ const VerificationScreen = ({ navigation }) => {
           <View style={styles.resData}>
             <Text style={styles.resLabel}>Name</Text>
             <Text style={styles.resValue}>
-              {verificationResult?.firstName} {verificationResult?.lastName}
+              {verificationResult?.firstName || ""} {verificationResult?.lastName || ""}
             </Text>
 
             <Text style={styles.resLabel}>Reference</Text>
@@ -279,7 +305,8 @@ const VerificationScreen = ({ navigation }) => {
             <Text style={styles.closeBtnText}>Done</Text>
           </TouchableOpacity>
         </View>
-      </View>
+        <View style={{ height: 40 }} />
+      </ScrollView>
     );
   }
 };
@@ -327,6 +354,9 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     paddingHorizontal: 10,
     fontSize: 12,
+    color: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   updateBtn: {
     backgroundColor: "#0a1d37",
@@ -370,6 +400,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     fontSize: 16,
+    color: "#0f172a",
   },
   mainBtn: {
     backgroundColor: "#0a1d37",
@@ -379,7 +410,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   mainBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  successCard: { flex: 1, alignItems: "center", justifyContent: "center" },
+  successCard: { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 40 },
   successTitle: {
     fontSize: 22,
     fontWeight: "bold",
@@ -392,6 +423,8 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 15,
     marginTop: 30,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   resLabel: { fontSize: 12, color: "#64748b" },
   resValue: {
@@ -411,7 +444,7 @@ const styles = StyleSheet.create({
     marginTop: 30,
   },
   pdfBtnText: { color: "#fff", fontWeight: "bold", marginLeft: 10 },
-  closeBtn: { marginTop: 25 },
+  closeBtn: { marginTop: 25, padding: 10 },
   closeBtnText: { fontSize: 16, fontWeight: "bold", color: "#0a1d37" },
 });
 

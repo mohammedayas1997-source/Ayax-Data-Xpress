@@ -11,15 +11,17 @@ import {
   ScrollView,
 } from "react-native";
 import { MaterialIcons, FontAwesome5, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { API_URL } from "../constants";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const LeaderDashboard = ({ navigation }) => {
   const [supervisors, setSupervisors] = useState([]);
   const [stats, setStats] = useState({
     totalSupervisors: 0,
     totalAgents: 0,
-    overallData: 0,
+    overallDataSold: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -29,13 +31,33 @@ const LeaderDashboard = ({ navigation }) => {
 
   const fetchDashboardData = async () => {
     try {
-      const response = await axios.get(`${API_URL}/leader/dashboard`);
-      if (response.data.success) {
-        setSupervisors(response.data.supervisors);
-        setStats(response.data.networkStats);
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+      };
+
+      const response = await axios.get(`${BASE_URL}/leader/dashboard`, config);
+      if (response.data.success || response.data) {
+        setSupervisors(response.data.supervisors || response.data.data?.supervisors || []);
+        setStats(response.data.networkStats || response.data.data?.networkStats || {
+          totalSupervisors: 0,
+          totalAgents: 0,
+          overallDataSold: 0,
+        });
       }
     } catch (error) {
-      Alert.alert("Error", "Could not load dashboard data");
+      if (error.response && error.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Dashboard Fetch Error:", error);
+        Alert.alert("Error", "Could not load dashboard data");
+      }
     } finally {
       setLoading(false);
     }
@@ -51,7 +73,10 @@ const LeaderDashboard = ({ navigation }) => {
           text: "Yes, Proceed",
           onPress: async () => {
             try {
-              await axios.patch(`${API_URL}/leader/toggle-status/${id}`);
+              const token = await AsyncStorage.getItem("userToken");
+              const config = { headers: { Authorization: `Bearer ${token}` } };
+
+              await axios.patch(`${BASE_URL}/leader/toggle-status/${id}`, {}, config);
               fetchDashboardData(); // Refresh data
             } catch (e) {
               Alert.alert("Failed", "Action could not be completed");
@@ -66,19 +91,19 @@ const LeaderDashboard = ({ navigation }) => {
     <TouchableOpacity
       style={styles.supCard}
       onPress={() =>
-        navigation.navigate("SupervisorDetails", { supervisorId: item.id })
+        navigation.navigate("SupervisorDetails", { supervisorId: item.id || item._id })
       }
     >
       <View style={styles.cardHeader}>
         <View style={styles.supInfo}>
           <FontAwesome5 name="user-tie" size={24} color="#1e3a8a" />
           <View style={{ marginLeft: 12 }}>
-            <Text style={styles.supName}>{item.name}</Text>
+            <Text style={styles.supName}>{item.name || `${item.firstName || ""} ${item.surname || ""}`}</Text>
             <Text style={styles.supRole}>Supervisor</Text>
           </View>
         </View>
         <TouchableOpacity
-          onPress={() => handleSuspend(item.id, item.isSuspended)}
+          onPress={() => handleSuspend(item.id || item._id, item.isSuspended)}
         >
           <MaterialIcons
             name={
@@ -93,12 +118,12 @@ const LeaderDashboard = ({ navigation }) => {
       <View style={styles.statsRow}>
         <View style={styles.miniStat}>
           <Ionicons name="people" size={16} color="#d4af37" />
-          <Text style={styles.miniStatText}>{item.teamSize} Agents</Text>
+          <Text style={styles.miniStatText}>{item.teamSize || 0} Agents</Text>
         </View>
         <View style={styles.miniStat}>
           <MaterialIcons name="storage" size={16} color="#d4af37" />
           <Text style={styles.miniStatText}>
-            {item.teamPerformance} GB Sold
+            {item.teamPerformance || 0} GB Sold
           </Text>
         </View>
       </View>
@@ -113,7 +138,7 @@ const LeaderDashboard = ({ navigation }) => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.iconBtn}
-          onPress={() => Alert.alert("Address", item.address)}
+          onPress={() => Alert.alert("Address", item.address || "No address provided")}
         >
           <MaterialIcons name="location-on" size={20} color="#1e3a8a" />
           <Text style={styles.iconBtnText}>Address</Text>
@@ -121,7 +146,7 @@ const LeaderDashboard = ({ navigation }) => {
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={() =>
-            navigation.navigate("AssignTarget", { supervisorId: item.id })
+            navigation.navigate("AssignTarget", { supervisorId: item.id || item._id })
           }
         >
           <MaterialIcons name="track-changes" size={20} color="#d4af37" />
@@ -133,7 +158,9 @@ const LeaderDashboard = ({ navigation }) => {
 
   if (loading)
     return (
-      <ActivityIndicator size="large" color="#1e3a8a" style={{ flex: 1 }} />
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8fafc" }}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
+      </View>
     );
 
   return (
@@ -169,16 +196,17 @@ const LeaderDashboard = ({ navigation }) => {
 
       <FlatList
         data={supervisors}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id || item._id || Math.random().toString()}
         renderItem={renderSupervisor}
         contentContainerStyle={{ paddingBottom: 20 }}
       />
 
       <TouchableOpacity
         style={styles.downloadBtn}
-        onPress={() =>
-          Linking.openURL(`${API_URL}/leader/download-full-report`)
-        }
+        onPress={async () => {
+          const token = await AsyncStorage.getItem("userToken");
+          Linking.openURL(`${BASE_URL}/leader/download-full-report?token=${token}`);
+        }}
       >
         <MaterialIcons name="file-download" size={24} color="white" />
         <Text style={styles.downloadBtnText}>GENERATE FULL REPORT</Text>

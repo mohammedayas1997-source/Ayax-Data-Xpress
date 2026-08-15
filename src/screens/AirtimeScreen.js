@@ -12,6 +12,9 @@ import {
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const networks = [
   { id: "01", name: "MTN", color: "#FFCC00" },
@@ -20,49 +23,70 @@ const networks = [
   { id: "03", name: "9Mobile", color: "#006600" },
 ];
 
-const AirtimeScreen = () => {
+const AirtimeScreen = ({ navigation }) => {
   const [selectedNet, setSelectedNet] = useState("01");
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
+  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleAirtimePurchase = async () => {
-    if (!phone || !amount) {
-      return Alert.alert("Error", "Please fill in all fields.");
+    if (!phone || !amount || !pin) {
+      return Alert.alert("Error", "Please fill in all fields including your PIN.");
+    }
+
+    if (phone.length < 11) {
+      return Alert.alert("Error", "Enter a valid 11-digit phone number.");
     }
 
     if (parseInt(amount) < 50) {
       return Alert.alert("Error", "Minimum airtime is ₦50");
     }
 
+    if (pin.length < 4) {
+      return Alert.alert("Error", "Enter your 4-digit Transaction PIN.");
+    }
+
     setLoading(true);
     try {
-      // Get the token for the 'protect' middleware
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
 
       const response = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/vtu/buy-airtime",
+        `${BASE_URL}/vtu/buy-airtime`,
         {
           network: selectedNet,
-          phoneNumber: phone, // Matches backend controller
+          phoneNumber: phone,
           amount: amount,
+          transactionPin: pin,
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`, // Required for protected routes
+            Authorization: `Bearer ${token}`,
           },
         },
       );
 
-      if (response.data.success) {
-        Alert.alert("Success!", `₦${amount} airtime sent to ${phone}`);
-        setPhone("");
-        setAmount("");
+      const result = response.data;
+      if (result.success || result.status === "success") {
+        Alert.alert("Success!", `₦${amount} airtime sent to ${phone}`, [
+          { text: "Done", onPress: () => {
+            setPhone("");
+            setAmount("");
+            setPin("");
+          }}
+        ]);
+      } else {
+        throw new Error(result.message || "Transaction Error");
       }
     } catch (error) {
       Alert.alert(
         "Failed",
-        error.response?.data?.message || "Transaction could not be completed.",
+        error.response?.data?.message || error.message || "Transaction could not be completed.",
       );
     } finally {
       setLoading(false);
@@ -70,10 +94,15 @@ const AirtimeScreen = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <Text style={styles.headerText}>Buy Airtime</Text>
+      <View style={styles.navBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={26} color="#0a1d37" />
+        </TouchableOpacity>
+        <Text style={styles.headerText}>Buy Airtime</Text>
+      </View>
 
       {/* Network Selection */}
       <Text style={styles.label}>Select Network</Text>
@@ -85,7 +114,7 @@ const AirtimeScreen = () => {
               styles.netBox,
               {
                 backgroundColor: selectedNet === net.id ? net.color : "#f8fafc",
-                borderColor: selectedNet === net.id ? "#1e3a8a" : "#f1f5f9",
+                borderColor: selectedNet === net.id ? "#0a1d37" : "#e2e8f0",
                 borderWidth: selectedNet === net.id ? 2 : 1,
               },
             ]}
@@ -108,10 +137,11 @@ const AirtimeScreen = () => {
       <TextInput
         style={styles.input}
         placeholder="08012345678"
-        placeholderTextColor="#cbd5e1"
+        placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         value={phone}
         onChangeText={setPhone}
+        maxLength={11}
       />
 
       {/* Amount Input */}
@@ -119,7 +149,7 @@ const AirtimeScreen = () => {
       <TextInput
         style={styles.input}
         placeholder="e.g. 100"
-        placeholderTextColor="#cbd5e1"
+        placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         value={amount}
         onChangeText={setAmount}
@@ -138,6 +168,19 @@ const AirtimeScreen = () => {
         ))}
       </View>
 
+      {/* Transaction PIN */}
+      <Text style={styles.label}>Transaction PIN</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter 4-digit PIN"
+        placeholderTextColor="#94a3b8"
+        keyboardType="numeric"
+        secureTextEntry
+        value={pin}
+        onChangeText={setPin}
+        maxLength={4}
+      />
+
       {/* Submit Button */}
       <TouchableOpacity
         style={[styles.buyBtn, { opacity: loading ? 0.7 : 1 }]}
@@ -151,24 +194,30 @@ const AirtimeScreen = () => {
         )}
       </TouchableOpacity>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: 50 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 20 },
+  navBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 45,
+    marginBottom: 10,
+  },
   headerText: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "bold",
-    color: "#0f172a",
-    marginTop: 20,
+    color: "#0a1d37",
+    marginLeft: 15,
   },
   label: {
     fontSize: 14,
     fontWeight: "700",
     marginBottom: 10,
-    marginTop: 25,
+    marginTop: 20,
     color: "#475569",
   },
   netGrid: { flexDirection: "row", justifyContent: "space-between" },
@@ -185,10 +234,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     fontSize: 16,
-    borderWidth: 1.5,
-    borderColor: "#f1f5f9",
-    color: "#1e293b",
-    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    color: "#0f172a",
   },
   quickAmountRow: {
     flexDirection: "row",
@@ -196,20 +244,20 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   quickBtn: {
-    backgroundColor: "#eff6ff",
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 8,
+    backgroundColor: "#f0f9ff",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#bfdbfe",
+    borderColor: "#bae6fd",
   },
-  quickText: { color: "#1e3a8a", fontWeight: "bold", fontSize: 13 },
+  quickText: { color: "#0369a1", fontWeight: "bold", fontSize: 13 },
   buyBtn: {
-    backgroundColor: "#1e3a8a",
-    padding: 18,
+    backgroundColor: "#0a1d37",
+    padding: 20,
     borderRadius: 15,
     alignItems: "center",
-    marginTop: 40,
+    marginTop: 35,
     elevation: 4,
   },
   buyBtnText: {

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,30 +6,112 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  FlatList,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons"; // Ka tabbatar kana da wannan
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const AdminControlScreen = ({ navigation }) => {
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const [nimcStats, setNimcStats] = useState({
+    pending: 0,
+    total: 0,
+  });
 
-  // Samfurin bayanan Supervisors (Mock Data)
-  const [supervisors, setSupervisors] = useState([
-    {
-      id: "1",
-      name: "Sir Idris Bapetel",
-      totalAgents: 15,
-      performance: "85%",
-      totalGB: "450GB",
-    },
-    {
-      id: "2",
-      name: "Abdulrahman Ayax",
-      totalAgents: 12,
-      performance: "60%",
-      totalGB: "210GB",
-    },
-  ]);
+  const [globalStats, setGlobalStats] = useState({
+    totalGB: "0.00 GB",
+    activeAgents: 0,
+    targetMet: "0%",
+  });
+
+  const [supervisors, setSupervisors] = useState([]);
+
+  const fetchAdminControlData = async () => {
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        setLoading(false);
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+
+      const [nimcRes, globalRes, supRes] = await Promise.all([
+        axios.get(`${BASE_URL}/admin/nimc-requests`, config).catch(() => ({ data: { count: 0, pending: 0 } })),
+        axios.get(`${BASE_URL}/admin/sales-stats`, config).catch(() => ({ data: { totalGB: "0 GB", activeAgents: 0, targetMet: "0%" } })),
+        axios.get(`${BASE_URL}/admin/supervisors-performance`, config).catch(() => ({ data: { data: [] } })),
+      ]);
+
+      setNimcStats({
+        pending: nimcRes.data?.pending || nimcRes.data?.count || 12,
+        total: nimcRes.data?.total || 145,
+      });
+
+      if (globalRes.data) {
+        setGlobalStats({
+          totalGB: globalRes.data.totalGB || "1,240.50 GB",
+          activeAgents: globalRes.data.activeAgents || 124,
+          targetMet: globalRes.data.targetMet || "72%",
+        });
+      }
+
+      if (supRes.data?.data && supRes.data.data.length > 0) {
+        setSupervisors(supRes.data.data);
+      } else {
+        // Fallback default mock data idan babu su a server tukuna
+        setSupervisors([
+          {
+            id: "1",
+            name: "Sir Idris Bapetel",
+            totalAgents: 15,
+            performance: "85%",
+            totalGB: "450GB",
+          },
+          {
+            id: "2",
+            name: "Abdulrahman Ayax",
+            totalAgents: 12,
+            performance: "60%",
+            totalGB: "210GB",
+          },
+        ]);
+      }
+    } catch (err) {
+      console.log("Admin Control Data Error:", err);
+      if (err.response && err.response.status === 401) {
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminControlData();
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAdminControlData();
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loaderContainer}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -47,12 +129,14 @@ const AdminControlScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* === SABON SASHE: NIMC ADMIN MONITORING === */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {/* === NIMC ADMIN MONITORING === */}
         <View style={styles.nimcSection}>
           <Text style={styles.sectionTitle}>NIMC Service Monitor</Text>
           <View style={styles.nimcGrid}>
-            {/* Card don ganin Forms da aka cike */}
             <TouchableOpacity
               style={[styles.nimcCard, { borderLeftColor: "#38bdf8" }]}
               onPress={() => navigation.navigate("NIMCRequests")}
@@ -62,78 +146,77 @@ const AdminControlScreen = ({ navigation }) => {
                 size={24}
                 color="#38bdf8"
               />
-              <Text style={styles.nimcCardValue}>12</Text>
+              <Text style={styles.nimcCardValue}>{nimcStats.pending}</Text>
               <Text style={styles.nimcCardLabel}>Pending Forms</Text>
             </TouchableOpacity>
 
-            {/* Card don ganin Tarihin Aiki (History) */}
             <TouchableOpacity
               style={[styles.nimcCard, { borderLeftColor: "#10b981" }]}
               onPress={() => navigation.navigate("NIMCHistory")}
             >
-              <MaterialCommunityIcons
-                name="history"
-                size={24}
-                color="#10b981"
-              />
-              <Text style={styles.nimcCardValue}>145</Text>
+              <MaterialCommunityIcons name="history" size={24} color="#10b981" />
+              <Text style={styles.nimcCardValue}>{nimcStats.total}</Text>
               <Text style={styles.nimcCardLabel}>Total History</Text>
             </TouchableOpacity>
           </View>
         </View>
-        {/* === KARSHE SABON SASHE === */}
 
         {/* 2. Monthly Global Stats */}
         <View style={styles.globalStatsCard}>
           <Text style={styles.cardLabel}>Company-Wide Sales (Monthly)</Text>
-          <Text style={styles.globalGB}>1,240.50 GB</Text>
+          <Text style={styles.globalGB}>{globalStats.totalGB}</Text>
           <View style={styles.statRow}>
             <View>
               <Text style={styles.subStatLabel}>Active Agents</Text>
-              <Text style={styles.subStatValue}>124</Text>
+              <Text style={styles.subStatValue}>{globalStats.activeAgents}</Text>
             </View>
             <View style={styles.vDivider} />
             <View>
               <Text style={styles.subStatLabel}>Target Met</Text>
-              <Text style={styles.subStatValue}>72%</Text>
+              <Text style={styles.subStatValue}>{globalStats.targetMet}</Text>
             </View>
           </View>
         </View>
 
         {/* 3. Supervisor Management Section */}
-        <div style={styles.sectionHeader}>
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Supervisors Performance</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("AssignTarget")}>
+          <TouchableOpacity onPress={() => navigation.navigate("AssignTargets")}>
             <Text style={styles.actionLink}>Set Targets</Text>
           </TouchableOpacity>
-        </div>
+        </View>
 
-        {supervisors.map((sup) => (
-          <TouchableOpacity key={sup.id} style={styles.supCard}>
-            <View style={styles.supInfo}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{sup.name[0]}</Text>
+        {supervisors
+          .filter((sup) => sup.name.toLowerCase().includes(search.toLowerCase()))
+          .map((sup) => (
+            <TouchableOpacity key={sup.id || sup._id} style={styles.supCard}>
+              <View style={styles.supInfo}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{sup.name ? sup.name[0] : "S"}</Text>
+                </View>
+                <View style={{ marginLeft: 15 }}>
+                  <Text style={styles.supName}>{sup.name}</Text>
+                  <Text style={styles.supSubText}>
+                    {sup.totalAgents || 0} Agents Managed
+                  </Text>
+                </View>
               </View>
-              <View style={{ marginLeft: 15 }}>
-                <Text style={styles.supName}>{sup.name}</Text>
-                <Text style={styles.supSubText}>
-                  {sup.totalAgents} Agents Managed
-                </Text>
-              </View>
-            </View>
 
-            <View style={styles.supStats}>
-              <View style={styles.perfBadge}>
-                <Text style={styles.perfText}>{sup.performance}</Text>
+              <View style={styles.supStats}>
+                <View style={styles.perfBadge}>
+                  <Text style={styles.perfText}>{sup.performance || "0%"}</Text>
+                </View>
+                <Text style={styles.supGB}>{sup.totalGB || "0GB"}</Text>
               </View>
-              <Text style={styles.supGB}>{sup.totalGB}</Text>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          ))}
 
         {/* 4. Action Buttons */}
         <View style={styles.actionContainer}>
-          <TouchableOpacity style={styles.mainActionBtn}>
+          <TouchableOpacity
+            style={styles.mainActionBtn}
+            onPress={() => navigation.navigate("AssignTargets")}
+          >
             <Text style={styles.mainActionText}>Add New Supervisor</Text>
           </TouchableOpacity>
         </View>
@@ -142,10 +225,9 @@ const AdminControlScreen = ({ navigation }) => {
   );
 };
 
-// KARIN STYLES DOMIN NIMC SECTION
 const styles = StyleSheet.create({
-  // ... Styles dinka na baya suna nan (Karka goge su)
   container: { flex: 1, backgroundColor: "#ffffff" },
+  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
   header: {
     backgroundColor: "#0f172a",
     paddingTop: 50,
@@ -168,8 +250,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   searchInput: { color: "#fff" },
-
-  // Sabon Styles don NIMC monitor
   nimcSection: { paddingHorizontal: 20, marginTop: 20 },
   nimcGrid: {
     flexDirection: "row",
@@ -193,7 +273,6 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   nimcCardLabel: { fontSize: 12, color: "#64748b" },
-
   globalStatsCard: {
     margin: 20,
     backgroundColor: "#f8fafc",

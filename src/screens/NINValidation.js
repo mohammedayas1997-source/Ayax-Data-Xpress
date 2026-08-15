@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -10,26 +10,27 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
-// Ana dauko API URL daga Environment Variables
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
-const NINValidation = () => {
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
+const NINValidation = ({ navigation }) => {
   const [selectedType, setSelectedType] = useState("No Record Found");
   const [loading, setLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [formData, setFormData] = useState({ nin: "", pin: "" });
 
-  // Farashin kowane nau'i (Admin na iya iko da wannan daga API)
+  // Farashin kowane nau'i
   const validationTypes = [
-    { id: 1, name: "No Record Found", cost: 1300 }, // Hoton 1000412429.jpg
-    { id: 2, name: "SIM Validation", cost: 1300 }, // Hoton 1000412430.jpg
-    { id: 3, name: "vNIN Validation", cost: 1300 }, // Hoton 1000412431.jpg
-    { id: 4, name: "Update Records Validation", cost: 1300 }, // Hoton 1000412432.jpg
-    { id: 5, name: "Bank Validation", cost: 1300 }, // Hoton 1000412433.jpg
-    { id: 6, name: "Modification Validation", cost: 1700 }, // Hoton 1000412434.jpg
-    { id: 7, name: "Photographic Error", cost: 1400 }, // Hoton 1000412435.jpg
+    { id: 1, name: "No Record Found", cost: 1300 },
+    { id: 2, name: "SIM Validation", cost: 1300 },
+    { id: 3, name: "vNIN Validation", cost: 1300 },
+    { id: 4, name: "Update Records Validation", cost: 1300 },
+    { id: 5, name: "Bank Validation", cost: 1300 },
+    { id: 6, name: "Modification Validation", cost: 1700 },
+    { id: 7, name: "Photographic Error", cost: 1400 },
   ];
-
-  const BASE_URL = "https://ayax-api-v2.vercel.app/api/v1";
 
   const currentCost = validationTypes.find(
     (t) => t.name === selectedType,
@@ -39,43 +40,66 @@ const NINValidation = () => {
     if (!formData.nin || !formData.pin || !isAuthorized) {
       Alert.alert(
         "Error",
-        "Da fatan ka cika dukkan gure sannan ka yarda da Authorization.",
+        "Da fatan ka cika dukkan bayanan sannan ka yarda da Authorization.",
       );
+      return;
+    }
+
+    if (formData.nin.length !== 11) {
+      Alert.alert("Error", "NIN must be exactly 11 digits.");
+      return;
+    }
+
+    if (formData.pin.length !== 4) {
+      Alert.alert("Error", "Transaction PIN must be 4 digits.");
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/nin/validate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${API_AUTH_TOKEN}`,
-        },
-        body: JSON.stringify({
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const response = await axios.post(
+        `${BASE_URL}/nin/validate`,
+        {
           type: selectedType,
           nin: formData.nin,
           pin: formData.pin,
           amount: currentCost,
           timestamp: new Date().toISOString(),
-        }),
-      });
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      const result = await response.json();
-      if (response.ok) {
+      const result = response.data;
+      if (result.success || result.status === "success") {
         Alert.alert("Success", "An aika da validation dinka cikin nasara.");
+        setFormData({ nin: "", pin: "" });
+        setIsAuthorized(false);
       } else {
         throw new Error(result.message || "Akwai matsala gurin aikawa.");
       }
     } catch (error) {
-      Alert.alert("Failed", error.message);
+      const errorMsg =
+        error.response?.data?.message || error.message || "Connection error.";
+      Alert.alert("Failed", errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -117,7 +141,10 @@ const NINValidation = () => {
         <TextInput
           style={styles.input}
           placeholder="Enter 11-digit NIN"
+          placeholderTextColor="#999"
           keyboardType="numeric"
+          maxLength={11}
+          value={formData.nin}
           onChangeText={(v) => setFormData({ ...formData, nin: v })}
         />
 
@@ -125,8 +152,11 @@ const NINValidation = () => {
         <TextInput
           style={styles.input}
           placeholder="Enter 4-digit PIN"
+          placeholderTextColor="#999"
           secureTextEntry
           keyboardType="numeric"
+          maxLength={4}
+          value={formData.pin}
           onChangeText={(v) => setFormData({ ...formData, pin: v })}
         />
       </View>
@@ -170,6 +200,7 @@ const NINValidation = () => {
           )}
         </TouchableOpacity>
       </View>
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 };
@@ -186,9 +217,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 15,
   },
-  title: { fontSize: 14, fontWeight: "bold", marginLeft: 8 },
+  title: { fontSize: 14, fontWeight: "bold", marginLeft: 8, color: "#0f172a" },
   priceBadge: {
     backgroundColor: "#e8f0fe",
     paddingHorizontal: 10,
@@ -216,8 +248,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     backgroundColor: "#fafafa",
+    color: "#000",
   },
-  authTitle: { fontSize: 14, fontWeight: "bold", marginLeft: 8 },
+  authTitle: { fontSize: 14, fontWeight: "bold", marginLeft: 8, color: "#0f172a" },
   checkboxRow: {
     flexDirection: "row",
     marginTop: 15,
@@ -228,7 +261,7 @@ const styles = StyleSheet.create({
     color: "#1a73e8",
     fontSize: 12,
     marginTop: 5,
-    marginLeft: 35,
+    marginLeft: 34,
     textDecorationLine: "underline",
   },
   submitBtn: {
@@ -238,7 +271,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
-  submitBtnText: { color: "#fff", fontWeight: "bold" },
+  submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
 });
 
 export default NINValidation;

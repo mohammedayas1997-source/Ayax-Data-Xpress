@@ -13,6 +13,7 @@ import {
   Image,
   Linking,
   Dimensions,
+  StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -25,6 +26,7 @@ import axios from "axios";
 import { CommonActions } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -128,18 +130,13 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
 
-    // AN GYARA: Tabbatar cewa endpoint din supervisor ko user yana amfani daidai da tsarin server
-    const loginUrl = isSupervisor
-      ? "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login" // Ko kuma supervisor-login idan akwai, amma tunda dukansu a wuri daya suke a User model:
-      : "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login";
-
     try {
       console.log(
-        `🚀 Attempting ${isSupervisor ? "Supervisor/Superadmin" : "User"} Login for:`,
+        `🚀 Attempting Login for:`,
         email.trim().toLowerCase(),
       );
 
-      const response = await axios.post(loginUrl, {
+      const response = await axios.post(`${BASE_URL}/auth/login`, {
         email: email.trim().toLowerCase(),
         password: password,
       });
@@ -166,22 +163,26 @@ const LoginScreen = ({ navigation }) => {
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
+        setLoading(false);
         return;
       }
 
       // Idan an zaɓi login as supervisor amma ainihin role din bai zama superadmin/supervisor ba
       if (isSupervisor && normalizedRole !== "superadmin" && normalizedRole !== "supervisor") {
-        setErrorMessage("This account does not have supervisor privileges.");
+        setErrorMessage("This account does not have supervisor/superadmin privileges.");
         setLoading(false);
         return;
       }
 
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
+      
+      // Adana bayanan shiga don biometric a gaba
+      await AsyncStorage.setItem("savedEmail", email.trim().toLowerCase());
+      await AsyncStorage.setItem("savedPassword", password);
 
       console.log("✅ Login Successful. Redirecting...");
 
-// Tsarin Kai mai amfani zuwa shafin da ya dace bisa ga ainihin role ɗinsa
       setTimeout(() => {
         if (normalizedRole === "superadmin" || normalizedRole === "supervisor") {
           navigation.dispatch(
@@ -203,7 +204,6 @@ const LoginScreen = ({ navigation }) => {
             }),
           );
         } else {
-          // Idan Customer Service ne, ko Staff, ko Normal User - zaka iya musu routing anan ko zuwa Main Dashboard
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
@@ -249,13 +249,10 @@ const LoginScreen = ({ navigation }) => {
       }
 
       setLoading(true);
-      const response = await axios.post(
-        "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login",
-        {
-          email: savedEmail,
-          password: savedPassword,
-        }
-      );
+      const response = await axios.post(`${BASE_URL}/auth/login`, {
+        email: savedEmail,
+        password: savedPassword,
+      });
 
       const token =
         response?.data?.token ||
@@ -276,6 +273,7 @@ const LoginScreen = ({ navigation }) => {
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
+        setLoading(false);
         return;
       }
 
@@ -326,6 +324,7 @@ const LoginScreen = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.desktopContainer}
     >
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
@@ -410,6 +409,7 @@ const LoginScreen = ({ navigation }) => {
                 marginBottom: 20,
               }}
               onPress={() => setIsSupervisor(!isSupervisor)}
+              activeOpacity={0.8}
             >
               <Ionicons
                 name={isSupervisor ? "checkbox" : "square-outline"}
@@ -423,7 +423,7 @@ const LoginScreen = ({ navigation }) => {
                   fontWeight: "600",
                 }}
               >
-                Login as Supervisor
+                Login as Supervisor / SuperAdmin
               </Text>
             </TouchableOpacity>
 
@@ -453,6 +453,7 @@ const LoginScreen = ({ navigation }) => {
               style={styles.loginBtn}
               onPress={handleLogin}
               disabled={loading}
+              activeOpacity={0.8}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
@@ -530,14 +531,13 @@ const styles = StyleSheet.create({
   desktopContainer: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    alignItems: "center",
-    justifyContent: "center",
   },
   scrollContainer: {
     flexGrow: 1,
     paddingVertical: 40,
     width: "100%",
     alignItems: "center",
+    justifyContent: "center",
   },
   contentWrapper: {
     width: width > 600 ? 500 : "90%",
@@ -609,7 +609,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginTop: 2,
   },
-  forgotBtn: { alignSelf: "center" },
+  forgotBtn: { alignSelf: "center", marginLeft: "auto" },
   forgotText: { color: "#0a1d37", fontSize: 14, fontWeight: "600" },
   loginBtn: {
     backgroundColor: "#0a1d37",

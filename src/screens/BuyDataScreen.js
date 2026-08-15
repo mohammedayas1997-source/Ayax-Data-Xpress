@@ -12,6 +12,9 @@ import {
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const networks = [
   { id: "01", name: "MTN", color: "#FFCC00" },
@@ -43,11 +46,9 @@ const BuyDataScreen = ({ navigation }) => {
         setIsAdmin(parsed.role === "admin");
       }
 
-      // Fetch current rate from your server/database
+      // Fetch current rate from server
       try {
-        const response = await axios.get(
-          "https://ayax-data-xpress-server.vercel.app/api/v1/admin/data-rate",
-        );
+        const response = await axios.get(`${BASE_URL}/admin/data-rate`);
         if (response.data.rate) {
           setPricePerGb(response.data.rate);
         }
@@ -68,8 +69,14 @@ const BuyDataScreen = ({ navigation }) => {
     if (!newRate) return Alert.alert("Error", "Enter new rate per GB");
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/admin/update-rate",
+        `${BASE_URL}/admin/update-rate`,
         { rate: parseFloat(newRate) },
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -77,7 +84,7 @@ const BuyDataScreen = ({ navigation }) => {
       Alert.alert("Success", "Rate updated for all users");
       setNewRate("");
     } catch (error) {
-      Alert.alert("Update Failed", "You do not have permission.");
+      Alert.alert("Update Failed", error.response?.data?.message || "You do not have permission.");
     }
   };
 
@@ -90,11 +97,21 @@ const BuyDataScreen = ({ navigation }) => {
       return Alert.alert("Error", "Enter a valid 11-digit phone number.");
     }
 
+    if (pin.length < 4) {
+      return Alert.alert("Error", "Enter your 4-digit Transaction PIN.");
+    }
+
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const response = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/vtu/buy-data-custom",
+        `${BASE_URL}/vtu/buy-data-custom`,
         {
           networkId: selectedNet,
           gbQuantity: gbAmount,
@@ -105,16 +122,22 @@ const BuyDataScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (response.data.success) {
-        Alert.alert("Success", `${gbAmount}GB has been sent to ${phone}`);
-        setPhone("");
-        setGbAmount("");
-        setPin("");
+      const result = response.data;
+      if (result.success || result.status === "success") {
+        Alert.alert("Success", `${gbAmount}GB has been sent to ${phone}`, [
+          { text: "Done", onPress: () => {
+            setPhone("");
+            setGbAmount("");
+            setPin("");
+          }}
+        ]);
+      } else {
+        throw new Error(result.message || "Transaction Error");
       }
     } catch (error) {
       Alert.alert(
         "Transaction Failed",
-        error.response?.data?.message || "Server Error",
+        error.response?.data?.message || error.message || "Server Error",
       );
     } finally {
       setLoading(false);
@@ -125,7 +148,12 @@ const BuyDataScreen = ({ navigation }) => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
-      <Text style={styles.headerText}>Data Purchase</Text>
+      <View style={styles.navBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={26} color="#0a1d37" />
+        </TouchableOpacity>
+        <Text style={styles.headerText}>Data Purchase</Text>
+      </View>
 
       {/* Admin Panel */}
       {isAdmin && (
@@ -135,6 +163,7 @@ const BuyDataScreen = ({ navigation }) => {
             <TextInput
               style={styles.adminInput}
               placeholder="e.g. 250"
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               value={newRate}
               onChangeText={setNewRate}
@@ -158,7 +187,7 @@ const BuyDataScreen = ({ navigation }) => {
               styles.netBox,
               {
                 backgroundColor: selectedNet === net.id ? net.color : "#f8fafc",
-                borderColor: selectedNet === net.id ? "#0a1d37" : "#f1f5f9",
+                borderColor: selectedNet === net.id ? "#0a1d37" : "#e2e8f0",
                 borderWidth: selectedNet === net.id ? 2 : 1,
               },
             ]}
@@ -180,7 +209,7 @@ const BuyDataScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="08012345678"
-        placeholderTextColor="#cbd5e1"
+        placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         value={phone}
         onChangeText={setPhone}
@@ -191,7 +220,7 @@ const BuyDataScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="e.g. 5"
-        placeholderTextColor="#cbd5e1"
+        placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         value={gbAmount}
         onChangeText={setGbAmount}
@@ -207,7 +236,7 @@ const BuyDataScreen = ({ navigation }) => {
       <TextInput
         style={styles.input}
         placeholder="Enter 4-digit PIN"
-        placeholderTextColor="#cbd5e1"
+        placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         secureTextEntry
         value={pin}
@@ -227,24 +256,32 @@ const BuyDataScreen = ({ navigation }) => {
         )}
       </TouchableOpacity>
 
-      <View style={{ height: 40 }} />
+      <View style={{ height: 50 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 20 },
+  navBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 45,
+    marginBottom: 10,
+  },
   headerText: {
     fontSize: 24,
     fontWeight: "bold",
     color: "#0a1d37",
-    marginTop: 20,
+    marginLeft: 15,
   },
   adminPanel: {
     backgroundColor: "#f1f5f9",
     padding: 15,
     borderRadius: 15,
     marginTop: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   adminLabel: {
     fontSize: 12,
@@ -261,6 +298,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderWidth: 1,
     borderColor: "#cbd5e1",
+    color: "#0f172a",
   },
   updateBtn: {
     backgroundColor: "#0a1d37",
@@ -274,7 +312,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     marginBottom: 10,
-    marginTop: 25,
+    marginTop: 20,
     color: "#475569",
   },
   netGrid: { flexDirection: "row", justifyContent: "space-between" },
@@ -291,27 +329,27 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     fontSize: 16,
-    borderWidth: 1.5,
-    borderColor: "#f1f5f9",
-    color: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    color: "#0f172a",
   },
   priceContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 20,
-    padding: 15,
+    padding: 18,
     backgroundColor: "#0a1d37",
-    borderRadius: 12,
+    borderRadius: 15,
   },
   priceLabel: { color: "#fff", fontSize: 16, opacity: 0.8 },
   priceValue: { color: "#fff", fontSize: 20, fontWeight: "bold" },
   buyBtn: {
     backgroundColor: "#0a1d37",
-    padding: 18,
+    padding: 20,
     borderRadius: 15,
     alignItems: "center",
-    marginTop: 30,
+    marginTop: 35,
     elevation: 4,
   },
   buyBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },

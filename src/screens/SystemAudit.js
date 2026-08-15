@@ -6,14 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  FlatList,
   Alert,
   RefreshControl,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const SystemAudit = () => {
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
+const SystemAudit = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState(null);
@@ -22,18 +23,22 @@ const SystemAudit = () => {
   const fetchAuditData = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const BASE_URL = "https://ayax-api.com/api/v1/superadmin";
 
       const [statsRes, logsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/stats`, config),
-        axios.get(`${BASE_URL}/audit-logs`, config),
+        axios.get(`${BASE_URL}/superadmin/stats`, config),
+        axios.get(`${BASE_URL}/superadmin/audit-logs`, config),
       ]);
 
-      setStats(statsRes.data.data);
-      setAuditLogs(logsRes.data.data);
+      setStats(statsRes.data.data || statsRes.data);
+      setAuditLogs(logsRes.data.data || logsRes.data || []);
     } catch (err) {
-      Alert.alert("Access Denied", "Unable to load administrative data.");
+      console.error("Audit Data Error:", err);
+      Alert.alert("Access Denied", "Unable to load administrative governance data.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,15 +58,15 @@ const SystemAudit = () => {
     <View style={styles.logCard}>
       <View style={styles.logHeader}>
         <Text style={styles.staffName}>
-          {item.staffId?.firstName} {item.staffId?.surname}
-          <Text style={styles.staffRole}> ({item.staffId?.role})</Text>
+          {item.staffId?.firstName || "Staff"} {item.staffId?.surname || ""}
+          <Text style={styles.staffRole}> ({item.staffId?.role || "Admin"})</Text>
         </Text>
         <Text style={styles.logTime}>
-          {new Date(item.createdAt).toLocaleTimeString()}
+          {item.createdAt ? new Date(item.createdAt).toLocaleTimeString() : ""}
         </Text>
       </View>
-      <Text style={styles.actionText}>{item.action}</Text>
-      <Text style={styles.logDetail}>{item.details}</Text>
+      <Text style={styles.actionText}>{item.action || "Activity Performed"}</Text>
+      <Text style={styles.logDetail}>{item.details || item.description || ""}</Text>
     </View>
   );
 
@@ -79,6 +84,7 @@ const SystemAudit = () => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <Text style={styles.title}>System Audit & Insights</Text>
@@ -91,30 +97,30 @@ const SystemAudit = () => {
           <View style={styles.mainStat}>
             <Text style={styles.statLabel}>Total Revenue</Text>
             <Text style={styles.revenueText}>
-              ₦{stats?.finance?.totalRevenue.toLocaleString()}
+              ₦{stats?.finance?.totalRevenue ? stats.finance.totalRevenue.toLocaleString() : "0"}
             </Text>
           </View>
 
           <View style={styles.row}>
             <View style={[styles.miniStat, { backgroundColor: "#eef2ff" }]}>
               <Text style={styles.miniLabel}>Total Users</Text>
-              <Text style={styles.miniValue}>{stats?.users?.totalUsers}</Text>
+              <Text style={styles.miniValue}>{stats?.users?.totalUsers || 0}</Text>
             </View>
             <View style={[styles.miniStat, { backgroundColor: "#f0fdf4" }]}>
               <Text style={styles.miniLabel}>Admins</Text>
-              <Text style={styles.miniValue}>{stats?.users?.totalAdmins}</Text>
+              <Text style={styles.miniValue}>{stats?.users?.totalAdmins || 0}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Administrative Audit Logs</Text>
-          {auditLogs.length === 0 ? (
+          {!Array.isArray(auditLogs) || auditLogs.length === 0 ? (
             <Text style={styles.emptyText}>
               No recent staff activities recorded.
             </Text>
           ) : (
-            auditLogs.map((log) => <LogItem key={log._id} item={log} />)
+            auditLogs.map((log) => <LogItem key={log._id || Math.random()} item={log} />)
           )}
         </View>
 
@@ -149,7 +155,7 @@ const SystemAudit = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  header: { padding: 25, backgroundColor: "#111827" },
+  header: { padding: 25, backgroundColor: "#111827", paddingTop: 50 },
   title: { fontSize: 22, fontWeight: "bold", color: "#fff" },
   subtitle: { fontSize: 13, color: "#6b7280", marginTop: 4 },
   statsGrid: { padding: 20 },

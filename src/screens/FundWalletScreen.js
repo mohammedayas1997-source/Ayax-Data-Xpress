@@ -1,390 +1,200 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Alert,
   ScrollView,
-  RefreshControl,
-  StatusBar,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
-import axios from "axios";
+import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import axios from "axios";
 
-const FundWalletScreen = ({ navigation }) => {
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [generating, setGenerating] = useState(false);
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-  // Fetch user profile and existing virtual accounts
-  const fetchWalletDetails = async () => {
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.get(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/auth/me",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+const FundSupervisorScreen = ({ navigation, route }) => {
+  // Idan an wuce da bayanan supervisor daga shafin da ya gabata (misali: id da name)
+  const supervisorId = route?.params?.supervisorId || "65e4a1b2c3d4e5f6a7b8c9d1";
+  const supervisorName = route?.params?.supervisorName || "Sir Idris Bapetel";
 
-      if (res.data.success) {
-        const data = res.data.data;
-        setUserData(data);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
 
-        // Auto-trigger generation if no account exists yet
-        if (!data.virtualAccounts || data.virtualAccounts.length === 0) {
-          handleGenerateAccount();
-        }
-      }
-    } catch (e) {
-      Alert.alert(
-        "Connection Error",
-        "Unable to sync wallet details. Please pull down to retry.",
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const handleFundAccount = async () => {
+    if (!amount || Number(amount) <= 0) {
+      Alert.alert("Error", "Don Allah saka adadin kuɗin da ya dace (Amount).");
+      return;
     }
-  };
 
-  // Explicitly call the backend to create Paystack Dedicated Virtual Account
-  const handleGenerateAccount = async () => {
-    setGenerating(true);
+    setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/auth/generate-virtual-account",
-        {},
-        { headers: { Authorization: `Bearer ${token}` } },
+      if (!token) {
+        setLoading(false);
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
+      const payload = {
+        supervisorId,
+        amount: Number(amount),
+        note: note || "Admin Wallet Funding",
+      };
+
+      const response = await axios.post(
+        `${BASE_URL}/leader/fund-supervisor`,
+        payload,
+        config
       );
 
-      if (res.data.success) {
-        setUserData(res.data.data);
+      if (response.data.success || response.status === 200 || response.status === 201) {
+        Alert.alert(
+          "Success!",
+          `An yi nasarar tura ₦${amount} zuwa asusun ${supervisorName}.`,
+          [{ text: "OK", onPress: () => navigation.goBack() }]
+        );
       }
     } catch (error) {
-      console.log("Virtual account processing or KYC required");
+      console.error("Fund Supervisor Error:", error);
+      const errorMsg = error.response?.data?.message || "An samu matsala wajen tura kuɗin.";
+      Alert.alert("Failed", errorMsg);
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchWalletDetails();
-  }, []);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchWalletDetails();
-  };
-
-  const copyToClipboard = async (text, label) => {
-    if (text) {
-      await Clipboard.setStringAsync(text);
-      Alert.alert("Copied", `${label} copied to clipboard!`);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#38bdf8" />
-        <Text style={styles.loaderText}>Syncing Secure Accounts...</Text>
-      </View>
-    );
-  }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor="#38bdf8"
-        />
-      }
-    >
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-
-      <View style={styles.headerRow}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
-          <Ionicons name="arrow-back" size={26} color="#38bdf8" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fund Your Wallet</Text>
+    <ScrollView style={styles.container}>
+      <View style={styles.header}>
+        <FontAwesome5 name="wallet" size={40} color="#38bdf8" />
+        <Text style={styles.title}>Fund Supervisor Wallet</Text>
+        <Text style={styles.subtitle}>Add balance to supervisor account</Text>
       </View>
 
-      <View style={styles.heroSection}>
-        <View style={styles.infoBadge}>
-          <MaterialCommunityIcons
-            name="shield-check"
-            size={16}
-            color="#10b981"
-          />
-          <Text style={styles.badgeText}>Automated via Paystack</Text>
+      <View style={styles.form}>
+        {/* Supervisor Info (Read-Only) */}
+        <Text style={styles.label}>Target Supervisor</Text>
+        <View style={styles.readOnlyBox}>
+          <MaterialIcons name="person" size={20} color="#1e3a8a" />
+          <Text style={styles.readOnlyText}>{supervisorName}</Text>
         </View>
-        <Text style={styles.heroSubtitle}>
-          Funds transferred to the account details below will reflect in your
-          wallet instantly.
-        </Text>
-      </View>
 
-      {/* Check if virtualAccounts array exists and has data */}
-      {userData?.virtualAccounts && userData.virtualAccounts.length > 0 ? (
-        userData.virtualAccounts.map((acc, index) => (
-          <View key={index} style={styles.bankCard}>
-            <View style={styles.bankHeader}>
-              <View>
-                <Text style={styles.bankTag}>PROVIDER</Text>
-                <Text style={styles.bankName}>
-                  {acc.bankName.toUpperCase()}
-                </Text>
-              </View>
-              <MaterialCommunityIcons
-                name="bank-outline"
-                size={28}
-                color="#38bdf8"
-              />
-            </View>
+        {/* Amount Input */}
+        <Text style={styles.label}>Amount (₦)</Text>
+        <View style={styles.inputGroup}>
+          <FontAwesome5 name="money-bill-wave" size={20} color="#1e3a8a" />
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 50000"
+            placeholderTextColor="#94a3b8"
+            keyboardType="numeric"
+            value={amount}
+            onChangeText={setAmount}
+          />
+        </View>
 
-            <View style={styles.accContainer}>
-              <Text style={styles.label}>Account Number</Text>
-              <TouchableOpacity
-                style={styles.numberRow}
-                onPress={() =>
-                  copyToClipboard(acc.accountNumber, "Account Number")
-                }
-              >
-                <Text style={styles.accountNumberText}>
-                  {acc.accountNumber}
-                </Text>
-                <MaterialCommunityIcons
-                  name="content-copy"
-                  size={20}
-                  color="#38bdf8"
-                />
-              </TouchableOpacity>
-            </View>
+        {/* Optional Note / Narration */}
+        <Text style={styles.label}>Narration / Note (Optional)</Text>
+        <View style={styles.inputGroup}>
+          <MaterialIcons name="note" size={20} color="#1e3a8a" />
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Monthly data allocation"
+            placeholderTextColor="#94a3b8"
+            value={note}
+            onChangeText={setNote}
+          />
+        </View>
 
-            <View style={styles.divider} />
-
-            <View style={styles.nameContainer}>
-              <Text style={styles.label}>Account Name</Text>
-              <Text style={styles.accountNameText}>{acc.accountName}</Text>
-            </View>
-          </View>
-        ))
-      ) : (
-        <View style={styles.emptyCard}>
-          {generating ? (
-            <ActivityIndicator color="#38bdf8" />
+        <TouchableOpacity
+          style={[styles.submitBtn, loading && { backgroundColor: "#94a3b8" }]}
+          onPress={handleFundAccount}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
           ) : (
             <>
-              <MaterialCommunityIcons
-                name="account-clock"
-                size={40}
-                color="#64748b"
-              />
-              <Text style={styles.emptyText}>
-                Processing your dedicated bank account...
-              </Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={onRefresh}>
-                <Text style={styles.retryText}>Check Status</Text>
-              </TouchableOpacity>
+              <MaterialIcons name="check-circle" size={20} color="white" />
+              <Text style={styles.submitBtnText}>FUND ACCOUNT</Text>
             </>
           )}
-        </View>
-      )}
-
-      <View style={styles.alternativeSection}>
-        <Text style={styles.sectionTitle}>Other Payment Options</Text>
-        <TouchableOpacity
-          style={styles.cardBtn}
-          onPress={() => navigation.navigate("PaystackWebview")}
-        >
-          <View style={styles.cardBtnIcon}>
-            <MaterialCommunityIcons
-              name="credit-card-plus"
-              size={24}
-              color="#fff"
-            />
-          </View>
-          <View style={styles.cardBtnTextCont}>
-            <Text style={styles.cardBtnTitle}>Card / USSD / QR</Text>
-            <Text style={styles.cardBtnSub}>
-              Instant funding via Paystack Secure Checkout
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#475569" />
         </TouchableOpacity>
       </View>
-
-      <View style={styles.noticeBox}>
-        <Ionicons name="information-circle" size={20} color="#38bdf8" />
-        <Text style={styles.noticeText}>
-          Standard Paystack processing fee of ₦50 applies to all automated
-          transfers. Minimum deposit: ₦100.
-        </Text>
-      </View>
-
-      <View style={{ height: 50 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f172a", paddingHorizontal: 20 },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  header: {
     backgroundColor: "#0f172a",
+    padding: 30,
+    alignItems: "center",
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  loaderText: { marginTop: 15, color: "#94a3b8", fontSize: 14 },
-  headerRow: {
+  title: { color: "white", fontSize: 22, fontWeight: "bold", marginTop: 10 },
+  subtitle: { color: "#38bdf8", fontSize: 14 },
+  form: { padding: 20, marginTop: 10 },
+  label: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  readOnlyBox: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 60,
-    marginBottom: 25,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginLeft: 15,
-    color: "#f8fafc",
-  },
-  heroSection: { marginBottom: 25 },
-  infoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#064e3b",
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-    marginBottom: 10,
-  },
-  badgeText: {
-    color: "#10b981",
-    fontSize: 11,
-    fontWeight: "bold",
-    marginLeft: 5,
-  },
-  heroSubtitle: { color: "#94a3b8", fontSize: 14, lineHeight: 20 },
-  bankCard: {
-    backgroundColor: "#1e293b",
-    borderRadius: 24,
-    padding: 25,
+    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 15,
+    borderRadius: 12,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
+    height: 55,
   },
-  bankHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 25,
-  },
-  bankTag: {
-    color: "#64748b",
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
-  bankName: { color: "#38bdf8", fontSize: 18, fontWeight: "bold" },
-  accContainer: { marginBottom: 15 },
-  label: {
-    color: "#64748b",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    marginBottom: 5,
-  },
-  numberRow: {
+  readOnlyText: { marginLeft: 10, fontSize: 16, fontWeight: "bold", color: "#1e3a8a" },
+  inputGroup: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  accountNumberText: {
-    color: "#ffffff",
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: 1.5,
-  },
-  divider: { height: 1, backgroundColor: "#334155", marginVertical: 18 },
-  accountNameText: { color: "#f8fafc", fontSize: 16, fontWeight: "600" },
-  emptyCard: {
-    backgroundColor: "#1e293b",
-    padding: 40,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    borderStyle: "dashed",
-    borderWidth: 2,
-    borderColor: "#334155",
-  },
-  emptyText: {
-    color: "#94a3b8",
-    textAlign: "center",
-    marginTop: 15,
-    fontSize: 14,
-  },
-  retryBtn: {
-    marginTop: 20,
-    backgroundColor: "#334155",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  retryText: { color: "#38bdf8", fontWeight: "bold" },
-  alternativeSection: { marginTop: 10 },
-  sectionTitle: {
-    color: "#f8fafc",
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 15,
-  },
-  cardBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1e293b",
-    padding: 18,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  cardBtnIcon: {
-    width: 45,
-    height: 45,
+    backgroundColor: "white",
+    paddingHorizontal: 15,
     borderRadius: 12,
-    backgroundColor: "#1d4ed8",
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    height: 55,
+  },
+  input: { flex: 1, marginLeft: 10, fontSize: 16, color: "#1e293b", fontWeight: "600" },
+  submitBtn: {
+    backgroundColor: "#1e3a8a",
+    height: 55,
+    borderRadius: 12,
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 10,
+    elevation: 4,
   },
-  cardBtnTextCont: { flex: 1, marginLeft: 15 },
-  cardBtnTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "bold" },
-  cardBtnSub: { color: "#64748b", fontSize: 12, marginTop: 2 },
-  noticeBox: {
-    flexDirection: "row",
-    backgroundColor: "rgba(56, 189, 248, 0.1)",
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 30,
-    alignItems: "center",
-  },
-  noticeText: {
-    flex: 1,
-    color: "#94a3b8",
-    fontSize: 12,
-    marginLeft: 12,
-    lineHeight: 18,
+  submitBtnText: {
+    color: "white",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginLeft: 10,
   },
 });
 
-export default FundWalletScreen;
+export default FundSupervisorScreen;

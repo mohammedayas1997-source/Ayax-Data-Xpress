@@ -14,6 +14,8 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const CableScreen = ({ navigation }) => {
   const [provider, setProvider] = useState("GOTV");
   const [smartCard, setSmartCard] = useState("");
@@ -63,7 +65,7 @@ const CableScreen = ({ navigation }) => {
       }
     };
     checkAdmin();
-    setPackages(cableData[provider]);
+    setPackages(cableData[provider] || []);
     setSelectedPackage(null);
     setCustomerName("");
   }, [provider]);
@@ -76,7 +78,7 @@ const CableScreen = ({ navigation }) => {
   };
 
   const validateIUC = async () => {
-    if (smartCard.length < 9) {
+    if (!smartCard || smartCard.length < 9) {
       return Alert.alert("Error", "Enter a valid IUC/Smartcard Number.");
     }
 
@@ -84,18 +86,26 @@ const CableScreen = ({ navigation }) => {
     setCustomerName("");
     try {
       const token = await AsyncStorage.getItem("userToken");
-      // REAL API CALL TO BACKEND VALIDATOR
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const res = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/vtu/validate-cable",
+        `${BASE_URL}/vtu/validate-cable`,
         { provider, smartCard },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (res.data.success) {
-        setCustomerName(res.data.customerName);
+      const result = res.data;
+      if (result.success || result.status === "success") {
+        setCustomerName(result.customerName || result.name || result.data?.customerName);
+      } else {
+        throw new Error(result.message || "Validation failed");
       }
     } catch (err) {
-      Alert.alert("Validation Error", "Check the number and try again.");
+      Alert.alert("Validation Error", err.response?.data?.message || err.message || "Check the number and try again.");
     } finally {
       setValidating(false);
     }
@@ -108,12 +118,21 @@ const CableScreen = ({ navigation }) => {
     if (!customerName) {
       return Alert.alert("Error", "Validate the Smartcard first.");
     }
+    if (pin.length < 4) {
+      return Alert.alert("Error", "Enter your 4-digit Transaction PIN.");
+    }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const res = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/vtu/pay-cable",
+        `${BASE_URL}/vtu/pay-cable`,
         {
           provider,
           smartCard,
@@ -124,14 +143,18 @@ const CableScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (res.data.success) {
-        Alert.alert("Success", "Subscription processed successfully!");
-        navigation.goBack();
+      const result = res.data;
+      if (result.success || result.status === "success") {
+        Alert.alert("Success", "Subscription processed successfully!", [
+          { text: "Done", onPress: () => navigation.goBack() }
+        ]);
+      } else {
+        throw new Error(result.message || "Transaction Error");
       }
     } catch (err) {
       Alert.alert(
         "Transaction Failed",
-        err.response?.data?.message || "Internal Error",
+        err.response?.data?.message || err.message || "Internal Error",
       );
     } finally {
       setLoading(false);
@@ -195,6 +218,7 @@ const CableScreen = ({ navigation }) => {
         <TextInput
           style={styles.mainInput}
           placeholder="e.g. 7012345678"
+          placeholderTextColor="#94a3b8"
           keyboardType="numeric"
           value={smartCard}
           onChangeText={(val) => {
@@ -242,7 +266,7 @@ const CableScreen = ({ navigation }) => {
               >
                 {pkg.name}
               </Text>
-              <Text style={styles.pkgCaption}>1 Month Validity</Text>
+              <Text style={[styles.pkgCaption, selectedPackage?.id === pkg.id && { color: "#cbd5e1" }]}>1 Month Validity</Text>
             </View>
             <Text
               style={[
@@ -260,6 +284,7 @@ const CableScreen = ({ navigation }) => {
       <TextInput
         style={styles.pinInput}
         placeholder="****"
+        placeholderTextColor="#94a3b8"
         secureTextEntry
         keyboardType="numeric"
         maxLength={4}
@@ -318,6 +343,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#cbd5e1",
+    color: "#0f172a",
   },
   adminBtn: {
     backgroundColor: "#0a1d37",
@@ -356,6 +382,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     fontSize: 16,
+    color: "#0f172a",
   },
   verifyBtn: {
     backgroundColor: "#0ea5e9",
@@ -407,6 +434,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: "center",
     letterSpacing: 5,
+    color: "#0f172a",
   },
   payBtn: {
     backgroundColor: "#0a1d37",

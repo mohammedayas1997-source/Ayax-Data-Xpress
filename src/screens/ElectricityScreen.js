@@ -15,6 +15,8 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const allDiscos = [
   { label: "Abuja Electricity (AEDC)", value: "abuja-electric" },
   { label: "Eko Electricity (EKEDC)", value: "eko-electric" },
@@ -39,7 +41,7 @@ const ElectricityScreen = ({ navigation }) => {
   const [verifying, setVerifying] = useState(false);
   const [paying, setPaying] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [fee, setFee] = useState(100); // Admin-set service charge
+  const [fee, setFee] = useState(100);
   const [newFee, setNewFee] = useState("");
 
   useEffect(() => {
@@ -68,16 +70,26 @@ const ElectricityScreen = ({ navigation }) => {
     setCustomerName("");
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const res = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/vtu/verify-meter",
+        `${BASE_URL}/vtu/verify-meter`,
         { disco, meterNumber: meterNo, meterType },
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      if (res.data.success) {
-        setCustomerName(res.data.name);
+
+      const result = res.data;
+      if (result.success || result.status === "success") {
+        setCustomerName(result.name || result.customerName || result.data?.name);
+      } else {
+        throw new Error(result.message || "Verification failed");
       }
     } catch (e) {
-      Alert.alert("Error", e.response?.data?.message || "Verification failed");
+      Alert.alert("Error", e.response?.data?.message || e.message || "Verification failed");
     } finally {
       setVerifying(false);
     }
@@ -88,16 +100,20 @@ const ElectricityScreen = ({ navigation }) => {
       return Alert.alert("Error", "Verify meter details first");
     if (parseInt(amount) < 500)
       return Alert.alert("Error", "Minimum purchase is ₦500");
-    if (pin.length < 4)
-      return Alert.alert("Error", "Enter your Transaction PIN");
+    if (!pin || pin.length < 4)
+      return Alert.alert("Error", "Enter your 4-digit Transaction PIN");
 
     setPaying(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const totalAmount = parseInt(amount) + fee;
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
 
       const res = await axios.post(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/vtu/electricity",
+        `${BASE_URL}/vtu/electricity`,
         {
           disco,
           meterNumber: meterNo,
@@ -109,21 +125,27 @@ const ElectricityScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (res.data.success) {
+      const result = res.data;
+      if (result.success || result.status === "success") {
+        const tokenVal = result.token || result.data?.token || "N/A";
+        const unitsVal = result.units || result.data?.units || "N/A";
+
         Alert.alert(
           "Purchase Successful",
-          `Token: ${res.data.token}\nUnits: ${res.data.units}\n\nAmount: ₦${amount}\nCharge: ₦${fee}`,
+          `Token: ${tokenVal}\nUnits: ${unitsVal}\n\nAmount: ₦${amount}\nCharge: ₦${fee}`,
           [
             {
               text: "Copy Token",
-              onPress: () => Clipboard.setString(res.data.token),
+              onPress: () => Clipboard.setString(tokenVal),
             },
             { text: "Done", onPress: () => navigation.goBack() },
           ],
         );
+      } else {
+        throw new Error(result.message || "Transaction Error");
       }
     } catch (e) {
-      Alert.alert("Failed", e.response?.data?.message || "Transaction Error");
+      Alert.alert("Failed", e.response?.data?.message || e.message || "Transaction Error");
     } finally {
       setPaying(false);
     }

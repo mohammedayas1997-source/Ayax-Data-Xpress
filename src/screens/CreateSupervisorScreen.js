@@ -10,8 +10,10 @@ import {
   ScrollView,
 } from "react-native";
 import { MaterialIcons, FontAwesome5 } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { API_URL } from "../constants";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const CreateSupervisorScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
@@ -38,16 +40,32 @@ const CreateSupervisorScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        setLoading(false);
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
       const response = await axios.post(
-        `${API_URL}/leader/create-supervisor`,
+        `${BASE_URL}/leader/create-supervisor`,
         formData,
+        config
       );
 
-      if (response.data.success) {
+      if (response.data.success || response.status === 200 || response.status === 201) {
         Alert.alert("Success", "New Supervisor added successfully!");
-        navigation.goBack(); // Zai koma Dashboard
+        navigation.goBack(); // Zai koma baya zuwa Dashboard
       }
     } catch (error) {
+      console.error("Create Supervisor Error:", error);
       const errorMsg = error.response?.data?.message || "Something went wrong";
       Alert.alert("Failed", errorMsg);
     } finally {
@@ -70,6 +88,7 @@ const CreateSupervisorScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="Full Name"
+            placeholderTextColor="#94a3b8"
             value={formData.name}
             onChangeText={(txt) => setFormData({ ...formData, name: txt })}
           />
@@ -81,6 +100,7 @@ const CreateSupervisorScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="Email Address"
+            placeholderTextColor="#94a3b8"
             keyboardType="email-address"
             autoCapitalize="none"
             value={formData.email}
@@ -94,6 +114,7 @@ const CreateSupervisorScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="Phone Number"
+            placeholderTextColor="#94a3b8"
             keyboardType="phone-pad"
             value={formData.phone}
             onChangeText={(txt) => setFormData({ ...formData, phone: txt })}
@@ -106,6 +127,7 @@ const CreateSupervisorScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="Office/Home Address"
+            placeholderTextColor="#94a3b8"
             multiline
             value={formData.address}
             onChangeText={(txt) => setFormData({ ...formData, address: txt })}
@@ -118,6 +140,7 @@ const CreateSupervisorScreen = ({ navigation }) => {
           <TextInput
             style={styles.input}
             placeholder="Secure Password"
+            placeholderTextColor="#94a3b8"
             secureTextEntry
             value={formData.password}
             onChangeText={(txt) => setFormData({ ...formData, password: txt })}

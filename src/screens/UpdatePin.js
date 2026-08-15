@@ -15,6 +15,8 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const UpdatePin = ({ navigation }) => {
   const [hasPin, setHasPin] = useState(false);
   const [oldPin, setOldPin] = useState("");
@@ -32,8 +34,11 @@ const UpdatePin = ({ navigation }) => {
       const userData = await AsyncStorage.getItem("userData");
       if (userData) {
         const user = JSON.parse(userData);
-        // Tabbatar cewa API dinka yana dawo da 'has_pin' ko makamancin haka
-        if (user.has_transaction_pin || user.pin_set === true) {
+        if (
+          user.has_transaction_pin ||
+          user.pin_set === true ||
+          user.hasPin === true
+        ) {
           setHasPin(true);
         }
       }
@@ -62,20 +67,26 @@ const UpdatePin = ({ navigation }) => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      // Muna amfani da endpoint daya ko biyu dangane da tsarin API dinka
-      const endpoint = hasPin ? "/api/update-pin" : "/api/create-pin";
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      // Amfani da ainihin endpoint din sabar ta Render
+      const endpoint = hasPin ? "/users/update-pin" : "/users/create-pin";
 
       const payload = {
-        new_pin: newPin,
-        confirm_pin: confirmPin,
+        newPin: newPin,
+        confirmPin: confirmPin,
       };
 
       if (hasPin) {
-        payload.old_pin = oldPin;
+        payload.oldPin = oldPin;
       }
 
       const response = await axios.post(
-        `https://your-api-url.com${endpoint}`,
+        `${BASE_URL}${endpoint}`,
         payload,
         {
           headers: {
@@ -85,14 +96,15 @@ const UpdatePin = ({ navigation }) => {
         },
       );
 
-      if (response.data.status === "success") {
+      const result = response.data;
+      if (result.success || result.status === "success") {
         Alert.alert(
           "Success",
           hasPin ? "PIN updated successfully!" : "PIN created successfully!",
         );
         navigation.goBack();
       } else {
-        Alert.alert("Failed", response.data.message || "Something went wrong");
+        Alert.alert("Failed", result.message || "Something went wrong");
       }
     } catch (error) {
       const errorMsg =

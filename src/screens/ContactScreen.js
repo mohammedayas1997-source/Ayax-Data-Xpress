@@ -9,8 +9,9 @@ import {
   StatusBar,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-const ContactScreen = () => {
+const ContactScreen = ({ navigation }) => {
   const phoneNumber = "+2349061244444";
   const emailAddress = "support@ayaxdata.online";
   const whatsappNumber = "2349061244444";
@@ -29,7 +30,6 @@ const ContactScreen = () => {
       if (supported) {
         await Linking.openURL(url);
       } else {
-        // Fallback to Browser if WhatsApp App is not installed
         await Linking.openURL(webUrl);
       }
     } catch (error) {
@@ -48,6 +48,11 @@ const ContactScreen = () => {
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       <View style={styles.header}>
+        {navigation && (
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+          </TouchableOpacity>
+        )}
         <Text style={styles.headerTitle}>Contact Support</Text>
         <Text style={styles.headerSub}>How can we help you today?</Text>
       </View>
@@ -98,8 +103,9 @@ const ContactScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff" },
-  header: { padding: 30, backgroundColor: "#f8fafc", alignItems: "center" },
-  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#1e3a8a" },
+  header: { padding: 30, paddingTop: 50, backgroundColor: "#f8fafc", alignItems: "center", position: "relative" },
+  backBtn: { position: "absolute", left: 20, top: 50, padding: 5 },
+  headerTitle: { fontSize: 24, fontWeight: "bold", color: "#1e3a8a", marginTop: 5 },
   headerSub: { fontSize: 14, color: "#64748b", marginTop: 5 },
   content: { padding: 20 },
   contactCard: {
@@ -112,6 +118,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#f1f5f9",
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   iconCircle: {
     width: 55,
@@ -124,7 +134,7 @@ const styles = StyleSheet.create({
   infoText: { marginLeft: 20 },
   label: { fontSize: 14, color: "#64748b", fontWeight: "600" },
   value: { fontSize: 16, color: "#0f172a", fontWeight: "bold", marginTop: 2 },
-  footer: { marginTop: 40, marginBottom: 40, alignItems: "center" },
+  footer: { marginTop: 20, marginBottom: 40, alignItems: "center" },
   footerText: { color: "#94a3b8", fontSize: 13 },
 });
 

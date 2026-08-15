@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   ActivityIndicator,
   Alert,
   FlatList,
@@ -13,7 +12,9 @@ import {
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const ServiceTracker = () => {
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
+const ServiceTracker = ({ navigation }) => {
   const [identifier, setIdentifier] = useState("");
   const [serviceType, setServiceType] = useState("data"); // Default type
   const [loading, setLoading] = useState(false);
@@ -26,20 +27,29 @@ const ServiceTracker = () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const BASE_URL = "https://ayax-api.com/api/v1/support"; // Update your URL
 
       const response = await axios.get(
-        `${BASE_URL}/trace/${serviceType}/${identifier}`,
+        `${BASE_URL}/support/trace/${serviceType}/${identifier}`,
         config,
       );
-      setResults(response.data.data);
+      setResults(response.data.data || response.data.results || response.data || []);
     } catch (err) {
-      setResults([]);
-      Alert.alert(
-        "Not Found",
-        `No records found for ${identifier} in ${serviceType.toUpperCase()}`,
-      );
+      if (err.response && err.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        setResults([]);
+        Alert.alert(
+          "Not Found",
+          `No records found for ${identifier} in ${serviceType.toUpperCase()}`,
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -57,7 +67,7 @@ const ServiceTracker = () => {
             try {
               const token = await AsyncStorage.getItem("userToken");
               await axios.post(
-                "https://ayax-api.com/api/v1/support/refund",
+                `${BASE_URL}/support/refund`,
                 { transactionId, reason },
                 { headers: { Authorization: `Bearer ${token}` } },
               );
@@ -68,6 +78,7 @@ const ServiceTracker = () => {
           },
         },
       ],
+      "plain-text"
     );
   };
 
@@ -76,7 +87,7 @@ const ServiceTracker = () => {
       <View style={styles.cardHeader}>
         <Text style={styles.statusBadge}>{item.status || "Completed"}</Text>
         <Text style={styles.dateText}>
-          {new Date(item.createdAt).toLocaleDateString()}
+          {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : ""}
         </Text>
       </View>
 
@@ -85,15 +96,15 @@ const ServiceTracker = () => {
       </Text>
 
       <Text style={styles.detailText}>
-        Ref: {item.reference || item.transactionId}
+        Ref: {item.reference || item.transactionId || item._id}
       </Text>
       <Text style={styles.detailText}>
-        User: {item.user?.firstName} {item.user?.surname}
+        User: {item.user?.firstName || ""} {item.user?.surname || item.user?.name || ""}
       </Text>
 
       <TouchableOpacity
         style={styles.refundBtn}
-        onPress={() => initiateRefund(item._id)}
+        onPress={() => initiateRefund(item._id || item.id)}
       >
         <Text style={styles.refundBtnText}>Initiate Refund</Text>
       </TouchableOpacity>
@@ -132,6 +143,7 @@ const ServiceTracker = () => {
         <TextInput
           style={styles.input}
           placeholder={`Enter ${serviceType} number or Phone...`}
+          placeholderTextColor="#94a3b8"
           value={identifier}
           onChangeText={setIdentifier}
         />
@@ -148,7 +160,7 @@ const ServiceTracker = () => {
       <FlatList
         data={results}
         renderItem={renderResultItem}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.id || Math.random().toString()}
         contentContainerStyle={styles.listPadding}
         ListEmptyComponent={
           !loading && (
@@ -188,6 +200,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 10,
+    color: "#1e293b",
   },
   searchBtn: {
     backgroundColor: "#2563eb",

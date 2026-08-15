@@ -7,27 +7,52 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons"; // Tabbatar kana da wannan icon library
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const NotificationScreen = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios
-      .get("https://ayax-data-xpress-server.onrender.com/api/v1/notifications")
-      .then((res) => {
-        setNotifications(res.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.log(err);
-        setLoading(false);
-      });
+    fetchNotifications();
   }, []);
 
-  if (loading) return <ActivityIndicator size="large" style={{ flex: 1 }} />;
+  const fetchNotifications = async () => {
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: { Authorization: `Bearer ${token}` },
+      };
+
+      const res = await axios.get(`${BASE_URL}/notifications`, config);
+      setNotifications(res.data.notifications || res.data.data || res.data || []);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Fetch Notifications Error:", err);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading)
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8fafc" }}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
+      </View>
+    );
 
   return (
     <View style={styles.container}>
@@ -44,13 +69,14 @@ const NotificationScreen = ({ navigation }) => {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={(item) => item._id || item.id}
+          keyExtractor={(item) => item._id || item.id || Math.random().toString()}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.message}>{item.message}</Text>
+              <Text style={styles.title}>{item.title || "Notification"}</Text>
+              <Text style={styles.message}>{item.message || item.body}</Text>
             </View>
           )}
+          contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
     </View>
@@ -75,9 +101,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     elevation: 2,
   },
-  title: { fontWeight: "bold", fontSize: 16, marginBottom: 5 },
-  message: { color: "#475569" },
-  emptyText: { textAlign: "center", marginTop: 50, color: "#64748b" },
+  title: { fontWeight: "bold", fontSize: 16, marginBottom: 5, color: "#0f172a" },
+  message: { color: "#475569", fontSize: 13 },
+  emptyText: { textAlign: "center", marginTop: 50, color: "#64748b", fontSize: 14 },
 });
 
 export default NotificationScreen;

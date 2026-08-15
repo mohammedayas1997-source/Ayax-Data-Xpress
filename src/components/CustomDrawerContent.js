@@ -30,12 +30,15 @@ const CustomDrawerContent = (props) => {
 
   useEffect(() => {
     const fetchUserRole = async () => {
-      const userData = await AsyncStorage.getItem("userData");
-      if (userData) {
-        const parsedData = JSON.parse(userData);
-        // Duba yadda data ɗinka yake, wani lokacin yana cikin parsedData.role ne
-        const role = parsedData?.role || parsedData?.data?.role || "";
-        setUserRole(role.trim().toLowerCase());
+      try {
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          const role = parsedData?.role || parsedData?.data?.role || "";
+          setUserRole(role.trim().toLowerCase());
+        }
+      } catch (err) {
+        console.log("Error fetching user role:", err);
       }
     };
     fetchUserRole();
@@ -49,7 +52,7 @@ const CustomDrawerContent = (props) => {
 
   // ================= UI =================
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: "#fff" }}>
       <DrawerContentScrollView {...props} contentContainerStyle={styles.scroll}>
         {/* ================= HEADER ================= */}
         <View style={styles.header}>
@@ -68,7 +71,7 @@ const CustomDrawerContent = (props) => {
                   name="account-tie"
                   size={22}
                   color={
-                    activeRoute === "AgentDashboard" ? "#1e40af" : "#64748b"
+                    activeRoute === "AgentDashboard" ? "#0a1d37" : "#64748b"
                   }
                 />
               )}
@@ -85,7 +88,7 @@ const CustomDrawerContent = (props) => {
                 <Ionicons
                   name="grid-outline"
                   size={22}
-                  color={activeRoute === "Dashboard" ? "#1e40af" : "#64748b"}
+                  color={activeRoute === "Dashboard" ? "#0a1d37" : "#64748b"}
                 />
               )}
               labelStyle={[
@@ -95,6 +98,7 @@ const CustomDrawerContent = (props) => {
               onPress={() => navigateTo("Dashboard")}
             />
           )}
+
           {/* WALLET */}
           <DrawerItem
             label="Wallet History"
@@ -102,10 +106,13 @@ const CustomDrawerContent = (props) => {
               <MaterialCommunityIcons
                 name="history"
                 size={22}
-                color={activeRoute === "Wallet History" ? "#1e40af" : "#64748b"}
+                color={activeRoute === "Wallet History" ? "#0a1d37" : "#64748b"}
               />
             )}
-            labelStyle={styles.label}
+            labelStyle={[
+              styles.label,
+              activeRoute === "Wallet History" && styles.activeLabel,
+            ]}
             onPress={() =>
               navigation.navigate("Main", { screen: "Wallet History" })
             }
@@ -118,10 +125,13 @@ const CustomDrawerContent = (props) => {
               <MaterialCommunityIcons
                 name="shield-check-outline"
                 size={22}
-                color="#64748b"
+                color={activeRoute === "BVN History" ? "#0a1d37" : "#64748b"}
               />
             )}
-            labelStyle={styles.label}
+            labelStyle={[
+              styles.label,
+              activeRoute === "BVN History" && styles.activeLabel,
+            ]}
             onPress={() => navigateTo("BVN History")}
           />
 
@@ -129,9 +139,16 @@ const CustomDrawerContent = (props) => {
           <DrawerItem
             label="NIMC Logs"
             icon={() => (
-              <Ionicons name="id-card-outline" size={22} color="#64748b" />
+              <Ionicons 
+                name="id-card-outline" 
+                size={22} 
+                color={activeRoute === "NIMC History" ? "#0a1d37" : "#64748b"} 
+              />
             )}
-            labelStyle={styles.label}
+            labelStyle={[
+              styles.label,
+              activeRoute === "NIMC History" && styles.activeLabel,
+            ]}
             onPress={() => navigateTo("NIMC History")}
           />
 
@@ -141,9 +158,16 @@ const CustomDrawerContent = (props) => {
           <DrawerItem
             label="Settings"
             icon={() => (
-              <Ionicons name="settings-outline" size={22} color="#64748b" />
+              <Ionicons 
+                name="settings-outline" 
+                size={22} 
+                color={activeRoute === "Settings" ? "#0a1d37" : "#64748b"} 
+              />
             )}
-            labelStyle={styles.label}
+            labelStyle={[
+              styles.label,
+              activeRoute === "Settings" && styles.activeLabel,
+            ]}
             onPress={() => navigateTo("Settings")}
           />
         </View>
@@ -169,7 +193,7 @@ const styles = StyleSheet.create({
   header: {
     padding: 25,
     alignItems: "center",
-    backgroundColor: "#f8fafc",
+    backgroundColor: "#0f172a",
     borderBottomWidth: 1,
     borderColor: "#e2e8f0",
   },
@@ -196,10 +220,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#64748b",
     marginLeft: -10,
+    fontSize: 14,
   },
 
   activeLabel: {
-    color: "#1e40af",
+    color: "#0a1d37",
     fontWeight: "bold",
   },
 
@@ -230,4 +255,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 });
+
 export default CustomDrawerContent;

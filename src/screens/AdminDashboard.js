@@ -13,6 +13,8 @@ import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const AdminDashboard = () => {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
@@ -28,28 +30,37 @@ const AdminDashboard = () => {
   const fetchStats = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        setLoading(false);
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      const BASE_URL = "https://ayax-api.com/api/v1/admin";
 
       const [usersRes, nimcRes, bvnRes, reportRes, salesRes] =
         await Promise.all([
-          axios.get(`${BASE_URL}/users`, config),
-          axios.get(`${BASE_URL}/nimc-requests`, config),
-          axios.get(`${BASE_URL}/bvn-requests`, config),
-          axios.get(`${BASE_URL}/all-reports`, config),
-          axios.get(`${BASE_URL}/sales-stats`, config),
+          axios.get(`${BASE_URL}/admin/users`, config).catch(() => ({ data: { data: [] } })),
+          axios.get(`${BASE_URL}/admin/nimc-requests`, config).catch(() => ({ data: { count: 0 } })),
+          axios.get(`${BASE_URL}/admin/bvn-requests`, config).catch(() => ({ data: { count: 0 } })),
+          axios.get(`${BASE_URL}/admin/all-reports`, config).catch(() => ({ data: { requests: [] } })),
+          axios.get(`${BASE_URL}/admin/sales-stats`, config).catch(() => ({ data: { total: 0 } })),
         ]);
 
       setStats({
-        users: usersRes.data.data.length,
-        nimc: nimcRes.data.count,
-        bvn: bvnRes.data.count,
-        reports: reportRes.data.requests.length,
-        sales: salesRes.data.total || 0,
+        users: usersRes.data?.data?.length || usersRes.data?.count || 0,
+        nimc: nimcRes.data?.count || 0,
+        bvn: bvnRes.data?.count || 0,
+        reports: reportRes.data?.requests?.length || 0,
+        sales: salesRes.data?.total || salesRes.data?.data?.total || 0,
       });
     } catch (err) {
-      console.error(err);
-      Alert.alert("Connection Error", "Failed to load dashboard statistics.");
+      console.error("Admin Dashboard Error:", err);
+      if (err.response && err.response.status === 401) {
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        Alert.alert("Connection Error", "Failed to load dashboard statistics.");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

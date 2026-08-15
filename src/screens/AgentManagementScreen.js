@@ -5,7 +5,8 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ProgressBarAndroid, // Ko ProgressView na iOS
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import axios from "axios";
 
@@ -15,25 +16,55 @@ const AgentManagementScreen = () => {
     totalRegistered: 0,
     totalDataSold: 0,
     monthlyGoal: 10,
-    dataGoal: 100, // GB
+    dataGoal: 100,
   });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Wannan zai dauko bayanan Agents karkashin wannan Supervisor din
+  // Kira dukkan bayanan Agents karkashin wannan Supervisor din
   const fetchAgentStats = async () => {
     try {
+      setError(null);
+      const token = localStorage ? localStorage.getItem("token") : null; // Ko SecureStore idan kana amfani da shi a Mobile app din Expo
+      
       const response = await axios.get(
-        "https://ayax-data-xpress-server.vercel.app/api/v1/supervisor/my-agents",
+        "https://ayax-data-xpress-server.onrender.com/api/v1/supervisor/my-agents",
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
-      setAgents(response.data.agents);
-      setTargetStats(response.data.stats);
-    } catch (error) {
-      console.log("Error loading agents:", error);
+      
+      setAgents(response.data.agents || []);
+      if (response.data.stats) {
+        setTargetStats(response.data.stats);
+      }
+    } catch (err) {
+      console.error("Error loading agents:", err);
+      setError("Failed to load agent performance metrics.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
     fetchAgentStats();
   }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchAgentStats();
+  };
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
+        <Text style={styles.loadingText}>Loading Agent Metrics...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -56,29 +87,53 @@ const AgentManagementScreen = () => {
       </View>
 
       <Text style={styles.sectionTitle}>Agent List & Daily Sales</Text>
-      <FlatList
-        data={agents}
-        keyExtractor={(item) => item._id}
-        renderItem={({ item }) => (
-          <View style={styles.agentCard}>
-            <View>
-              <Text style={styles.agentName}>{item.fullName}</Text>
-              <Text style={styles.agentInfo}>
-                Today's Sale: {item.todaySales}GB
-              </Text>
+      
+      {error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchAgentStats}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={agents}
+          keyExtractor={(item) => item._id || Math.random().toString()}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1e3a8a" />
+          }
+          renderItem={({ item }) => (
+            <View style={styles.agentCard}>
+              <View>
+                <Text style={styles.agentName}>{item.fullName || item.name}</Text>
+                <Text style={styles.agentInfo}>
+                  Today's Sale: {item.todaySales || 0}GB
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.viewBtn}
+                onPress={() => {
+                  // Anan zaka iya sanya navigation zuwa shafin History din agent din
+                  alert(`Viewing history for ${item.fullName || item.name}`);
+                }}
+              >
+                <Text style={styles.viewText}>View History</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.viewBtn}>
-              <Text style={styles.viewText}>View History</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
+          )}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No agents assigned yet.</Text>
+          }
+        />
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff", padding: 20 },
+  centerContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  loadingText: { marginTop: 10, color: "#64748b", fontSize: 14 },
   header: {
     fontSize: 22,
     fontWeight: "bold",
@@ -105,7 +160,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     marginTop: 5,
   },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
+  sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15, color: "#0f172a" },
   agentCard: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -114,12 +169,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 12,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  agentName: { fontWeight: "bold", color: "#1e293b" },
-  agentInfo: { color: "#64748b", fontSize: 13 },
-  viewBtn: { backgroundColor: "#38bdf8", padding: 8, borderRadius: 8 },
+  agentName: { fontWeight: "bold", color: "#1e293b", fontSize: 15 },
+  agentInfo: { color: "#64748b", fontSize: 13, marginTop: 2 },
+  viewBtn: { backgroundColor: "#0284c7", paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
   viewText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
+  errorContainer: { padding: 20, alignItems: "center" },
+  errorText: { color: "#dc2626", textAlign: "center", marginBottom: 10 },
+  retryBtn: { backgroundColor: "#1e3a8a", paddingHorizontal: 15, paddingVertical: 8, borderRadius: 6 },
+  retryText: { color: "#fff", fontWeight: "bold" },
+  emptyText: { textAlign: "center", color: "#94a3b8", marginTop: 20 },
 });
 
 export default AgentManagementScreen;

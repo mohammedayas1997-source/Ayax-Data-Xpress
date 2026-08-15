@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,47 +7,111 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
 const SupervisorDashboard = ({ navigation }) => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [supervisorData, setSupervisorData] = useState({
-    name: "Supervisor Name",
-    referralId: "AX0000", // Generated automatically on backend during account creation
-    agents: [
-      { id: "1", name: "Bello Musa", todayGB: "12.5GB", status: "Active" },
-      { id: "2", name: "Sani Ahmad", todayGB: "8.2GB", status: "Active" },
-      { id: "3", name: "Zainab Ali", todayGB: "0GB", status: "Inactive" },
-    ],
+    name: "Supervisor",
+    referralId: "AX0000",
+    agents: [],
+    targets: {
+      newAgentsCount: 0,
+      totalAgentsTarget: 10,
+      gbSold: 0,
+      gbTarget: 100,
+    },
   });
 
-  // Protocol for fetching live supervisor profile and identification
-  const fetchSupervisorContext = async () => {
+  // Amfani da useFocusEffect domin sabunta bayanai duk lokacin da aka dawo shafin
+  useFocusEffect(
+    useCallback(() => {
+      fetchSupervisorProfile();
+    }, [])
+  );
+
+  const fetchSupervisorProfile = async () => {
     try {
       setLoading(true);
-      // Replace with your actual authenticated endpoint
-      const response = await axios.get(
-        "https://ayax-data-xpress-server.onrender.com/api/v1/supervisor/profile",
-      );
-      if (response.data.success) {
-        setSupervisorData(response.data.data);
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      // Kira zuwa ainihin sabar mu ta Render
+      const response = await axios.get(`${BASE_URL}/supervisor/profile`, config);
+      
+      const result = response.data;
+      if (result.success || result.status === "success") {
+        const data = result.data || result.supervisor || result;
+        setSupervisorData({
+          name: data.firstName ? `${data.firstName} ${data.surname || ""}` : (data.name || "Supervisor"),
+          referralId: data.referralId || data.supervisorId || data.code || "AX0000",
+          agents: data.agents || [],
+          targets: data.targets || {
+            newAgentsCount: data.agents ? data.agents.length : 0,
+            totalAgentsTarget: 10,
+            gbSold: data.gbSold || 0,
+            gbTarget: 100,
+          },
+        });
       }
     } catch (error) {
-      console.error("Context Retrieval Failure:", error);
+      if (error.response && error.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Supervisor Context Retrieval Failure:", error);
+        // Idan akwai matsala ko kuma endpoint din yana kan gina shi, za mu iya amfani da wani cached data ko default
+        try {
+          const cachedUser = await AsyncStorage.getItem("userData");
+          if (cachedUser) {
+            const parsed = JSON.parse(cachedUser);
+            setSupervisorData((prev) => ({
+              ...prev,
+              name: `${parsed.firstName || ""} ${parsed.surname || ""}`,
+              referralId: parsed.supervisorId || parsed.referralId || "AX770",
+            }));
+          }
+        } catch (cacheErr) {
+          console.log("Cache read error:", cacheErr);
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    // fetchSupervisorContext(); // Uncomment for live production integration
-  }, []);
+  const copyToClipboard = () => {
+    Alert.alert("Success", `Referral ID ${supervisorData.referralId} copied successfully!`);
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
+      </View>
+    );
+  }
+
+  const agentsList = supervisorData.agents.length > 0 ? supervisorData.agents : [
+    { id: "1", name: "No agents registered yet", todayGB: "0GB", status: "Inactive" }
+  ];
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
 
       <View style={styles.header}>
         <View>
@@ -56,7 +120,10 @@ const SupervisorDashboard = ({ navigation }) => {
             Welcome back, {supervisorData.name}
           </Text>
         </View>
-        <TouchableOpacity style={styles.profileBadge}>
+        <TouchableOpacity 
+          style={styles.profileBadge}
+          onPress={() => navigation.navigate("Profile")}
+        >
           <Ionicons name="person-circle" size={40} color="#1e3a8a" />
         </TouchableOpacity>
       </View>
@@ -69,9 +136,7 @@ const SupervisorDashboard = ({ navigation }) => {
         </View>
         <TouchableOpacity
           style={styles.copyBtn}
-          onPress={() =>
-            alert(`ID ${supervisorData.referralId} copied to clipboard`)
-          }
+          onPress={copyToClipboard}
         >
           <Ionicons name="copy-outline" size={20} color="#fff" />
           <Text style={styles.copyText}>COPY</Text>
@@ -83,30 +148,39 @@ const SupervisorDashboard = ({ navigation }) => {
         <Text style={styles.cardLabel}>Monthly Target Progress</Text>
         <View style={styles.progressRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statNum}>7/10</Text>
+            <Text style={styles.statNum}>
+              {supervisorData.targets.newAgentsCount}/{supervisorData.targets.totalAgentsTarget}
+            </Text>
             <Text style={styles.statSub}>New Agents</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.statBox}>
-            <Text style={styles.statNum}>65/100</Text>
+            <Text style={styles.statNum}>
+              {supervisorData.targets.gbSold}/{supervisorData.targets.gbTarget}
+            </Text>
             <Text style={styles.statSub}>GB Sold</Text>
           </View>
         </View>
         <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: "65%" }]} />
+          <View 
+            style={[
+              styles.progressBarFill, 
+              { width: `${Math.min((supervisorData.targets.gbSold / supervisorData.targets.gbTarget) * 100, 100)}%` }
+            ]} 
+          />
         </View>
       </View>
 
       {/* Agents Daily Tracking */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Daily Agent Performance</Text>
-        <TouchableOpacity>
-          <Text style={styles.viewAll}>View All</Text>
+        <TouchableOpacity onPress={fetchSupervisorProfile}>
+          <Ionicons name="reload" size={18} color="#3b82f6" />
         </TouchableOpacity>
       </View>
 
-      {supervisorData.agents.map((agent) => (
-        <View key={agent.id} style={styles.agentRow}>
+      {agentsList.map((agent, index) => (
+        <View key={agent.id || index} style={styles.agentRow}>
           <View style={styles.agentLeft}>
             <View
               style={[
@@ -118,12 +192,14 @@ const SupervisorDashboard = ({ navigation }) => {
               ]}
             />
             <View>
-              <Text style={styles.agentName}>{agent.name}</Text>
-              <Text style={styles.agentStatus}>{agent.status}</Text>
+              <Text style={styles.agentName}>
+                {agent.firstName ? `${agent.firstName} ${agent.surname || ""}` : (agent.name || "Agent")}
+              </Text>
+              <Text style={styles.agentStatus}>{agent.status || "Active"}</Text>
             </View>
           </View>
           <View style={{ alignItems: "flex-end" }}>
-            <Text style={styles.gbText}>{agent.todayGB}</Text>
+            <Text style={styles.gbText}>{agent.todayGB || agent.totalGB || "0GB"}</Text>
             <Text style={styles.timeText}>Data Consumed</Text>
           </View>
         </View>
@@ -131,7 +207,7 @@ const SupervisorDashboard = ({ navigation }) => {
 
       <TouchableOpacity
         style={styles.addAgentBtn}
-        onPress={() => navigation.navigate("Signup")} // Links to the SignupScreen with Supervisor ID context
+        onPress={() => navigation.navigate("Signup")}
       >
         <Ionicons
           name="person-add"
@@ -165,7 +241,6 @@ const styles = StyleSheet.create({
   welcomeText: { color: "#64748b", fontSize: 14, fontWeight: "500" },
   profileBadge: { padding: 5 },
 
-  // ID Card Styling
   idCard: {
     backgroundColor: "#1e293b",
     borderRadius: 16,
@@ -235,7 +310,6 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   sectionTitle: { fontSize: 18, fontWeight: "800", color: "#0f172a" },
-  viewAll: { color: "#3b82f6", fontWeight: "700", fontSize: 13 },
 
   agentRow: {
     backgroundColor: "#fff",

@@ -20,7 +20,7 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
-const BASE_URL = "https://ayax-api-v2.vercel.app/api/v1";
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const NIMCScreen = ({ navigation }) => {
   const [view, setView] = useState("main");
@@ -35,8 +35,8 @@ const NIMCScreen = ({ navigation }) => {
     const fetchPrices = async () => {
       try {
         const res = await axios.get(`${BASE_URL}/nimc/prices`);
-        if (res.data.success) {
-          setPrices(res.data.prices);
+        if (res.data.success || res.data.status === "success") {
+          setPrices(res.data.prices || res.data.data || {});
         }
       } catch (err) {
         console.log("Error fetching NIMC prices", err.message);
@@ -56,6 +56,12 @@ const NIMCScreen = ({ navigation }) => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        Alert.alert("Session Expired", "Please login again.");
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const res = await axios.post(
         `${BASE_URL}/nimc/verify-and-charge`,
         {
@@ -66,9 +72,12 @@ const NIMCScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
-      if (res.data.success) {
-        setUserData(res.data.data);
+      const result = res.data;
+      if (result.success || result.status === "success") {
+        setUserData(result.data || result);
         setView("result");
+      } else {
+        Alert.alert("Failed", result.message || "Verification failed");
       }
     } catch (err) {
       Alert.alert(
@@ -109,11 +118,10 @@ const NIMCScreen = ({ navigation }) => {
         <Text style={styles.sectionLabel}>Verification & Printing Options</Text>
 
         <View style={styles.grid}>
-          {/* Search Methods */}
           <ServiceCard
             title="NIN Verification"
             icon="fingerprint"
-            price={prices.nin || 0}
+            price={prices.nin || 1000}
             onPress={() =>
               setSearchType({ id: "nin", name: "NIN Verification" })
             }
@@ -121,7 +129,7 @@ const NIMCScreen = ({ navigation }) => {
           <ServiceCard
             title="Phone Search"
             icon="phone-alt"
-            price={prices.phone || 0}
+            price={prices.phone || 1000}
             onPress={() =>
               setSearchType({ id: "phone", name: "Phone Number Search" })
             }
@@ -129,17 +137,15 @@ const NIMCScreen = ({ navigation }) => {
           <ServiceCard
             title="Tracking ID"
             icon="barcode"
-            price={prices.trackingId || 0}
+            price={prices.trackingId || 1000}
             onPress={() =>
               setSearchType({ id: "trackingId", name: "Tracking ID Search" })
             }
           />
-
-          {/* Printing Services */}
           <ServiceCard
             title="Premium ID Card"
             icon="id-card"
-            price={prices.premiumCard || 0}
+            price={prices.premiumCard || 1500}
             onPress={() =>
               setSearchType({
                 id: "premiumCard",
@@ -150,7 +156,7 @@ const NIMCScreen = ({ navigation }) => {
           <ServiceCard
             title="Standard Slip"
             icon="file-alt"
-            price={prices.standardSlip || 0}
+            price={prices.standardSlip || 500}
             onPress={() =>
               setSearchType({ id: "standardSlip", name: "Standard NIMC Slip" })
             }
@@ -158,7 +164,7 @@ const NIMCScreen = ({ navigation }) => {
           <ServiceCard
             title="Basic NIMC Slip"
             icon="print"
-            price={prices.basicSlip || 0}
+            price={prices.basicSlip || 300}
             onPress={() =>
               setSearchType({ id: "basicSlip", name: "Basic Slip Printing" })
             }
@@ -178,6 +184,7 @@ const NIMCScreen = ({ navigation }) => {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
         </TouchableOpacity>
+        <View style={{ height: 40 }} />
       </ScrollView>
     );
   }
@@ -194,26 +201,30 @@ const NIMCScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.formCard}>
-          <Text style={styles.inputLabel}>Identification Number / Face ID</Text>
+          <Text style={styles.inputLabel}>Identification Number / Value</Text>
           <TextInput
-            placeholder={`Enter ID or Number`}
+            placeholder="Enter ID or Number"
+            placeholderTextColor="#999"
             style={styles.input}
+            value={formData.searchValue}
             onChangeText={(v) => setFormData({ ...formData, searchValue: v })}
           />
 
           <Text style={styles.inputLabel}>Transaction PIN</Text>
           <TextInput
             placeholder="****"
+            placeholderTextColor="#999"
             style={styles.input}
             secureTextEntry
             keyboardType="numeric"
             maxLength={4}
+            value={formData.pin}
             onChangeText={(v) => setFormData({ ...formData, pin: v })}
           />
 
           <View style={styles.priceTag}>
             <Text style={styles.priceLabel}>Service Fee:</Text>
-            <Text style={styles.priceValue}>₦{prices[searchType.id] || 0}</Text>
+            <Text style={styles.priceValue}>₦{prices[searchType.id] || 1000}</Text>
           </View>
 
           <TouchableOpacity
@@ -234,7 +245,7 @@ const NIMCScreen = ({ navigation }) => {
 
   if (view === "result") {
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => setView("main")}>
             <Ionicons name="close" size={24} color="#1e3a8a" />
@@ -244,14 +255,18 @@ const NIMCScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.resultCard}>
-          {userData?.photo && (
+          {userData?.photo ? (
             <Image
               source={{ uri: `data:image/jpeg;base64,${userData.photo}` }}
               style={styles.userPhoto}
             />
+          ) : (
+            <View style={[styles.userPhoto, { justifyContent: "center", alignItems: "center", backgroundColor: "#e2e8f0" }]}>
+              <Ionicons name="person" size={50} color="#64748b" />
+            </View>
           )}
           <View style={styles.infoBox}>
-            <InfoRow label="Full Name" value={userData?.fullName} />
+            <InfoRow label="Full Name" value={userData?.fullName || `${userData?.firstName || ""} ${userData?.surname || ""}`} />
             <InfoRow label="NIN Number" value={userData?.nin} />
             <InfoRow label="Tracking ID" value={userData?.trackingId} />
           </View>
@@ -265,6 +280,7 @@ const NIMCScreen = ({ navigation }) => {
             <Text style={styles.downloadText}>Download Printing Slip</Text>
           </TouchableOpacity>
         </View>
+        <View style={{ height: 40 }} />
       </ScrollView>
     );
   }
@@ -390,6 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontSize: 16,
     fontWeight: "600",
+    color: "#0f172a",
   },
   priceTag: {
     flexDirection: "row",
@@ -410,6 +427,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 25,
     alignItems: "center",
+    elevation: 4,
   },
   userPhoto: {
     width: 120,

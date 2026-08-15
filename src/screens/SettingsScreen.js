@@ -1,600 +1,253 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  Switch,
   TouchableOpacity,
+  Image,
   ScrollView,
-  Alert,
-  TextInput,
-  Modal,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  Alert,
 } from "react-native";
-
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
+import axios from "axios";
 
-import * as LocalAuthentication from "expo-local-authentication";
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-import { ThemeContext } from "../context/ThemeContext";
-
-const SettingsScreen = ({ navigation }) => {
-  const { isDarkMode, toggleTheme } = useContext(ThemeContext);
-
+const ProfileScreen = ({ navigation }) => {
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  // Amfani da useFocusEffect domin Refreshing automatic daga sabar idan an dawo daga Edit Profile
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
 
-  const [useFingerprintLogin, setUseFingerprintLogin] = useState(false);
-
-  const [useFingerprintTransaction, setUseFingerprintTransaction] =
-    useState(false);
-
-  const [pinModalVisible, setPinModalVisible] = useState(false);
-
-  const [changePinModalVisible, setChangePinModalVisible] = useState(false);
-
-  const [transactionPin, setTransactionPin] = useState("");
-
-  const [oldPin, setOldPin] = useState("");
-
-  const [newPin, setNewPin] = useState("");
-
-  useEffect(() => {
-    initializeSettings();
-  }, []);
-
-  const initializeSettings = async () => {
+  const fetchUserProfile = async () => {
     try {
-      await checkDeviceSupport();
-      await loadSettings();
-    } catch (error) {
-      console.log(error);
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = { headers: { Authorization: `Bearer ${token}` } };
+      
+      // Dauko sabbin bayanai daga sabar
+      const response = await axios.get(`${BASE_URL}/auth/profile`, config);
+      const user = response.data.user || response.data.data || response.data;
+
+      if (user) {
+        setUserData(user);
+        // Sabunta a cikin AsyncStorage
+        await AsyncStorage.setItem("userData", JSON.stringify(user));
+      }
+    } catch (e) {
+      if (e.response && e.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Error fetching profile from server:", e);
+        // Idan akwai matsala tanetwork, gwada dauka daga AsyncStorage
+        try {
+          const cachedValue = await AsyncStorage.getItem("userData");
+          if (cachedValue != null) {
+            setUserData(JSON.parse(cachedValue));
+          }
+        } catch (cacheErr) {
+          console.error("Error reading cache:", cacheErr);
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const checkDeviceSupport = async () => {
-    try {
-      const compatible = await LocalAuthentication.hasHardwareAsync();
-
-      const enrolled = await LocalAuthentication.isEnrolledAsync();
-
-      setIsBiometricSupported(compatible && enrolled);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const loadSettings = async () => {
-    try {
-      const loginBio = await AsyncStorage.getItem("useBiometricLogin");
-
-      const txBio = await AsyncStorage.getItem("useBiometricTransaction");
-
-      if (loginBio !== null) {
-        setUseFingerprintLogin(JSON.parse(loginBio));
-      }
-
-      if (txBio !== null) {
-        setUseFingerprintTransaction(JSON.parse(txBio));
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const authenticateUser = async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Authenticate",
-        fallbackLabel: "Use Password",
-        disableDeviceFallback: false,
-      });
-
-      return result.success;
-    } catch (error) {
-      console.log(error);
-      return false;
-    }
-  };
-
-  const toggleBiometric = async (type) => {
-    if (!isBiometricSupported) {
-      Alert.alert(
-        "Unavailable",
-        "Biometric authentication is not available on this device.",
-      );
-      return;
-    }
-
-    const authenticated = await authenticateUser();
-
-    if (!authenticated) {
-      Alert.alert("Failed", "Authentication failed");
-      return;
-    }
-
-    try {
-      if (type === "login") {
-        const newValue = !useFingerprintLogin;
-
-        setUseFingerprintLogin(newValue);
-
-        await AsyncStorage.setItem(
-          "useBiometricLogin",
-          JSON.stringify(newValue),
-        );
-      }
-
-      if (type === "transaction") {
-        const newValue = !useFingerprintTransaction;
-
-        setUseFingerprintTransaction(newValue);
-
-        await AsyncStorage.setItem(
-          "useBiometricTransaction",
-          JSON.stringify(newValue),
-        );
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const toggleDarkMode = async () => {
-    try {
-      await toggleTheme();
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const handleSetPin = async () => {
-    try {
-      if (transactionPin.length !== 4) {
-        Alert.alert("Invalid PIN", "PIN must be exactly 4 digits");
-        return;
-      }
-
-      if (!/^\d+$/.test(transactionPin)) {
-        Alert.alert("Invalid PIN", "PIN must contain numbers only");
-        return;
-      }
-
-      await AsyncStorage.setItem("transactionPin", transactionPin);
-
-      Alert.alert("Success", "Transaction PIN saved successfully");
-
-      setTransactionPin("");
-
-      setPinModalVisible(false);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const handleChangePin = async () => {
-    try {
-      const savedPin = await AsyncStorage.getItem("transactionPin");
-
-      if (!savedPin) {
-        Alert.alert("Error", "No existing PIN found");
-        return;
-      }
-
-      if (oldPin !== savedPin) {
-        Alert.alert("Incorrect", "Old PIN is incorrect");
-        return;
-      }
-
-      if (newPin.length !== 4) {
-        Alert.alert("Invalid", "New PIN must be 4 digits");
-        return;
-      }
-
-      if (!/^\d+$/.test(newPin)) {
-        Alert.alert("Invalid", "PIN must contain numbers only");
-        return;
-      }
-
-      await AsyncStorage.setItem("transactionPin", newPin);
-
-      Alert.alert("Success", "Transaction PIN changed successfully");
-
-      setOldPin("");
-      setNewPin("");
-
-      setChangePinModalVisible(false);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-
-      {
-        text: "Logout",
-        style: "destructive",
-
-        onPress: async () => {
-          try {
-            await AsyncStorage.clear();
-
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Login" }],
-            });
-          } catch (error) {
-            console.log(error);
-
-            Alert.alert("Error", "Logout failed. Try again.");
-          }
-        },
-      },
-    ]);
-  };
-
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color="#1e3a8a" />
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, isDarkMode && styles.darkContainer]}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <ScrollView
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.profileHeader}>
+        <View style={styles.avatar}>
+          {userData?.profileImage ? (
+            <Image
+              source={{ uri: userData.profileImage }}
+              style={styles.profileImg}
+            />
+          ) : (
+            <Text style={styles.avatarText}>
+              {userData?.firstName ? userData.firstName[0] : "A"}
+            </Text>
+          )}
+        </View>
+        <Text style={styles.name}>
+          {userData?.firstName || ""} {userData?.surname || userData?.lastName || ""}
+        </Text>
+        <Text style={styles.email}>{userData?.email}</Text>
+      </View>
+
+      <View style={styles.infoSection}>
+        <Text style={styles.sectionLabel}>Institutional Profile Data</Text>
+
+        <View style={styles.infoBox}>
+          {/* Phone Number Field */}
+          <View style={styles.infoItem}>
+            <Ionicons name="call-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Primary Contact</Text>
+              <Text style={styles.infoValue}>
+                {userData?.phone || userData?.phoneNumber || "Not Configured"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Date of Birth Field */}
+          <View style={styles.infoItem}>
+            <Ionicons name="calendar-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Date of Birth</Text>
+              <Text style={styles.infoValue}>
+                {userData?.dob ? new Date(userData.dob).toLocaleDateString() : "Not Provided"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Address Field */}
+          <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
+            <Ionicons name="location-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Registered Address</Text>
+              <Text style={styles.infoValue}>
+                {userData?.address || "Location data not synchronized"}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.editBtn}
+        onPress={() => navigation.navigate("EditProfile")}
+        activeOpacity={0.8}
       >
-        <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons
-              name="arrow-back"
-              size={26}
-              color={isDarkMode ? "#fff" : "#1e293b"}
-            />
-          </TouchableOpacity>
-
-          <Text style={[styles.title, isDarkMode && styles.darkText]}>
-            Settings
-          </Text>
+        <View style={styles.btnContent}>
+          <Ionicons
+            name="create-outline"
+            size={20}
+            color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.editBtnText}>Modify Profile Credentials</Text>
         </View>
+      </TouchableOpacity>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Security</Text>
-
-          <TouchableOpacity
-            style={[styles.item, isDarkMode && styles.darkItem]}
-            onPress={() => setPinModalVisible(true)}
-          >
-            <View style={styles.itemLeft}>
-              <Ionicons name="lock-closed-outline" size={22} color="#2563eb" />
-
-              <Text
-                style={[styles.itemText, isDarkMode && styles.darkItemText]}
-              >
-                Set Transaction PIN
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.item, isDarkMode && styles.darkItem]}
-            onPress={() => setChangePinModalVisible(true)}
-          >
-            <View style={styles.itemLeft}>
-              <MaterialCommunityIcons
-                name="lock-reset"
-                size={22}
-                color="#7c3aed"
-              />
-
-              <Text
-                style={[styles.itemText, isDarkMode && styles.darkItemText]}
-              >
-                Change Transaction PIN
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <View style={[styles.item, isDarkMode && styles.darkItem]}>
-            <View style={styles.itemLeft}>
-              <Ionicons name="finger-print-outline" size={22} color="#0ea5e9" />
-
-              <Text
-                style={[styles.itemText, isDarkMode && styles.darkItemText]}
-              >
-                Fingerprint Login
-              </Text>
-            </View>
-
-            <Switch
-              value={useFingerprintLogin}
-              onValueChange={() => toggleBiometric("login")}
-            />
-          </View>
-
-          <View style={[styles.item, isDarkMode && styles.darkItem]}>
-            <View style={styles.itemLeft}>
-              <MaterialCommunityIcons
-                name="shield-key-outline"
-                size={22}
-                color="#16a34a"
-              />
-
-              <Text
-                style={[styles.itemText, isDarkMode && styles.darkItemText]}
-              >
-                Fingerprint Transaction
-              </Text>
-            </View>
-
-            <Switch
-              value={useFingerprintTransaction}
-              onValueChange={() => toggleBiometric("transaction")}
-            />
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Preferences</Text>
-
-          <View style={[styles.item, isDarkMode && styles.darkItem]}>
-            <View style={styles.itemLeft}>
-              <Ionicons name="moon-outline" size={22} color="#f59e0b" />
-
-              <Text
-                style={[styles.itemText, isDarkMode && styles.darkItemText]}
-              >
-                Dark Mode
-              </Text>
-            </View>
-
-            <Switch value={isDarkMode} onValueChange={toggleDarkMode} />
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout Account</Text>
-        </TouchableOpacity>
-      </ScrollView>
-
-      {/* SET PIN MODAL */}
-      <Modal visible={pinModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Set Transaction PIN</Text>
-
-            <TextInput
-              placeholder="Enter 4-digit PIN"
-              secureTextEntry
-              keyboardType="number-pad"
-              maxLength={4}
-              value={transactionPin}
-              onChangeText={setTransactionPin}
-              style={styles.input}
-            />
-
-            <TouchableOpacity style={styles.modalBtn} onPress={handleSetPin}>
-              <Text style={styles.modalBtnText}>Save PIN</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                setTransactionPin("");
-                setPinModalVisible(false);
-              }}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* CHANGE PIN MODAL */}
-      <Modal visible={changePinModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Change Transaction PIN</Text>
-
-            <TextInput
-              placeholder="Old PIN"
-              secureTextEntry
-              keyboardType="number-pad"
-              maxLength={4}
-              value={oldPin}
-              onChangeText={setOldPin}
-              style={styles.input}
-            />
-
-            <TextInput
-              placeholder="New PIN"
-              secureTextEntry
-              keyboardType="number-pad"
-              maxLength={4}
-              value={newPin}
-              onChangeText={setNewPin}
-              style={styles.input}
-            />
-
-            <TouchableOpacity style={styles.modalBtn} onPress={handleChangePin}>
-              <Text style={styles.modalBtnText}>Change PIN</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                setOldPin("");
-                setNewPin("");
-                setChangePinModalVisible(false);
-              }}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    </KeyboardAvoidingView>
+      <View style={styles.footerNote}>
+        <Text style={styles.footerText}>Ayax Xpress Terminal v2.0</Text>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  profileHeader: {
+    alignItems: "center",
+    paddingVertical: 45,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 35,
+    borderBottomRightRadius: 35,
+    elevation: 4,
+    shadowColor: "#1e3a8a",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 15,
   },
-
-  darkContainer: {
-    backgroundColor: "#0f172a",
-  },
-
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 120,
-  },
-
-  loaderContainer: {
-    flex: 1,
+  avatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#1e3a8a",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
+    borderWidth: 3,
+    borderColor: "#f1f5f9",
   },
-
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 50,
-    marginBottom: 30,
-  },
-
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    marginLeft: 15,
-    color: "#0f172a",
-  },
-
-  darkText: {
-    color: "#fff",
-  },
-
-  section: {
-    marginBottom: 30,
-  },
-
+  profileImg: { width: "100%", height: "100%" },
+  avatarText: { color: "#fff", fontSize: 45, fontWeight: "bold" },
+  name: { fontSize: 24, fontWeight: "800", marginTop: 15, color: "#0f172a" },
+  email: { color: "#64748b", fontSize: 14, fontWeight: "500" },
+  infoSection: { padding: 25, marginTop: 5 },
   sectionLabel: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#94a3b8",
     marginBottom: 15,
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
   },
-
-  item: {
+  infoBox: {
     backgroundColor: "#fff",
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    borderRadius: 20,
+    paddingHorizontal: 20,
     elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    borderWidth: 1,
+    borderColor: "#f1f5f9",
   },
-
-  darkItem: {
-    backgroundColor: "#1e293b",
-  },
-
-  itemLeft: {
+  infoItem: {
     flexDirection: "row",
     alignItems: "center",
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
   },
-
-  itemText: {
-    marginLeft: 15,
+  infoText: { marginLeft: 18, flex: 1 },
+  infoTitle: {
+    fontSize: 11,
+    color: "#94a3b8",
+    textTransform: "uppercase",
+    fontWeight: "700",
+  },
+  infoValue: {
     fontSize: 15,
     fontWeight: "600",
     color: "#1e293b",
+    marginTop: 2,
   },
-
-  darkItemText: {
-    color: "#fff",
-  },
-
-  logoutBtn: {
-    backgroundColor: "#dc2626",
-    padding: 18,
-    borderRadius: 18,
-    alignItems: "center",
-    marginTop: 10,
-  },
-
-  logoutText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-
-  modalOverlay: {
-    flex: 1,
+  editBtn: {
+    marginHorizontal: 25,
+    marginBottom: 10,
+    backgroundColor: "#1e3a8a",
+    height: 60,
+    borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
+    elevation: 5,
+    shadowColor: "#1e3a8a",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
   },
-
-  modalBox: {
-    width: "85%",
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 25,
-  },
-
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    color: "#0f172a",
-  },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 14,
-    padding: 15,
-    marginBottom: 15,
-  },
-
-  modalBtn: {
-    backgroundColor: "#2563eb",
-    padding: 15,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-
-  modalBtnText: {
+  btnContent: { flexDirection: "row", alignItems: "center" },
+  editBtnText: {
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "800",
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
-
-  cancelText: {
-    textAlign: "center",
-    marginTop: 15,
-    color: "#ef4444",
-    fontWeight: "600",
-  },
+  footerNote: { alignItems: "center", marginVertical: 20 },
+  footerText: { color: "#cbd5e1", fontSize: 11, fontWeight: "600" },
 });
 
-export default SettingsScreen;
+export default ProfileScreen;
