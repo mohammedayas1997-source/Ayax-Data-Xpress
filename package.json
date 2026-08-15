@@ -7,11 +7,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-<<<<<<< HEAD
-    "build": "npx expo export --platform web"
-=======
+    "build": "npx expo export --platform web",
     "build:web": "npx expo export --platform web"
->>>>>>> 53f5f89698df1ad9eb35db9ccf608c2bf7e03ce6
+
   },
   "dependencies": {
     "@expo/metro-runtime": "~5.0.0",
