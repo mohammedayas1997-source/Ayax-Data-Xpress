@@ -9,10 +9,12 @@ import {
   ActivityIndicator,
   Switch,
   Alert,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import * as LocalAuthentication from "expo-local-authentication";
 import axios from "axios";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
@@ -21,7 +23,7 @@ const ProfileScreen = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // States don toggles na Biometrics da Security
+  // States don toggles na Biometrics
   const [isFingerprintLoginEnabled, setIsFingerprintLoginEnabled] = useState(false);
   const [isFingerprintTxEnabled, setIsFingerprintTxEnabled] = useState(false);
 
@@ -81,16 +83,64 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  // Real-Live Biometric Check & Toggle for Login
   const toggleFingerprintLogin = async (value) => {
+    if (value) {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      if (!compatible) {
+        Alert.alert("Unsupported", "Biometric hardware is not supported on this device.");
+        return;
+      }
+
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!enrolled) {
+        Alert.alert("No Biometrics", "No fingerprints or face IDs are enrolled on this device settings.");
+        return;
+      }
+
+      const auth = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Authenticate to enable Biometric Login",
+        fallbackLabel: "Use Passcode",
+      });
+
+      if (!auth.success) {
+        return;
+      }
+    }
+
     setIsFingerprintLoginEnabled(value);
     await AsyncStorage.setItem("fingerprint_login", JSON.stringify(value));
-    Alert.alert("Success", value ? "Fingerprint Login Enabled" : "Fingerprint Login Disabled");
+    Alert.alert("Success", value ? "Biometric Login Enabled" : "Biometric Login Disabled");
   };
 
+  // Real-Live Biometric Check & Toggle for Transactions
   const toggleFingerprintTx = async (value) => {
+    if (value) {
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      if (!compatible) {
+        Alert.alert("Unsupported", "Biometric hardware is not supported on this device.");
+        return;
+      }
+
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!enrolled) {
+        Alert.alert("No Biometrics", "No fingerprints or face IDs are enrolled on this device settings.");
+        return;
+      }
+
+      const auth = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Authenticate to authorize Biometric Transactions",
+        fallbackLabel: "Use Passcode",
+      });
+
+      if (!auth.success) {
+        return;
+      }
+    }
+
     setIsFingerprintTxEnabled(value);
     await AsyncStorage.setItem("fingerprint_tx", JSON.stringify(value));
-    Alert.alert("Success", value ? "Fingerprint for Transactions Enabled" : "Fingerprint for Transactions Disabled");
+    Alert.alert("Success", value ? "Biometric Authorization Enabled" : "Biometric Authorization Disabled");
   };
 
   if (loading) {
@@ -103,6 +153,8 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
+
       {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
@@ -113,7 +165,7 @@ const ProfileScreen = ({ navigation }) => {
             />
           ) : (
             <Text style={styles.avatarText}>
-              {userData?.firstName ? userData.firstName[0] : "A"}
+              {userData?.firstName ? userData.firstName[0].toUpperCase() : "A"}
             </Text>
           )}
         </View>
@@ -129,7 +181,9 @@ const ProfileScreen = ({ navigation }) => {
 
         <View style={styles.infoBox}>
           <View style={styles.infoItem}>
-            <Ionicons name="call-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="call-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Primary Contact</Text>
               <Text style={styles.infoValue}>
@@ -139,7 +193,9 @@ const ProfileScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.infoItem}>
-            <Ionicons name="calendar-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="calendar-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Date of Birth</Text>
               <Text style={styles.infoValue}>
@@ -149,7 +205,9 @@ const ProfileScreen = ({ navigation }) => {
           </View>
 
           <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
-            <Ionicons name="location-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="location-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Registered Address</Text>
               <Text style={styles.infoValue}>
@@ -169,33 +227,41 @@ const ProfileScreen = ({ navigation }) => {
           <TouchableOpacity 
             style={styles.infoItem}
             onPress={() => navigation.navigate("ChangePassword")}
+            activeOpacity={0.7}
           >
-            <Ionicons name="lock-closed-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Password Management</Text>
               <Text style={styles.infoValue}>Change Account Password</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
 
           {/* Set / Change Transaction PIN */}
           <TouchableOpacity 
             style={styles.infoItem}
-            onPress={() => navigation.navigate("SetTransactionPin")}
+            onPress={() => navigation.navigate("UpdatePin")}
+            activeOpacity={0.7}
           >
-            <Ionicons name="key-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="key-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Transaction PIN</Text>
               <Text style={styles.infoValue}>
-                {userData?.hasPin ? "Change / Reset PIN" : "Setup Transaction PIN"}
+                {userData?.hasPin || userData?.has_transaction_pin ? "Change / Reset PIN" : "Setup Transaction PIN"}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
 
           {/* Fingerprint Login Toggle */}
           <View style={styles.infoItem}>
-            <Ionicons name="finger-print-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="finger-print-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Biometric Login</Text>
               <Text style={styles.infoValue}>Login with Fingerprint</Text>
@@ -210,7 +276,9 @@ const ProfileScreen = ({ navigation }) => {
 
           {/* Fingerprint Transaction Toggle */}
           <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
-            <Ionicons name="shield-checkmark-outline" size={20} color="#1e3a8a" />
+            <View style={styles.iconCircle}>
+              <Ionicons name="shield-checkmark-outline" size={18} color="#1e3a8a" />
+            </View>
             <View style={styles.infoText}>
               <Text style={styles.infoTitle}>Biometric Transaction</Text>
               <Text style={styles.infoValue}>Authorize transactions with Fingerprint</Text>
@@ -229,7 +297,7 @@ const ProfileScreen = ({ navigation }) => {
       <TouchableOpacity
         style={styles.editBtn}
         onPress={() => navigation.navigate("EditProfile")}
-        activeOpacity={0.8}
+        activeOpacity={0.9}
       >
         <View style={styles.btnContent}>
           <Ionicons
@@ -238,7 +306,7 @@ const ProfileScreen = ({ navigation }) => {
             color="#fff"
             style={{ marginRight: 8 }}
           />
-          <Text style={styles.editBtnText}>Modify Profile Credentials</Text>
+          <Text style={styles.editBtnText}>MODIFY PROFILE CREDENTIALS</Text>
         </View>
       </TouchableOpacity>
 
@@ -253,92 +321,90 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
   profileHeader: {
     alignItems: "center",
-    paddingVertical: 45,
-    backgroundColor: "#fff",
-    borderBottomLeftRadius: 35,
-    borderBottomRightRadius: 35,
+    paddingVertical: 35,
+    backgroundColor: "#1e3a8a",
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     elevation: 4,
-    shadowColor: "#1e3a8a",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 15,
   },
   avatar: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#1e3a8a",
+    width: 95,
+    height: 95,
+    borderRadius: 47.5,
+    backgroundColor: "#3b82f6",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
     borderWidth: 3,
-    borderColor: "#f1f5f9",
+    borderColor: "#ffffff",
   },
   profileImg: { width: "100%", height: "100%" },
-  avatarText: { color: "#fff", fontSize: 45, fontWeight: "bold" },
-  name: { fontSize: 24, fontWeight: "800", marginTop: 15, color: "#0f172a" },
-  email: { color: "#64748b", fontSize: 14, fontWeight: "500" },
-  infoSection: { paddingHorizontal: 25, marginTop: 20 },
+  avatarText: { color: "#fff", fontSize: 38, fontWeight: "bold" },
+  name: { fontSize: 22, fontWeight: "800", marginTop: 12, color: "#ffffff" },
+  email: { color: "#93c5fd", fontSize: 13, fontWeight: "500", marginTop: 2 },
+  infoSection: { paddingHorizontal: 20, marginTop: 20 },
   sectionLabel: {
     fontSize: 12,
-    fontWeight: "800",
-    color: "#94a3b8",
-    marginBottom: 15,
+    fontWeight: "bold",
+    color: "#64748b",
+    marginBottom: 10,
     textTransform: "uppercase",
-    letterSpacing: 1.5,
+    letterSpacing: 1,
   },
   infoBox: {
     backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
+    borderRadius: 16,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderColor: "#e2e8f0",
+    elevation: 1,
   },
   infoItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 20,
+    paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#f1f5f9",
   },
-  infoText: { marginLeft: 18, flex: 1 },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  infoText: { marginLeft: 14, flex: 1 },
   infoTitle: {
     fontSize: 11,
     color: "#94a3b8",
     textTransform: "uppercase",
-    fontWeight: "700",
+    fontWeight: "bold",
   },
   infoValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     color: "#1e293b",
     marginTop: 2,
   },
   editBtn: {
-    marginHorizontal: 25,
+    marginHorizontal: 20,
     marginVertical: 25,
     backgroundColor: "#1e3a8a",
-    height: 60,
+    height: 55,
     borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
-    shadowColor: "#1e3a8a",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
+    elevation: 3,
   },
   btnContent: { flexDirection: "row", alignItems: "center" },
   editBtnText: {
     color: "#fff",
-    fontWeight: "800",
-    fontSize: 16,
-    letterSpacing: 0.5,
+    fontWeight: "bold",
+    fontSize: 14,
   },
   footerNote: { alignItems: "center", marginBottom: 30 },
-  footerText: { color: "#cbd5e1", fontSize: 11, fontWeight: "600" },
+  footerText: { color: "#64748b", fontSize: 12, fontWeight: "bold" },
 });
 
 export default ProfileScreen;
