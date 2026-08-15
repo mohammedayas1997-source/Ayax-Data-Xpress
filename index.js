@@ -1,4 +1,8 @@
 import { registerRootComponent } from "expo";
+<<<<<<< HEAD
+=======
+
+>>>>>>> 53f5f89698df1ad9eb35db9ccf608c2bf7e03ce6
 import App from "./App";
 
 // registerRootComponent calls AppRegistry.registerComponent('main', () => App);

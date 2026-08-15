@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from "react-native";
 import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const HistoryScreen = () => {
   const [history, setHistory] = useState([]);
@@ -16,10 +17,11 @@ const HistoryScreen = () => {
 
   const fetchHistory = async () => {
     try {
+      const token = await AsyncStorage.getItem("userToken");
       const response = await axios.get(
-        "https://ayax-api.vercel.app/api/v1/vtu/history",
+        "https://ayax-api-v2.vercel.app/api/v1/vtu/history",
         {
-          headers: { Authorization: `Bearer YOUR_TOKEN` }, // Ka tabbatar kana tura token
+          headers: { Authorization: `Bearer ${token}` },
         },
       );
       setHistory(response.data.data);
@@ -81,7 +83,7 @@ const HistoryScreen = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
-          <Text style={styles.empty}>Ba ka da wani tarihin ciniki tukuna.</Text>
+          <Text style={styles.empty}>No transaction history found.</Text>
         }
       />
     </View>

@@ -7,21 +7,34 @@ import {
   ScrollView,
   Linking,
   StatusBar,
+  Alert,
 } from "react-native";
 
 const ContactScreen = () => {
   const phoneNumber = "+2349061244444";
-  const emailAddress = "ayaxdigitalsolusions@gmail.com";
-  const whatsappNumber = "2349061244444"; // Format without '+' for WhatsApp link
+  const emailAddress = "support@ayaxdata.online";
+  const whatsappNumber = "2349061244444";
 
   const makeCall = () => {
     Linking.openURL(`tel:${phoneNumber}`);
   };
 
-  const openWhatsApp = () => {
-    Linking.openURL(
-      `whatsapp://send?phone=${whatsappNumber}&text=Hello Ayax Xpress Support, I need help with...`,
-    );
+  const openWhatsApp = async () => {
+    const message = "Hello Ayax Xpress Support, I need help with...";
+    const url = `whatsapp://send?phone=${whatsappNumber}&text=${encodeURIComponent(message)}`;
+    const webUrl = `https://api.whatsapp.com/send?phone=${whatsappNumber}&text=${encodeURIComponent(message)}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        // Fallback to Browser if WhatsApp App is not installed
+        await Linking.openURL(webUrl);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Unable to open WhatsApp. Please try again.");
+    }
   };
 
   const sendEmail = () => {
@@ -31,7 +44,7 @@ const ContactScreen = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       <View style={styles.header}>
@@ -111,7 +124,7 @@ const styles = StyleSheet.create({
   infoText: { marginLeft: 20 },
   label: { fontSize: 14, color: "#64748b", fontWeight: "600" },
   value: { fontSize: 16, color: "#0f172a", fontWeight: "bold", marginTop: 2 },
-  footer: { marginTop: 40, alignItems: "center" },
+  footer: { marginTop: 40, marginBottom: 40, alignItems: "center" },
   footerText: { color: "#94a3b8", fontSize: 13 },
 });
 

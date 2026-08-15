@@ -1,24 +1,59 @@
 {
-  "name": "ayax-data-xpress",
+  "name": "ayaxxpress",
   "version": "1.0.0",
-  "private": true,
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+<<<<<<< HEAD
     "build": "npx expo export --platform web"
+=======
+    "build:web": "npx expo export --platform web"
+>>>>>>> 53f5f89698df1ad9eb35db9ccf608c2bf7e03ce6
   },
   "dependencies": {
-    "expo": "^49.0.23",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-native": "0.72.6"
+    "@expo/metro-runtime": "~5.0.0",
+    "@expo/vector-icons": "^15.0.3",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/masked-view": "^0.1.11",
+    "@react-native-picker/picker": "2.11.1",
+    "@react-navigation/drawer": "^7.9.11",
+    "@react-navigation/native": "^7.2.2",
+    "@react-navigation/stack": "^7.8.10",
+    "axios": "^1.15.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "expo": "~54.0.33",
+    "expo-clipboard": "~8.0.8",
+    "expo-image-picker": "~17.0.10",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-local-authentication": "~17.0.8",
+    "expo-print": "~15.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-status-bar": "~3.0.9",
+    "express": "^5.2.1",
+    "mongoose": "^9.6.2",
+    "nodemailer": "^8.0.7",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-native": "0.76.7",
+    "react-native-dotenv": "^3.4.11",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-paystack-webview": "^5.0.3",
+    "react-native-reanimated": "~4.1.1",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.19.13",
+    "react-native-webview": "13.15.0",
+    "react-native-worklets": "0.5.1",
+    "uuid": "^11.1.1"
   },
+  "private": true,
   "devDependencies": {
-    "@babel/core": "^7.20.0"
-  },
-  "engines": {
-    "node": "18.x"
+    "@types/react": "^18.3.12",
+    "@types/react-native": "^0.73.0",
+    "typescript": "^5.9.3"
   }
 }

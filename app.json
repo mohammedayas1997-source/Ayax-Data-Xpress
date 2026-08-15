@@ -3,11 +3,11 @@
     "name": "Ayax Data Xpress",
     "slug": "Ayax-Data-Xpress",
     "version": "1.0.0",
+    "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "platforms": ["ios", "android", "web"],
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -28,14 +28,14 @@
       "usesCleartextTraffic": true
     },
     "web": {
-      "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
         "projectId": "84b7adc6-0b27-4dd2-abbd-d119de52bc66"
       }
     },
-    "owner": "ayas8724"
+    "owner": "ayas8724",
+    "plugins": []
   }
 }
