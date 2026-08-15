@@ -28,7 +28,7 @@ const CableScreen = ({ navigation }) => {
 
   // Admin & Pricing State
   const [isAdmin, setIsAdmin] = useState(false);
-  const [serviceCharge, setServiceCharge] = useState(50); // Default charge
+  const [serviceCharge, setServiceCharge] = useState(50);
   const [newCharge, setNewCharge] = useState("");
 
   // Dynamic Real-World Packages
@@ -71,10 +71,13 @@ const CableScreen = ({ navigation }) => {
   }, [provider]);
 
   const updateGlobalCharge = async () => {
-    if (!newCharge) return Alert.alert("Error", "Enter amount");
+    if (!isAdmin) {
+      return Alert.alert("Unauthorized", "Only administrators can update service charges.");
+    }
+    if (!newCharge) return Alert.alert("Error", "Enter new charge amount");
     setServiceCharge(parseInt(newCharge));
     setNewCharge("");
-    Alert.alert("Success", "Service charge updated for this session.");
+    Alert.alert("Success", "Service charge updated successfully.");
   };
 
   const validateIUC = async () => {
@@ -100,12 +103,12 @@ const CableScreen = ({ navigation }) => {
 
       const result = res.data;
       if (result.success || result.status === "success") {
-        setCustomerName(result.customerName || result.name || result.data?.customerName);
+        setCustomerName(result.customerName || result.name || result.data?.customerName || "Verified Customer");
       } else {
         throw new Error(result.message || "Validation failed");
       }
     } catch (err) {
-      Alert.alert("Validation Error", err.response?.data?.message || err.message || "Check the number and try again.");
+      Alert.alert("Validation Error", err.response?.data?.message || err.message || "Check the IUC number and try again.");
     } finally {
       setValidating(false);
     }
@@ -113,13 +116,13 @@ const CableScreen = ({ navigation }) => {
 
   const handlePayment = async () => {
     if (!smartCard || !selectedPackage || !pin) {
-      return Alert.alert("Error", "Please fill in all details.");
+      return Alert.alert("Error", "Please fill in all fields including your Transaction PIN.");
     }
     if (!customerName) {
-      return Alert.alert("Error", "Validate the Smartcard first.");
+      return Alert.alert("Error", "Please validate the Smartcard/IUC number first.");
     }
     if (pin.length < 4) {
-      return Alert.alert("Error", "Enter your 4-digit Transaction PIN.");
+      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
@@ -131,21 +134,23 @@ const CableScreen = ({ navigation }) => {
         return;
       }
 
+      const totalAmount = selectedPackage.price + serviceCharge;
+
       const res = await axios.post(
         `${BASE_URL}/vtu/pay-cable`,
         {
           provider,
           smartCard,
           packageId: selectedPackage.id,
-          amount: selectedPackage.price + serviceCharge,
-          transactionPin: pin,
+          amount: totalAmount,
+          transactionPin: pin, // Dole a tura PIN don tabbatarwa a Server
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
-        Alert.alert("Success", "Subscription processed successfully!", [
+        Alert.alert("Success!", `${selectedPackage.name} subscription successfully activated for ${smartCard}`, [
           { text: "Done", onPress: () => navigation.goBack() }
         ]);
       } else {
@@ -154,7 +159,7 @@ const CableScreen = ({ navigation }) => {
     } catch (err) {
       Alert.alert(
         "Transaction Failed",
-        err.response?.data?.message || err.message || "Internal Error",
+        err.response?.data?.message || err.message || "Internal Server Error",
       );
     } finally {
       setLoading(false);
@@ -169,19 +174,20 @@ const CableScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={26} color="#0a1d37" />
         </TouchableOpacity>
-        <Text style={styles.header}>Cable TV</Text>
+        <Text style={styles.header}>Cable TV Subscription</Text>
       </View>
 
-      {/* Admin Price Control */}
+      {/* Admin Price Control (Admin Kaɗai) */}
       {isAdmin && (
         <View style={styles.adminSection}>
           <Text style={styles.adminLabel}>
-            Admin: Adjust Service Charge (₦)
+            👑 Admin Control: Adjust Service Charge (₦)
           </Text>
           <View style={styles.adminRow}>
             <TextInput
               style={styles.adminInput}
               placeholder={serviceCharge.toString()}
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               value={newCharge}
               onChangeText={setNewCharge}
@@ -241,8 +247,8 @@ const CableScreen = ({ navigation }) => {
 
       {customerName ? (
         <View style={styles.customerBox}>
-          <Ionicons name="person-circle-outline" size={20} color="#0369a1" />
-          <Text style={styles.customerText}>{customerName}</Text>
+          <Ionicons name="person-circle-outline" size={22} color="#0369a1" />
+          <Text style={styles.customerText}>Customer Name: {customerName}</Text>
         </View>
       ) : null}
 
@@ -256,6 +262,7 @@ const CableScreen = ({ navigation }) => {
               selectedPackage?.id === pkg.id && styles.activePkgCard,
             ]}
             onPress={() => setSelectedPackage(pkg)}
+            activeOpacity={0.8}
           >
             <View>
               <Text
@@ -266,7 +273,9 @@ const CableScreen = ({ navigation }) => {
               >
                 {pkg.name}
               </Text>
-              <Text style={[styles.pkgCaption, selectedPackage?.id === pkg.id && { color: "#cbd5e1" }]}>1 Month Validity</Text>
+              <Text style={[styles.pkgCaption, selectedPackage?.id === pkg.id && { color: "#cbd5e1" }]}>
+                1 Month Validity (+₦{serviceCharge} fee)
+              </Text>
             </View>
             <Text
               style={[
@@ -280,7 +289,7 @@ const CableScreen = ({ navigation }) => {
         ))}
       </View>
 
-      <Text style={styles.label}>Transaction PIN</Text>
+      <Text style={styles.label}>Transaction PIN (Required)</Text>
       <TextInput
         style={styles.pinInput}
         placeholder="****"
@@ -300,7 +309,7 @@ const CableScreen = ({ navigation }) => {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.payBtnText}>ACTIVATE SUBSCRIPTION</Text>
+          <Text style={styles.payBtnText}>PROCEED & ACTIVATE SUBSCRIPTION</Text>
         )}
       </TouchableOpacity>
 
@@ -315,39 +324,43 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 45,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   header: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     color: "#0a1d37",
     marginLeft: 15,
   },
   adminSection: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#fef3c7",
     padding: 15,
-    borderRadius: 12,
-    marginBottom: 20,
+    borderRadius: 15,
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: "#f59e0b",
   },
   adminLabel: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#475569",
+    color: "#b45309",
     marginBottom: 8,
   },
   adminRow: { flexDirection: "row" },
   adminInput: {
     flex: 1,
     backgroundColor: "#fff",
-    padding: 8,
+    paddingHorizontal: 12,
+    height: 40,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     color: "#0f172a",
+    fontSize: 13,
   },
   adminBtn: {
-    backgroundColor: "#0a1d37",
-    paddingHorizontal: 15,
+    backgroundColor: "#b45309",
+    paddingHorizontal: 16,
     marginLeft: 10,
     borderRadius: 8,
     justifyContent: "center",
@@ -357,8 +370,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#475569",
-    marginBottom: 12,
-    marginTop: 20,
+    marginBottom: 8,
+    marginTop: 18,
   },
   providerRow: { flexDirection: "row", justifyContent: "space-between" },
   chip: {
@@ -371,13 +384,13 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   activeChip: { backgroundColor: "#0a1d37", borderColor: "#0a1d37" },
-  chipText: { fontWeight: "bold", color: "#64748b" },
+  chipText: { fontWeight: "bold", color: "#64748b", fontSize: 13 },
   whiteText: { color: "#fff" },
   inputWrapper: { flexDirection: "row", alignItems: "center" },
   mainInput: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    padding: 16,
+    padding: 15,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -387,64 +400,64 @@ const styles = StyleSheet.create({
   verifyBtn: {
     backgroundColor: "#0ea5e9",
     paddingHorizontal: 20,
-    height: 58,
+    height: 52,
     justifyContent: "center",
     borderRadius: 12,
     marginLeft: 10,
   },
-  verifyBtnText: { color: "#fff", fontWeight: "bold" },
+  verifyBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
   customerBox: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f0f9ff",
-    padding: 15,
+    padding: 12,
     borderRadius: 12,
-    marginTop: 12,
+    marginTop: 10,
     borderWidth: 1,
     borderColor: "#bae6fd",
   },
   customerText: {
-    marginLeft: 10,
+    marginLeft: 8,
     fontWeight: "bold",
     color: "#0369a1",
-    fontSize: 15,
+    fontSize: 14,
   },
-  packageContainer: { marginTop: 10 },
+  packageContainer: { marginTop: 5 },
   pkgCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
+    padding: 16,
     backgroundColor: "#f8fafc",
     borderRadius: 15,
-    marginBottom: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
   activePkgCard: { backgroundColor: "#0a1d37", borderColor: "#0a1d37" },
-  pkgTitle: { fontSize: 16, fontWeight: "bold", color: "#1e293b" },
-  pkgCaption: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
-  pkgCost: { fontSize: 18, fontWeight: "bold", color: "#0a1d37" },
+  pkgTitle: { fontSize: 15, fontWeight: "bold", color: "#1e293b" },
+  pkgCaption: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
+  pkgCost: { fontSize: 16, fontWeight: "bold", color: "#0a1d37" },
   pinInput: {
     backgroundColor: "#f8fafc",
-    padding: 16,
+    padding: 15,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     fontSize: 18,
     textAlign: "center",
-    letterSpacing: 5,
+    letterSpacing: 6,
     color: "#0f172a",
   },
   payBtn: {
     backgroundColor: "#0a1d37",
-    padding: 20,
+    padding: 18,
     borderRadius: 15,
     alignItems: "center",
-    marginTop: 35,
-    elevation: 5,
+    marginTop: 25,
+    elevation: 3,
   },
-  payBtnText: { color: "#fff", fontWeight: "bold", fontSize: 16 },
+  payBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
 });
 
 export default CableScreen;

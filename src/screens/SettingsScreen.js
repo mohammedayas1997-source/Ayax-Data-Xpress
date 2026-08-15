@@ -7,6 +7,7 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  Switch,
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,10 +21,15 @@ const ProfileScreen = ({ navigation }) => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Amfani da useFocusEffect domin Refreshing automatic daga sabar idan an dawo daga Edit Profile
+  // States don toggles na Biometrics da Security
+  const [isFingerprintLoginEnabled, setIsFingerprintLoginEnabled] = useState(false);
+  const [isFingerprintTxEnabled, setIsFingerprintTxEnabled] = useState(false);
+
+  // Amfani da useFocusEffect domin Refreshing automatic daga sabar
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
+      loadSecurityPreferences();
     }, [])
   );
 
@@ -37,13 +43,11 @@ const ProfileScreen = ({ navigation }) => {
 
       const config = { headers: { Authorization: `Bearer ${token}` } };
       
-      // Dauko sabbin bayanai daga sabar
       const response = await axios.get(`${BASE_URL}/auth/profile`, config);
       const user = response.data.user || response.data.data || response.data;
 
       if (user) {
         setUserData(user);
-        // Sabunta a cikin AsyncStorage
         await AsyncStorage.setItem("userData", JSON.stringify(user));
       }
     } catch (e) {
@@ -52,7 +56,6 @@ const ProfileScreen = ({ navigation }) => {
         navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
       } else {
         console.error("Error fetching profile from server:", e);
-        // Idan akwai matsala tanetwork, gwada dauka daga AsyncStorage
         try {
           const cachedValue = await AsyncStorage.getItem("userData");
           if (cachedValue != null) {
@@ -67,6 +70,29 @@ const ProfileScreen = ({ navigation }) => {
     }
   };
 
+  const loadSecurityPreferences = async () => {
+    try {
+      const loginBio = await AsyncStorage.getItem("fingerprint_login");
+      const txBio = await AsyncStorage.getItem("fingerprint_tx");
+      if (loginBio !== null) setIsFingerprintLoginEnabled(JSON.parse(loginBio));
+      if (txBio !== null) setIsFingerprintTxEnabled(JSON.parse(txBio));
+    } catch (error) {
+      console.error("Error loading security preferences", error);
+    }
+  };
+
+  const toggleFingerprintLogin = async (value) => {
+    setIsFingerprintLoginEnabled(value);
+    await AsyncStorage.setItem("fingerprint_login", JSON.stringify(value));
+    Alert.alert("Success", value ? "Fingerprint Login Enabled" : "Fingerprint Login Disabled");
+  };
+
+  const toggleFingerprintTx = async (value) => {
+    setIsFingerprintTxEnabled(value);
+    await AsyncStorage.setItem("fingerprint_tx", JSON.stringify(value));
+    Alert.alert("Success", value ? "Fingerprint for Transactions Enabled" : "Fingerprint for Transactions Disabled");
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
@@ -77,6 +103,7 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      {/* Profile Header */}
       <View style={styles.profileHeader}>
         <View style={styles.avatar}>
           {userData?.profileImage ? (
@@ -96,11 +123,11 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={styles.email}>{userData?.email}</Text>
       </View>
 
+      {/* Institutional Profile Data */}
       <View style={styles.infoSection}>
         <Text style={styles.sectionLabel}>Institutional Profile Data</Text>
 
         <View style={styles.infoBox}>
-          {/* Phone Number Field */}
           <View style={styles.infoItem}>
             <Ionicons name="call-outline" size={20} color="#1e3a8a" />
             <View style={styles.infoText}>
@@ -111,7 +138,6 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Date of Birth Field */}
           <View style={styles.infoItem}>
             <Ionicons name="calendar-outline" size={20} color="#1e3a8a" />
             <View style={styles.infoText}>
@@ -122,7 +148,6 @@ const ProfileScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* Address Field */}
           <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
             <Ionicons name="location-outline" size={20} color="#1e3a8a" />
             <View style={styles.infoText}>
@@ -135,6 +160,72 @@ const ProfileScreen = ({ navigation }) => {
         </View>
       </View>
 
+      {/* Security & PIN Management Section */}
+      <View style={styles.infoSection}>
+        <Text style={styles.sectionLabel}>Security & Authentication</Text>
+
+        <View style={styles.infoBox}>
+          {/* Change Password */}
+          <TouchableOpacity 
+            style={styles.infoItem}
+            onPress={() => navigation.navigate("ChangePassword")}
+          >
+            <Ionicons name="lock-closed-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Password Management</Text>
+              <Text style={styles.infoValue}>Change Account Password</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+
+          {/* Set / Change Transaction PIN */}
+          <TouchableOpacity 
+            style={styles.infoItem}
+            onPress={() => navigation.navigate("SetTransactionPin")}
+          >
+            <Ionicons name="key-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Transaction PIN</Text>
+              <Text style={styles.infoValue}>
+                {userData?.hasPin ? "Change / Reset PIN" : "Setup Transaction PIN"}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+
+          {/* Fingerprint Login Toggle */}
+          <View style={styles.infoItem}>
+            <Ionicons name="finger-print-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Biometric Login</Text>
+              <Text style={styles.infoValue}>Login with Fingerprint</Text>
+            </View>
+            <Switch
+              value={isFingerprintLoginEnabled}
+              onValueChange={toggleFingerprintLogin}
+              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
+              thumbColor={isFingerprintLoginEnabled ? "#1e3a8a" : "#f4f3f4"}
+            />
+          </View>
+
+          {/* Fingerprint Transaction Toggle */}
+          <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
+            <Ionicons name="shield-checkmark-outline" size={20} color="#1e3a8a" />
+            <View style={styles.infoText}>
+              <Text style={styles.infoTitle}>Biometric Transaction</Text>
+              <Text style={styles.infoValue}>Authorize transactions with Fingerprint</Text>
+            </View>
+            <Switch
+              value={isFingerprintTxEnabled}
+              onValueChange={toggleFingerprintTx}
+              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
+              thumbColor={isFingerprintTxEnabled ? "#1e3a8a" : "#f4f3f4"}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Edit Profile Button */}
       <TouchableOpacity
         style={styles.editBtn}
         onPress={() => navigation.navigate("EditProfile")}
@@ -187,7 +278,7 @@ const styles = StyleSheet.create({
   avatarText: { color: "#fff", fontSize: 45, fontWeight: "bold" },
   name: { fontSize: 24, fontWeight: "800", marginTop: 15, color: "#0f172a" },
   email: { color: "#64748b", fontSize: 14, fontWeight: "500" },
-  infoSection: { padding: 25, marginTop: 5 },
+  infoSection: { paddingHorizontal: 25, marginTop: 20 },
   sectionLabel: {
     fontSize: 12,
     fontWeight: "800",
@@ -228,7 +319,7 @@ const styles = StyleSheet.create({
   },
   editBtn: {
     marginHorizontal: 25,
-    marginBottom: 10,
+    marginVertical: 25,
     backgroundColor: "#1e3a8a",
     height: 60,
     borderRadius: 15,
@@ -246,7 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     letterSpacing: 0.5,
   },
-  footerNote: { alignItems: "center", marginVertical: 20 },
+  footerNote: { alignItems: "center", marginBottom: 30 },
   footerText: { color: "#cbd5e1", fontSize: 11, fontWeight: "600" },
 });
 

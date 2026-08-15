@@ -9,6 +9,7 @@ import {
   Alert,
   StatusBar,
   ActivityIndicator,
+  FlatList,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,6 +22,11 @@ const networks = [
   { id: "02", name: "GLO", color: "#2ecc71" },
   { id: "04", name: "Airtel", color: "#e74c3c" },
   { id: "03", name: "9Mobile", color: "#006600" },
+];
+
+// Lissafin girman data da ake so daga 1gb zuwa 100gb (zaka iya zaɓa ko ka rubuta)
+const dataPlans = [
+  "1", "2", "3", "5", "10", "15", "20", "30", "50", "100"
 ];
 
 const BuyDataScreen = ({ navigation }) => {
@@ -66,6 +72,9 @@ const BuyDataScreen = ({ navigation }) => {
   }, [gbAmount, pricePerGb]);
 
   const handleUpdateRate = async () => {
+    if (!isAdmin) {
+      return Alert.alert("Unauthorized", "Only administrators can update data rates.");
+    }
     if (!newRate) return Alert.alert("Error", "Enter new rate per GB");
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -90,7 +99,7 @@ const BuyDataScreen = ({ navigation }) => {
 
   const handlePurchase = async () => {
     if (!phone || !gbAmount || !pin) {
-      return Alert.alert("Error", "Please fill in all fields.");
+      return Alert.alert("Error", "Please fill in all fields including your Transaction PIN.");
     }
 
     if (phone.length < 11) {
@@ -98,7 +107,12 @@ const BuyDataScreen = ({ navigation }) => {
     }
 
     if (pin.length < 4) {
-      return Alert.alert("Error", "Enter your 4-digit Transaction PIN.");
+      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
+    }
+
+    const gbNum = parseFloat(gbAmount);
+    if (gbNum < 1 || gbNum > 100) {
+      return Alert.alert("Error", "Data quantity must be between 1GB and 100GB.");
     }
 
     setLoading(true);
@@ -114,17 +128,17 @@ const BuyDataScreen = ({ navigation }) => {
         `${BASE_URL}/vtu/buy-data-custom`,
         {
           networkId: selectedNet,
-          gbQuantity: gbAmount,
+          gbQuantity: gbNum,
           phoneNumber: phone,
           amount: totalPrice,
-          transactionPin: pin,
+          transactionPin: pin, // Tabbatar da cewa an tura PIN din don tantancewa a Backend
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
       const result = response.data;
       if (result.success || result.status === "success") {
-        Alert.alert("Success", `${gbAmount}GB has been sent to ${phone}`, [
+        Alert.alert("Success", `${gbNum}GB has been successfully sent to ${phone}`, [
           { text: "Done", onPress: () => {
             setPhone("");
             setGbAmount("");
@@ -152,13 +166,13 @@ const BuyDataScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={26} color="#0a1d37" />
         </TouchableOpacity>
-        <Text style={styles.headerText}>Data Purchase</Text>
+        <Text style={styles.headerText}>Data Purchase Portal</Text>
       </View>
 
-      {/* Admin Panel */}
+      {/* Admin Panel (Admin Kaɗai zai iya gani da amfani dashi) */}
       {isAdmin && (
         <View style={styles.adminPanel}>
-          <Text style={styles.adminLabel}>Admin: Set Price per GB (₦)</Text>
+          <Text style={styles.adminLabel}>👑 Admin Control: Set Price per GB (₦)</Text>
           <View style={styles.adminRow}>
             <TextInput
               style={styles.adminInput}
@@ -205,7 +219,7 @@ const BuyDataScreen = ({ navigation }) => {
         ))}
       </View>
 
-      <Text style={styles.label}>Phone Number</Text>
+      <Text style={styles.label}>Recipient Phone Number</Text>
       <TextInput
         style={styles.input}
         placeholder="08012345678"
@@ -216,10 +230,32 @@ const BuyDataScreen = ({ navigation }) => {
         maxLength={11}
       />
 
-      <Text style={styles.label}>Enter Data Quantity (GB)</Text>
+      <Text style={styles.label}>Select or Enter Data Quantity (1GB - 100GB)</Text>
+      
+      {/* Sauri ko Zabin Data daga 1gb zuwa Sama (Quick Select Pills) */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+        {dataPlans.map((item) => (
+          <TouchableOpacity
+            key={item}
+            style={[
+              styles.chip,
+              gbAmount === item && styles.selectedChip
+            ]}
+            onPress={() => setGbAmount(item)}
+          >
+            <Text style={[styles.chipText, gbAmount === item && styles.selectedChipText]}>
+              {item}GB
+            </Text>
+            <Text style={[styles.chipSubText, gbAmount === item && styles.selectedChipSubText]}>
+              ₦{item * pricePerGb}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <TextInput
         style={styles.input}
-        placeholder="e.g. 5"
+        placeholder="Or type exact GB (e.g. 7)"
         placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         value={gbAmount}
@@ -228,14 +264,17 @@ const BuyDataScreen = ({ navigation }) => {
 
       {/* Dynamic Price Display */}
       <View style={styles.priceContainer}>
-        <Text style={styles.priceLabel}>Total Cost:</Text>
+        <View>
+          <Text style={styles.priceLabel}>Total Cost ({gbAmount || 0}GB):</Text>
+          <Text style={styles.rateSubText}>Rate: ₦{pricePerGb}/GB</Text>
+        </View>
         <Text style={styles.priceValue}>₦{totalPrice.toLocaleString()}</Text>
       </View>
 
-      <Text style={styles.label}>Transaction PIN</Text>
+      <Text style={styles.label}>Transaction PIN (Required)</Text>
       <TextInput
         style={styles.input}
-        placeholder="Enter 4-digit PIN"
+        placeholder="Enter your 4-digit PIN"
         placeholderTextColor="#94a3b8"
         keyboardType="numeric"
         secureTextEntry
@@ -252,7 +291,7 @@ const BuyDataScreen = ({ navigation }) => {
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.buyBtnText}>PROCEED TO PAYMENT</Text>
+          <Text style={styles.buyBtnText}>PROCEED & SEND DATA</Text>
         )}
       </TouchableOpacity>
 
@@ -270,23 +309,23 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerText: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     color: "#0a1d37",
     marginLeft: 15,
   },
   adminPanel: {
-    backgroundColor: "#f1f5f9",
+    backgroundColor: "#fef3c7",
     padding: 15,
     borderRadius: 15,
-    marginTop: 20,
+    marginTop: 15,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#f59e0b",
   },
   adminLabel: {
     fontSize: 12,
     fontWeight: "bold",
-    color: "#475569",
+    color: "#b45309",
     marginBottom: 8,
   },
   adminRow: { flexDirection: "row", justifyContent: "space-between" },
@@ -301,7 +340,7 @@ const styles = StyleSheet.create({
     color: "#0f172a",
   },
   updateBtn: {
-    backgroundColor: "#0a1d37",
+    backgroundColor: "#b45309",
     paddingHorizontal: 15,
     borderRadius: 8,
     justifyContent: "center",
@@ -311,14 +350,14 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "700",
-    marginBottom: 10,
-    marginTop: 20,
+    marginBottom: 8,
+    marginTop: 18,
     color: "#475569",
   },
   netGrid: { flexDirection: "row", justifyContent: "space-between" },
   netBox: {
     width: "22%",
-    height: 55,
+    height: 50,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
@@ -326,30 +365,64 @@ const styles = StyleSheet.create({
   netText: { fontWeight: "800", fontSize: 12 },
   input: {
     backgroundColor: "#f8fafc",
-    padding: 16,
+    padding: 15,
     borderRadius: 12,
     fontSize: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     color: "#0f172a",
   },
+  chipsScroll: {
+    marginBottom: 10,
+  },
+  chip: {
+    backgroundColor: "#f1f5f9",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    alignItems: "center",
+  },
+  selectedChip: {
+    backgroundColor: "#0a1d37",
+    borderColor: "#0a1d37",
+  },
+  chipText: {
+    fontWeight: "bold",
+    color: "#334155",
+    fontSize: 14,
+  },
+  selectedChipText: {
+    color: "#ffffff",
+  },
+  chipSubText: {
+    fontSize: 10,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  selectedChipSubText: {
+    color: "#cbd5e1",
+  },
   priceContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 20,
-    padding: 18,
+    marginTop: 15,
+    padding: 16,
     backgroundColor: "#0a1d37",
     borderRadius: 15,
   },
-  priceLabel: { color: "#fff", fontSize: 16, opacity: 0.8 },
+  priceLabel: { color: "#fff", fontSize: 14, opacity: 0.8 },
+  rateSubText: { color: "#93c5fd", fontSize: 11, marginTop: 2 },
   priceValue: { color: "#fff", fontSize: 20, fontWeight: "bold" },
   buyBtn: {
     backgroundColor: "#0a1d37",
-    padding: 20,
+    padding: 18,
     borderRadius: 15,
     alignItems: "center",
-    marginTop: 35,
+    marginTop: 25,
     elevation: 4,
   },
   buyBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },

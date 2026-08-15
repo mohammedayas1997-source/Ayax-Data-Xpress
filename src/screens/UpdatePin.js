@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -31,15 +32,41 @@ const UpdatePin = ({ navigation }) => {
 
   const checkPinStatus = async () => {
     try {
+      const token = await AsyncStorage.getItem("userToken");
       const userData = await AsyncStorage.getItem("userData");
-      if (userData) {
-        const user = JSON.parse(userData);
-        if (
-          user.has_transaction_pin ||
-          user.pin_set === true ||
-          user.hasPin === true
-        ) {
-          setHasPin(true);
+
+      let user = userData ? JSON.parse(userData) : null;
+
+      // 1. Check local storage status
+      if (
+        user &&
+        (user.has_transaction_pin || user.pin_set === true || user.hasPin === true)
+      ) {
+        setHasPin(true);
+      }
+
+      // 2. Fetch fresh profile status from server if token exists
+      if (token) {
+        try {
+          const res = await axios.get(`${BASE_URL}/users/profile`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const fetchedUser = res.data?.user || res.data?.data || res.data;
+          if (
+            fetchedUser?.has_transaction_pin ||
+            fetchedUser?.pin_set === true ||
+            fetchedUser?.hasPin === true
+          ) {
+            setHasPin(true);
+            // Update stored user data
+            if (user) {
+              user.has_transaction_pin = true;
+              user.hasPin = true;
+              await AsyncStorage.setItem("userData", JSON.stringify(user));
+            }
+          }
+        } catch (apiErr) {
+          console.log("Profile PIN status fetch failed, using cached state.", apiErr?.message);
         }
       }
     } catch (e) {
@@ -52,7 +79,7 @@ const UpdatePin = ({ navigation }) => {
   const handleProcessPin = async () => {
     // Validations
     if (hasPin && oldPin.length < 4) {
-      Alert.alert("Error", "Please enter your current 4-digit PIN.");
+      Alert.alert("Required", "Please enter your current 4-digit PIN.");
       return;
     }
     if (newPin.length !== 4) {
@@ -73,7 +100,6 @@ const UpdatePin = ({ navigation }) => {
         return;
       }
 
-      // Amfani da ainihin endpoint din sabar ta Render
       const endpoint = hasPin ? "/users/update-pin" : "/users/create-pin";
 
       const payload = {
@@ -93,16 +119,26 @@ const UpdatePin = ({ navigation }) => {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
           },
-        },
+        }
       );
 
       const result = response.data;
       if (result.success || result.status === "success") {
+        // Update local storage PIN status
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          parsed.has_transaction_pin = true;
+          parsed.hasPin = true;
+          parsed.pin_set = true;
+          await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+        }
+
         Alert.alert(
           "Success",
           hasPin ? "PIN updated successfully!" : "PIN created successfully!",
+          [{ text: "OK", onPress: () => navigation.goBack() }]
         );
-        navigation.goBack();
       } else {
         Alert.alert("Failed", result.message || "Something went wrong");
       }
@@ -118,7 +154,7 @@ const UpdatePin = ({ navigation }) => {
   if (fetchingStatus) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <ActivityIndicator size="large" color="#1e3a8a" />
       </View>
     );
   }
@@ -128,32 +164,39 @@ const UpdatePin = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backBtn}
           >
-            <Ionicons name="arrow-back" size={26} color="#38bdf8" />
+            <Ionicons name="arrow-back" size={26} color="#1e3a8a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {hasPin ? "Change Transaction PIN" : "Create Transaction PIN"}
           </Text>
+          <View style={{ width: 26 }} />
         </View>
 
         <View style={styles.card}>
           <View style={styles.iconContainer}>
-            <Ionicons
-              name={hasPin ? "shield-checkmark" : "lock-open"}
-              size={50}
-              color="#38bdf8"
-            />
+            <View style={styles.iconCircle}>
+              <Ionicons
+                name={hasPin ? "shield-checkmark" : "lock-closed"}
+                size={32}
+                color="#1e3a8a"
+              />
+            </View>
           </View>
 
           <Text style={styles.instruction}>
             {hasPin
-              ? "To change your PIN, provide your old one and set a new 4-digit security code."
-              : "Set up a 4-digit transaction PIN to authorize payments and transfers."}
+              ? "To change your PIN, provide your current PIN and choose a new 4-digit security PIN."
+              : "Set up a secret 4-digit PIN to authorize payments, transfers, and utility orders."}
           </Text>
 
           {/* Old PIN Field (Only shows if user has an existing PIN) */}
@@ -161,9 +204,9 @@ const UpdatePin = ({ navigation }) => {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Current PIN</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter Old PIN"
-                placeholderTextColor="#64748b"
+                style={styles.pinInput}
+                placeholder="****"
+                placeholderTextColor="#94a3b8"
                 keyboardType="numeric"
                 maxLength={4}
                 secureTextEntry
@@ -174,11 +217,11 @@ const UpdatePin = ({ navigation }) => {
           )}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>{hasPin ? "New PIN" : "Setup PIN"}</Text>
+            <Text style={styles.label}>{hasPin ? "New PIN" : "Setup 4-Digit PIN"}</Text>
             <TextInput
-              style={styles.input}
-              placeholder="4 Digits"
-              placeholderTextColor="#64748b"
+              style={styles.pinInput}
+              placeholder="****"
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               maxLength={4}
               secureTextEntry
@@ -188,11 +231,11 @@ const UpdatePin = ({ navigation }) => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Confirm {hasPin ? "New" : ""} PIN</Text>
+            <Text style={styles.label}>Confirm {hasPin ? "New " : ""}PIN</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Repeat 4 Digits"
-              placeholderTextColor="#64748b"
+              style={styles.pinInput}
+              placeholder="****"
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               maxLength={4}
               secureTextEntry
@@ -202,15 +245,16 @@ const UpdatePin = ({ navigation }) => {
           </View>
 
           <TouchableOpacity
-            style={styles.submitBtn}
+            style={[styles.submitBtn, { opacity: loading ? 0.7 : 1 }]}
             onPress={handleProcessPin}
             disabled={loading}
+            activeOpacity={0.9}
           >
             {loading ? (
-              <ActivityIndicator color="#0f172a" />
+              <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.submitBtnText}>
-                {hasPin ? "Update Transaction PIN" : "Create PIN Now"}
+                {hasPin ? "UPDATE TRANSACTION PIN" : "CREATE PIN NOW"}
               </Text>
             )}
           </TouchableOpacity>
@@ -223,92 +267,96 @@ const UpdatePin = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#f8fafc",
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#f8fafc",
     justifyContent: "center",
     alignItems: "center",
   },
   scrollContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
     paddingBottom: 40,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 40,
-    marginBottom: 30,
+    justifyContent: "space-between",
+    marginTop: 45,
+    marginBottom: 20,
   },
   backBtn: {
-    padding: 5,
+    padding: 4,
   },
   headerTitle: {
-    color: "#fff",
-    fontSize: 20,
+    color: "#1e3a8a",
+    fontSize: 18,
     fontWeight: "bold",
-    marginLeft: 15,
   },
   card: {
-    backgroundColor: "#1e293b",
-    padding: 25,
-    borderRadius: 24,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    backgroundColor: "#ffffff",
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 2,
   },
   iconContainer: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 15,
+  },
+  iconCircle: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#dbeafe",
   },
   instruction: {
-    color: "#94a3b8",
-    fontSize: 15,
+    color: "#64748b",
+    fontSize: 13,
     textAlign: "center",
-    marginBottom: 30,
-    lineHeight: 22,
+    marginBottom: 25,
+    lineHeight: 20,
+    fontWeight: "500",
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 18,
   },
   label: {
-    color: "#38bdf8",
-    fontSize: 14,
+    color: "#475569",
+    fontSize: 13,
     marginBottom: 8,
-    fontWeight: "600",
-    textTransform: "uppercase",
+    fontWeight: "bold",
   },
-  input: {
-    backgroundColor: "#0f172a",
-    borderRadius: 15,
-    height: 60,
+  pinInput: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    height: 55,
     paddingHorizontal: 15,
-    color: "#fff",
-    fontSize: 22,
+    color: "#0f172a",
+    fontSize: 20,
     textAlign: "center",
     letterSpacing: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
   },
   submitBtn: {
-    backgroundColor: "#38bdf8",
-    height: 60,
+    backgroundColor: "#1e3a8a",
+    height: 55,
     borderRadius: 15,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 20,
-    shadowColor: "#38bdf8",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 8,
+    marginTop: 15,
+    elevation: 3,
   },
   submitBtnText: {
-    color: "#0f172a",
-    fontSize: 17,
+    color: "#ffffff",
+    fontSize: 15,
     fontWeight: "bold",
   },
 });

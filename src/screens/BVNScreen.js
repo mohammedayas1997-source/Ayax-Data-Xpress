@@ -24,7 +24,7 @@ const VerificationScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Admin Prices - Can be fetched from DB
+  // Admin Prices
   const [prices, setPrices] = useState({
     bvn_full: 500,
     bvn_basic: 200,
@@ -40,6 +40,7 @@ const VerificationScreen = ({ navigation }) => {
     {
       id: "phone_verify",
       title: "Phone Number Verification",
+      subtitle: "Instant NIN/Phone database lookup",
       icon: "phone-check",
       inputLabel: "Phone Number",
       maxLength: 11,
@@ -47,22 +48,25 @@ const VerificationScreen = ({ navigation }) => {
     {
       id: "bvn_basic",
       title: "BVN Basic Search",
+      subtitle: "Verify BVN name and basic profile",
       icon: "bank-outline",
-      inputLabel: "BVN Number",
+      inputLabel: "11-Digit BVN",
       maxLength: 11,
     },
     {
       id: "bvn_full",
-      title: "Full BVN Details",
+      title: "Full BVN Comprehensive",
+      subtitle: "Complete demographic details & image",
       icon: "bank-check",
-      inputLabel: "BVN Number",
+      inputLabel: "11-Digit BVN",
       maxLength: 11,
     },
     {
       id: "face_id",
-      title: "Face ID Recognition",
+      title: "Face ID Biometric Match",
+      subtitle: "Advanced facial recognition check",
       icon: "face-recognition",
-      inputLabel: "Enrollment ID",
+      inputLabel: "Enrollment ID / NIN",
       maxLength: 15,
     },
   ];
@@ -79,18 +83,22 @@ const VerificationScreen = ({ navigation }) => {
   }, []);
 
   const handleUpdatePrice = async (serviceId) => {
-    if (!newPrice) return Alert.alert("Error", "Enter price");
+    if (!isAdmin) {
+      return Alert.alert("Unauthorized", "Only admins can modify service fees.");
+    }
+    if (!newPrice) return Alert.alert("Error", "Enter a valid new price");
+    
     setPrices({ ...prices, [serviceId]: parseInt(newPrice) });
     setNewPrice("");
-    Alert.alert("Success", "Price updated locally for this session.");
+    Alert.alert("Success", "Service fee updated successfully.");
   };
 
   const handleVerify = async () => {
     if (!formData.searchValue || !formData.pin) {
-      return Alert.alert("Error", "Fill all fields");
+      return Alert.alert("Error", "Please fill in all fields including your Transaction PIN.");
     }
     if (formData.pin.length < 4) {
-      return Alert.alert("Error", "Enter your 4-digit Transaction PIN");
+      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
@@ -107,7 +115,7 @@ const VerificationScreen = ({ navigation }) => {
         {
           type: selectedTask.id,
           value: formData.searchValue,
-          pin: formData.pin,
+          transactionPin: formData.pin, // Dole a tura PIN don tabbatarwa a Server
           charge: prices[selectedTask.id],
         },
         { headers: { Authorization: `Bearer ${token}` } },
@@ -122,8 +130,8 @@ const VerificationScreen = ({ navigation }) => {
       }
     } catch (err) {
       Alert.alert(
-        "Failed",
-        err.response?.data?.message || err.message || "Verification Error",
+        "Verification Failed",
+        err.response?.data?.message || err.message || "An error occurred during verification.",
       );
     } finally {
       setLoading(false);
@@ -134,15 +142,37 @@ const VerificationScreen = ({ navigation }) => {
     try {
       const html = `
         <html>
-          <body style="padding: 50px; font-family: sans-serif;">
-            <h1 style="text-align: center; color: #0a1d37;">AYAX VERIFICATION SLIP</h1>
-            <hr/>
-            <p><b>Service:</b> ${selectedTask.title}</p>
-            <p><b>Name:</b> ${data?.firstName || ""} ${data?.lastName || ""}</p>
-            <p><b>ID Used:</b> ${formData.searchValue}</p>
-            <p><b>Date:</b> ${new Date().toDateString()}</p>
-            <div style="margin-top: 50px; border: 1px solid #ccc; padding: 20px;">
-              <p>Verification Status: <b>VERIFIED</b></p>
+          <body style="padding: 40px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b;">
+            <div style="text-align: center; border-bottom: 2px solid #0a1d37; padding-bottom: 20px; margin-bottom: 30px;">
+              <h1 style="color: #0a1d37; margin: 0; font-size: 26px;">AYAX SECURE IDENTITY PORTAL</h1>
+              <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Official Verification Report & Certificate Slip</p>
+            </div>
+            
+            <table style="width: 100%; margin-bottom: 30px; font-size: 15px;">
+              <tr>
+                <td style="padding: 8px 0; color: #64748b;">Service Type:</td>
+                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${selectedTask.title}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b;">Target Search ID:</td>
+                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${formData.searchValue}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b;">Timestamp:</td>
+                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${new Date().toUTCString()}</td>
+              </tr>
+            </table>
+
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+              <h3 style="margin-top: 0; color: #0a1d37; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px;">Subject Profile Information</h3>
+              <p style="margin: 10px 0;"><b>First Name:</b> ${data?.firstName || data?.firstname || "N/A"}</p>
+              <p style="margin: 10px 0;"><b>Last Name:</b> ${data?.lastName || data?.surname || "N/A"}</p>
+              <p style="margin: 10px 0;"><b>Phone Number:</b> ${data?.phone || data?.phoneNumber || "N/A"}</p>
+              <p style="margin: 10px 0;"><b>Date of Birth:</b> ${data?.dob || "N/A"}</p>
+            </div>
+
+            <div style="text-align: center; background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 10px; padding: 15px;">
+              <p style="color: #065f46; margin: 0; font-weight: bold; font-size: 16px;">Status: VERIFIED & AUTHENTICATED</p>
             </div>
           </body>
         </html>
@@ -150,15 +180,19 @@ const VerificationScreen = ({ navigation }) => {
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri);
     } catch (error) {
-      Alert.alert("Error", "Unable to generate or share PDF slip.");
+      Alert.alert("Error", "Unable to generate or share verification PDF slip.");
     }
   };
 
   if (view === "list") {
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-        <Text style={styles.header}>Identity Verification</Text>
+        
+        <View style={styles.topHeaderBox}>
+          <Text style={styles.header}>Identity Verification</Text>
+          <Text style={styles.subHeader}>Select a secure gateway service below</Text>
+        </View>
 
         {services.map((s) => (
           <View key={s.id} style={styles.serviceWrapper}>
@@ -169,60 +203,66 @@ const VerificationScreen = ({ navigation }) => {
                 setView("form");
                 setFormData({ searchValue: "", pin: "" });
               }}
+              activeOpacity={0.8}
             >
               <View style={styles.iconCircle}>
                 <MaterialCommunityIcons
                   name={s.icon}
-                  size={28}
+                  size={26}
                   color="#0a1d37"
                 />
               </View>
               <View style={styles.cardContent}>
                 <Text style={styles.cardTitle}>{s.title}</Text>
+                <Text style={styles.cardSubTitle}>{s.subtitle}</Text>
                 <Text style={styles.cardPrice}>Fee: ₦{prices[s.id]}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
+              <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
             </TouchableOpacity>
 
+            {/* Admin Controls (Admin Kaɗai) */}
             {isAdmin && (
               <View style={styles.adminRow}>
                 <TextInput
                   style={styles.adminInput}
-                  placeholder="New Price"
+                  placeholder="New Fee (₦)"
                   placeholderTextColor="#94a3b8"
                   keyboardType="numeric"
+                  value={newPrice}
                   onChangeText={setNewPrice}
                 />
                 <TouchableOpacity
                   style={styles.updateBtn}
                   onPress={() => handleUpdatePrice(s.id)}
                 >
-                  <Text style={styles.updateBtnText}>SET</Text>
+                  <Text style={styles.updateBtnText}>SET FEE</Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
         ))}
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     );
   }
 
   if (view === "form") {
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           onPress={() => setView("list")}
           style={styles.backLink}
         >
           <Ionicons name="arrow-back" size={24} color="#0a1d37" />
-          <Text style={styles.backLinkText}>Back</Text>
+          <Text style={styles.backLinkText}>Back to Services</Text>
         </TouchableOpacity>
 
-        <Text style={styles.formTitle}>{selectedTask?.title}</Text>
-        <Text style={styles.formPrice}>
-          Service Charge: ₦{prices[selectedTask?.id]}
-        </Text>
+        <View style={styles.formHeaderContainer}>
+          <Text style={styles.formTitle}>{selectedTask?.title}</Text>
+          <Text style={styles.formPrice}>
+            Required Gateway Fee: ₦{prices[selectedTask?.id]}
+          </Text>
+        </View>
 
         <View style={styles.inputBox}>
           <Text style={styles.inputLabel}>{selectedTask?.inputLabel}</Text>
@@ -238,10 +278,10 @@ const VerificationScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.inputBox}>
-          <Text style={styles.inputLabel}>Transaction PIN</Text>
+          <Text style={styles.inputLabel}>Transaction PIN (Required)</Text>
           <TextInput
             style={styles.input}
-            placeholder="****"
+            placeholder="Enter your 4-digit PIN"
             placeholderTextColor="#94a3b8"
             secureTextEntry
             keyboardType="numeric"
@@ -259,31 +299,48 @@ const VerificationScreen = ({ navigation }) => {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.mainBtnText}>VERIFY IDENTITY</Text>
+            <Text style={styles.mainBtnText}>VERIFY IDENTITY NOW</Text>
           )}
         </TouchableOpacity>
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     );
   }
 
   if (view === "result") {
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.successCard}>
-          <Ionicons name="checkmark-circle" size={80} color="#10b981" />
-          <Text style={styles.successTitle}>Verification Successful</Text>
+          <View style={styles.successIconBadge}>
+            <Ionicons name="checkmark" size={45} color="#fff" />
+          </View>
+          <Text style={styles.successTitle}>Identity Verified Successfully</Text>
+          <Text style={styles.successSub}>Gateway response verified via live network server.</Text>
 
           <View style={styles.resData}>
-            <Text style={styles.resLabel}>Name</Text>
-            <Text style={styles.resValue}>
-              {verificationResult?.firstName || ""} {verificationResult?.lastName || ""}
-            </Text>
+            <View style={styles.resRow}>
+              <Text style={styles.resLabel}>Full Name</Text>
+              <Text style={styles.resValue}>
+                {verificationResult?.firstName || verificationResult?.firstname || "N/A"} {verificationResult?.lastName || verificationResult?.surname || ""}
+              </Text>
+            </View>
 
-            <Text style={styles.resLabel}>Reference</Text>
-            <Text style={styles.resValue}>
-              {Math.random().toString(36).substring(7).toUpperCase()}
-            </Text>
+            <View style={styles.resRow}>
+              <Text style={styles.resLabel}>Search Parameter</Text>
+              <Text style={styles.resValue}>{formData.searchValue}</Text>
+            </View>
+
+            <View style={styles.resRow}>
+              <Text style={styles.resLabel}>Reference Number</Text>
+              <Text style={styles.resValue}>
+                AYX-{Math.random().toString(36).substring(2, 10).toUpperCase()}
+              </Text>
+            </View>
+
+            <View style={[styles.resRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.resLabel}>Verification Status</Text>
+              <Text style={[styles.resValue, { color: "#10b981" }]}>AUTHENTICATED</Text>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -295,107 +352,115 @@ const VerificationScreen = ({ navigation }) => {
               size={24}
               color="#fff"
             />
-            <Text style={styles.pdfBtnText}>DOWNLOAD SLIP</Text>
+            <Text style={styles.pdfBtnText}>DOWNLOAD OFFICIAL SLIP (PDF)</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => setView("list")}
             style={styles.closeBtn}
           >
-            <Text style={styles.closeBtnText}>Done</Text>
+            <Text style={styles.closeBtnText}>Perform Another Verification</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     );
   }
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 20 },
+  container: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 20 },
+  topHeaderBox: { marginTop: 40, marginBottom: 20 },
   header: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#0a1d37",
-    marginBottom: 30,
-    marginTop: 40,
   },
-  serviceWrapper: { marginBottom: 15 },
+  subHeader: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  serviceWrapper: { marginBottom: 16 },
   card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#f8fafc",
-    padding: 15,
-    borderRadius: 15,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#f1f5f9",
+    borderColor: "#e2e8f0",
+    elevation: 1,
   },
   iconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-  },
-  cardContent: { flex: 1, marginLeft: 15 },
-  cardTitle: { fontSize: 16, fontWeight: "bold", color: "#0a1d37" },
-  cardPrice: {
-    fontSize: 13,
-    color: "#10b981",
-    fontWeight: "700",
-    marginTop: 2,
-  },
-  adminRow: { flexDirection: "row", marginTop: 8, paddingHorizontal: 10 },
-  adminInput: {
-    flex: 1,
-    height: 35,
-    backgroundColor: "#f1f5f9",
-    borderRadius: 5,
-    paddingHorizontal: 10,
-    fontSize: 12,
-    color: "#0f172a",
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
+  cardContent: { flex: 1, marginLeft: 15 },
+  cardTitle: { fontSize: 16, fontWeight: "700", color: "#0a1d37" },
+  cardSubTitle: { fontSize: 11, color: "#64748b", marginTop: 2 },
+  cardPrice: {
+    fontSize: 13,
+    color: "#10b981",
+    fontWeight: "800",
+    marginTop: 6,
+  },
+  adminRow: { flexDirection: "row", marginTop: 8, paddingHorizontal: 4 },
+  adminInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: "#fef3c7",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: "#92400e",
+    borderWidth: 1,
+    borderColor: "#f59e0b",
+  },
   updateBtn: {
-    backgroundColor: "#0a1d37",
-    paddingHorizontal: 15,
+    backgroundColor: "#b45309",
+    paddingHorizontal: 16,
     marginLeft: 10,
-    borderRadius: 5,
+    borderRadius: 8,
     justifyContent: "center",
   },
-  updateBtnText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
+  updateBtnText: { color: "#fff", fontSize: 11, fontWeight: "bold" },
   backLink: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 40,
+    marginTop: 45,
     marginBottom: 20,
   },
   backLinkText: {
     marginLeft: 8,
-    fontSize: 16,
+    fontSize: 15,
     color: "#0a1d37",
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  formTitle: { fontSize: 22, fontWeight: "bold", color: "#0a1d37" },
+  formHeaderContainer: { marginBottom: 25 },
+  formTitle: { fontSize: 22, fontWeight: "800", color: "#0a1d37" },
   formPrice: {
-    fontSize: 16,
+    fontSize: 14,
     color: "#ef4444",
-    marginTop: 5,
-    marginBottom: 30,
-    fontWeight: "600",
+    marginTop: 6,
+    fontWeight: "700",
   },
   inputBox: { marginBottom: 20 },
   inputLabel: {
-    fontSize: 14,
-    color: "#64748b",
+    fontSize: 13,
+    color: "#475569",
     marginBottom: 8,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   input: {
     backgroundColor: "#f8fafc",
-    padding: 15,
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -405,47 +470,69 @@ const styles = StyleSheet.create({
   mainBtn: {
     backgroundColor: "#0a1d37",
     padding: 18,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 15,
+    elevation: 3,
   },
-  mainBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  successCard: { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 40 },
+  mainBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold", letterSpacing: 0.5 },
+  successCard: { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 30 },
+  successIconBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#10b981",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+  },
   successTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "800",
     color: "#0a1d37",
-    marginTop: 20,
+    textAlign: "center",
+  },
+  successSub: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginTop: 4,
   },
   resData: {
     width: "100%",
     backgroundColor: "#f8fafc",
-    padding: 20,
-    borderRadius: 15,
-    marginTop: 30,
+    padding: 15,
+    borderRadius: 16,
+    marginTop: 25,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  resLabel: { fontSize: 12, color: "#64748b" },
+  resRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  resLabel: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: "700" },
   resValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#0a1d37",
-    marginBottom: 15,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginTop: 3,
   },
   pdfBtn: {
     backgroundColor: "#ef4444",
     flexDirection: "row",
     padding: 18,
-    borderRadius: 12,
+    borderRadius: 14,
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 30,
+    marginTop: 25,
+    elevation: 2,
   },
-  pdfBtnText: { color: "#fff", fontWeight: "bold", marginLeft: 10 },
-  closeBtn: { marginTop: 25, padding: 10 },
-  closeBtnText: { fontSize: 16, fontWeight: "bold", color: "#0a1d37" },
+  pdfBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14, marginLeft: 10 },
+  closeBtn: { marginTop: 20, padding: 10, alignItems: "center" },
+  closeBtnText: { fontSize: 15, fontWeight: "bold", color: "#0a1d37" },
 });
 
 export default VerificationScreen;

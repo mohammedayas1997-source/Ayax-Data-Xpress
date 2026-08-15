@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  StatusBar,
 } from "react-native";
 import {
   MaterialCommunityIcons,
@@ -49,8 +50,11 @@ const NIMCScreen = ({ navigation }) => {
 
   const handleVerification = async () => {
     if (!formData.searchValue || !formData.pin) {
-      Alert.alert("Required", "Please enter ID number and Transaction PIN.");
+      Alert.alert("Required", "Please enter ID number and valid Transaction PIN.");
       return;
+    }
+    if (formData.pin.length < 4) {
+      return Alert.alert("Error", "Enter a valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
@@ -77,12 +81,12 @@ const NIMCScreen = ({ navigation }) => {
         setUserData(result.data || result);
         setView("result");
       } else {
-        Alert.alert("Failed", result.message || "Verification failed");
+        throw new Error(result.message || "Verification failed");
       }
     } catch (err) {
       Alert.alert(
         "Verification Failed",
-        err.response?.data?.message || "Internal Server Error",
+        err.response?.data?.message || err.message || "Internal Server Error",
       );
     } finally {
       setLoading(false);
@@ -97,12 +101,13 @@ const NIMCScreen = ({ navigation }) => {
   if (view === "main" && !searchType) {
     return (
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+            <Ionicons name="arrow-back" size={26} color="#1e3a8a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>NIMC Printing Services</Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: 26 }} />
         </View>
 
         <View style={styles.bannerCard}>
@@ -110,7 +115,7 @@ const NIMCScreen = ({ navigation }) => {
           <View style={{ marginLeft: 15 }}>
             <Text style={styles.bannerText}>Print NIMC Slips</Text>
             <Text style={styles.bannerSub}>
-              Verify and download official slips
+              Verify and download official slips securely
             </Text>
           </View>
         </View>
@@ -176,7 +181,7 @@ const NIMCScreen = ({ navigation }) => {
           onPress={() => navigation.navigate("NIMCModification")}
         >
           <View style={styles.modIconBox}>
-            <FontAwesome5 name="edit" size={20} color="#1e3a8a" />
+            <FontAwesome5 name="edit" size={18} color="#1e3a8a" />
           </View>
           <View style={{ flex: 1, marginLeft: 15 }}>
             <Text style={styles.modTitle}>Data Modifications</Text>
@@ -184,37 +189,38 @@ const NIMCScreen = ({ navigation }) => {
           </View>
           <Ionicons name="chevron-forward" size={20} color="#cbd5e1" />
         </TouchableOpacity>
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     );
   }
 
   if (view === "main" && searchType) {
     return (
-      <View style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
         <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => setSearchType(null)}>
-            <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+            <Ionicons name="arrow-back" size={26} color="#1e3a8a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{searchType.name}</Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: 26 }} />
         </View>
 
         <View style={styles.formCard}>
           <Text style={styles.inputLabel}>Identification Number / Value</Text>
           <TextInput
             placeholder="Enter ID or Number"
-            placeholderTextColor="#999"
+            placeholderTextColor="#94a3b8"
             style={styles.input}
             value={formData.searchValue}
             onChangeText={(v) => setFormData({ ...formData, searchValue: v })}
           />
 
-          <Text style={styles.inputLabel}>Transaction PIN</Text>
+          <Text style={styles.inputLabel}>Transaction PIN (Required)</Text>
           <TextInput
             placeholder="****"
-            placeholderTextColor="#999"
-            style={styles.input}
+            placeholderTextColor="#94a3b8"
+            style={styles.pinInput}
             secureTextEntry
             keyboardType="numeric"
             maxLength={4}
@@ -235,23 +241,25 @@ const NIMCScreen = ({ navigation }) => {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>Verify & Print</Text>
+              <Text style={styles.submitText}>VERIFY & PRINT SLIP</Text>
             )}
           </TouchableOpacity>
         </View>
-      </View>
+        <View style={{ height: 50 }} />
+      </ScrollView>
     );
   }
 
   if (view === "result") {
     return (
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
         <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => setView("main")}>
-            <Ionicons name="close" size={24} color="#1e3a8a" />
+          <TouchableOpacity onPress={() => { setView("main"); setSearchType(null); setFormData({ searchValue: "", pin: "" }); }}>
+            <Ionicons name="close" size={26} color="#1e3a8a" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Verification Success</Text>
-          <View style={{ width: 24 }} />
+          <Text style={styles.headerTitle}>Verification Successful</Text>
+          <View style={{ width: 26 }} />
         </View>
 
         <View style={styles.resultCard}>
@@ -280,7 +288,7 @@ const NIMCScreen = ({ navigation }) => {
             <Text style={styles.downloadText}>Download Printing Slip</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ height: 40 }} />
+        <View style={{ height: 50 }} />
       </ScrollView>
     );
   }
@@ -289,9 +297,9 @@ const NIMCScreen = ({ navigation }) => {
 };
 
 const ServiceCard = ({ title, icon, price, onPress }) => (
-  <TouchableOpacity style={styles.card} onPress={onPress}>
+  <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
     <View style={styles.iconCircle}>
-      <FontAwesome5 name={icon} size={20} color="#1e3a8a" />
+      <FontAwesome5 name={icon} size={18} color="#1e3a8a" />
     </View>
     <Text style={styles.cardTitle}>{title}</Text>
     <Text style={styles.cardPrice}>₦{price}</Text>
@@ -306,29 +314,29 @@ const InfoRow = ({ label, value }) => (
 );
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", padding: 20 },
+  container: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 20 },
   headerSection: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 40,
-    marginBottom: 25,
+    marginTop: 45,
+    marginBottom: 20,
   },
-  headerTitle: { fontSize: 18, fontWeight: "900", color: "#1e3a8a" },
+  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1e3a8a" },
   bannerCard: {
     backgroundColor: "#1e3a8a",
     padding: 20,
     borderRadius: 20,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 25,
+    marginBottom: 20,
   },
   bannerText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  bannerSub: { color: "rgba(255,255,255,0.7)", fontSize: 12 },
+  bannerSub: { color: "rgba(255,255,255,0.7)", fontSize: 12, marginTop: 2 },
   sectionLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#334155",
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#475569",
     marginBottom: 15,
   },
   grid: {
@@ -338,134 +346,153 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: "#fff",
-    width: (width - 55) / 2,
-    padding: 20,
-    borderRadius: 20,
+    width: (width - 50) / 2,
+    padding: 18,
+    borderRadius: 15,
     alignItems: "center",
     marginBottom: 15,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   iconCircle: {
-    width: 50,
-    height: 50,
+    width: 45,
+    height: 45,
     backgroundColor: "#eff6ff",
-    borderRadius: 25,
+    borderRadius: 22.5,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
   },
   cardTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "bold",
     color: "#475569",
     textAlign: "center",
   },
   cardPrice: {
-    fontSize: 14,
-    fontWeight: "900",
+    fontSize: 15,
+    fontWeight: "bold",
     color: "#1e3a8a",
-    marginTop: 5,
+    marginTop: 6,
   },
   modCard: {
     backgroundColor: "#fff",
     flexDirection: "row",
-    padding: 15,
-    borderRadius: 20,
+    padding: 16,
+    borderRadius: 15,
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 5,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
   modIconBox: {
-    width: 45,
-    height: 45,
+    width: 42,
+    height: 42,
     backgroundColor: "#f1f5f9",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  modTitle: { fontWeight: "800", color: "#1e3a8a" },
-  modSub: { fontSize: 11, color: "#64748b" },
+  modTitle: { fontWeight: "bold", color: "#1e3a8a", fontSize: 15 },
+  modSub: { fontSize: 11, color: "#64748b", marginTop: 2 },
   formCard: {
     backgroundColor: "#fff",
-    padding: 25,
-    borderRadius: 25,
-    elevation: 5,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginTop: 10,
   },
   inputLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "bold",
     color: "#64748b",
     marginBottom: 8,
-    marginLeft: 5,
   },
   input: {
-    backgroundColor: "#f1f5f9",
-    padding: 18,
-    borderRadius: 15,
+    backgroundColor: "#f8fafc",
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
     marginBottom: 20,
     fontSize: 16,
-    fontWeight: "600",
+    color: "#0f172a",
+  },
+  pinInput: {
+    backgroundColor: "#f8fafc",
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 20,
+    fontSize: 18,
+    textAlign: "center",
+    letterSpacing: 6,
     color: "#0f172a",
   },
   priceTag: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 25,
+    marginBottom: 20,
+    backgroundColor: "#f1f5f9",
+    padding: 12,
+    borderRadius: 10,
   },
-  priceLabel: { fontWeight: "700", color: "#64748b" },
-  priceValue: { fontWeight: "900", color: "#16a34a", fontSize: 16 },
+  priceLabel: { fontWeight: "bold", color: "#64748b", fontSize: 14 },
+  priceValue: { fontWeight: "bold", color: "#16a34a", fontSize: 16 },
   submitBtn: {
     backgroundColor: "#1e3a8a",
-    padding: 20,
-    borderRadius: 18,
+    padding: 18,
+    borderRadius: 15,
     alignItems: "center",
   },
-  submitText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  submitText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
   resultCard: {
     backgroundColor: "#fff",
     padding: 20,
-    borderRadius: 25,
+    borderRadius: 20,
     alignItems: "center",
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   userPhoto: {
-    width: 120,
-    height: 120,
+    width: 110,
+    height: 110,
     borderRadius: 15,
     marginBottom: 20,
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: "#1e3a8a",
   },
   infoBox: {
     width: "100%",
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
-    paddingTop: 20,
+    paddingTop: 15,
   },
   infoLabel: {
     fontSize: 11,
     color: "#94a3b8",
-    fontWeight: "700",
+    fontWeight: "bold",
     textTransform: "uppercase",
   },
   infoValue: {
-    fontSize: 16,
+    fontSize: 15,
     color: "#1e293b",
-    fontWeight: "800",
-    marginBottom: 15,
+    fontWeight: "bold",
+    marginTop: 2,
   },
   downloadBtn: {
     backgroundColor: "#dc2626",
     flexDirection: "row",
     width: "100%",
-    padding: 18,
-    borderRadius: 15,
+    padding: 16,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 15,
   },
-  downloadText: { color: "#fff", fontWeight: "900", marginLeft: 10 },
+  downloadText: { color: "#fff", fontWeight: "bold", fontSize: 14, marginLeft: 8 },
 });
 
 export default NIMCScreen;

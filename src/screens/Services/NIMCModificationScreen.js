@@ -36,7 +36,9 @@ const NIMCModification = ({ navigation }) => {
       const { data } = await axios.get(`${BASE_URL}/nimc/prices`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (data.success) setPrices(data.prices || data.data || {});
+      if (data.success || data.status === "success") {
+        setPrices(data.prices || data.data || {});
+      }
     } catch (err) {
       console.log("Error fetching prices:", err);
     }
@@ -49,13 +51,13 @@ const NIMCModification = ({ navigation }) => {
   const handleSubmit = async () => {
     if (!pin || !formData.ninNumber) {
       return Alert.alert(
-        "Error",
+        "Required",
         "Please fill in your NIN and Transaction PIN",
       );
     }
 
     if (formData.ninNumber.length !== 11) {
-      return Alert.alert("Error", "NIN must be 11 digits");
+      return Alert.alert("Error", "NIN must be exactly 11 digits");
     }
 
     if (pin.length !== 4) {
@@ -111,17 +113,17 @@ const NIMCModification = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
-        <View style={styles.header}>
+        <View style={styles.headerSection}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={26} color="#1e3a8a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>NIMC Modification</Text>
-          <View style={{ width: 24 }} />
+          <View style={{ width: 26 }} />
         </View>
 
         <View style={styles.tabContainer}>
@@ -138,6 +140,7 @@ const NIMCModification = ({ navigation }) => {
                   selectedType === item.id && styles.activeTabItem,
                 ]}
                 onPress={() => setSelectedType(item.id)}
+                activeOpacity={0.8}
               >
                 <Ionicons
                   name={item.icon}
@@ -166,14 +169,14 @@ const NIMCModification = ({ navigation }) => {
               <Text style={styles.cardTitle}>Primary Details</Text>
               <View style={styles.priceBadge}>
                 <Text style={styles.priceText}>
-                  Cost: ₦{prices[selectedType] || "0.00"}
+                  Fee: ₦{prices[selectedType] || "0.00"}
                 </Text>
               </View>
             </View>
 
             <InputField
-              label="NIN Number"
-              placeholder="11-digit NIN"
+              label="NIN Number (11 Digits)"
+              placeholder="Enter 11-digit NIN"
               keyboardType="numeric"
               maxLength={11}
               value={formData.ninNumber || ""}
@@ -305,27 +308,32 @@ const NIMCModification = ({ navigation }) => {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Authorization</Text>
-            <InputField
-              label="Transaction PIN"
-              placeholder="4-digit security PIN"
-              secureTextEntry
-              keyboardType="numeric"
-              maxLength={4}
-              value={pin}
-              onChangeText={setPin}
-            />
+            <Text style={styles.cardTitle}>Authorization PIN</Text>
+            <View style={{ marginTop: 8 }}>
+              <Text style={styles.label}>Transaction PIN (Required)</Text>
+              <TextInput
+                style={styles.pinInput}
+                placeholder="****"
+                placeholderTextColor="#94a3b8"
+                secureTextEntry
+                keyboardType="numeric"
+                maxLength={4}
+                value={pin}
+                onChangeText={setPin}
+              />
+            </View>
           </View>
 
           <TouchableOpacity
             style={[styles.submitBtn, { opacity: loading ? 0.7 : 1 }]}
             onPress={handleSubmit}
             disabled={loading}
+            activeOpacity={0.9}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.btnText}>Submit Modification Request</Text>
+              <Text style={styles.btnText}>SUBMIT MODIFICATION REQUEST</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -343,19 +351,15 @@ const InputField = ({ label, ...props }) => (
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  header: {
+  headerSection: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 15,
-    backgroundColor: "#0f172a",
+    paddingTop: 15,
+    marginBottom: 10,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#fff",
-  },
+  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1e3a8a" },
   tabContainer: {
     backgroundColor: "#fff",
     borderBottomWidth: 1,
@@ -365,21 +369,23 @@ const styles = StyleSheet.create({
   tabItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: "#f1f5f9",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginRight: 8,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
-  activeTabItem: { backgroundColor: "#0a1d37" },
-  tabText: { fontSize: 13, fontWeight: "600", color: "#64748b", marginLeft: 6 },
+  activeTabItem: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
+  tabText: { fontSize: 13, fontWeight: "bold", color: "#64748b", marginLeft: 6 },
   activeTabText: { color: "#fff" },
   scrollContent: { padding: 20 },
   card: {
     backgroundColor: "#fff",
     borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
+    padding: 16,
+    marginBottom: 15,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
@@ -390,32 +396,43 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   cardTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#334155",
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#1e3a8a",
   },
   priceBadge: {
-    backgroundColor: "#f0f9ff",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#bae6fd",
   },
-  priceText: { color: "#0369a1", fontSize: 12, fontWeight: "800" },
+  priceText: { color: "#0369a1", fontSize: 12, fontWeight: "bold" },
   inputGroup: { marginBottom: 15 },
-  label: { fontSize: 12, fontWeight: "700", color: "#64748b", marginBottom: 8 },
+  label: { fontSize: 13, fontWeight: "bold", color: "#475569", marginBottom: 8 },
   input: {
     backgroundColor: "#f8fafc",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    padding: 14,
+    padding: 15,
     borderRadius: 12,
-    fontSize: 15,
-    color: "#1e293b",
+    fontSize: 16,
+    color: "#0f172a",
+  },
+  pinInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 15,
+    borderRadius: 12,
+    fontSize: 18,
+    textAlign: "center",
+    letterSpacing: 6,
+    color: "#0f172a",
   },
   submitBtn: {
-    backgroundColor: "#0a1d37",
+    backgroundColor: "#1e3a8a",
     padding: 18,
     borderRadius: 15,
     alignItems: "center",
@@ -423,7 +440,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     elevation: 3,
   },
-  btnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  btnText: { color: "#fff", fontSize: 15, fontWeight: "bold" },
 });
 
 export default NIMCModification;
