@@ -48,7 +48,6 @@ const LoginScreen = ({ navigation }) => {
       if (token && storedUserData) {
         const user = JSON.parse(storedUserData);
 
-        // AN GYARA: Matataccen tsarin kwaso role lokacin auto-login
         const detectedRole = (
           user?.role ||
           user?.user?.role ||
@@ -61,7 +60,13 @@ const LoginScreen = ({ navigation }) => {
 
         console.log("[Auto-Login] Detected Saved Role:", detectedRole);
 
-        if (detectedRole === "agent") {
+        if (detectedRole === "superadmin" || detectedRole === "supervisor") {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "SupervisorDashboard" }],
+          });
+          return;
+        } else if (detectedRole === "agent") {
           navigation.reset({
             index: 0,
             routes: [
@@ -91,7 +96,6 @@ const LoginScreen = ({ navigation }) => {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      // Mun cire layin da yake haifar da error
       if (isEnabled === "true" && hasHardware && isEnrolled) {
         setIsBiometricEnabled(true);
       }
@@ -124,14 +128,14 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
 
-    // Zaɓi URL dangane da wanda yake login (User ko Supervisor)
+    // AN GYARA: Tabbatar cewa endpoint din supervisor ko user yana amfani daidai da tsarin server
     const loginUrl = isSupervisor
-      ? "https://ayax-data-xpress-server.onrender.com/api/v1/auth/supervisor-login"
+      ? "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login" // Ko kuma supervisor-login idan akwai, amma tunda dukansu a wuri daya suke a User model:
       : "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login";
 
     try {
       console.log(
-        `🚀 Attempting ${isSupervisor ? "Supervisor" : "User"} Login for:`,
+        `🚀 Attempting ${isSupervisor ? "Supervisor/Superadmin" : "User"} Login for:`,
         email.trim().toLowerCase(),
       );
 
@@ -142,7 +146,6 @@ const LoginScreen = ({ navigation }) => {
 
       console.log("📥 Raw Server Response:", JSON.stringify(response.data));
 
-      // Ciro Token da Bayanan Mai amfani
       const token =
         response?.data?.token ||
         response?.data?.accessToken ||
@@ -154,7 +157,6 @@ const LoginScreen = ({ navigation }) => {
         response?.data?.data ||
         {};
 
-      // Gano role don tantance inda zai tafi
       const finalRole =
         userPayload?.role ||
         response?.data?.role ||
@@ -167,16 +169,20 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // Adana bayanan a Async Storage
+      // Idan an zaɓi login as supervisor amma ainihin role din bai zama superadmin/supervisor ba
+      if (isSupervisor && normalizedRole !== "superadmin" && normalizedRole !== "supervisor") {
+        setErrorMessage("This account does not have supervisor privileges.");
+        setLoading(false);
+        return;
+      }
+
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
 
       console.log("✅ Login Successful. Redirecting...");
 
-      // Tsarin Kai mai amfani zuwa shafin da ya dace
       setTimeout(() => {
-        if (isSupervisor) {
-          // Idan Supervisor ne, tura shi Dashboard na Supervisor
+        if (normalizedRole === "superadmin" || normalizedRole === "supervisor") {
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
@@ -184,7 +190,6 @@ const LoginScreen = ({ navigation }) => {
             }),
           );
         } else if (normalizedRole === "agent") {
-          // Idan Agent ne
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
@@ -197,7 +202,6 @@ const LoginScreen = ({ navigation }) => {
             }),
           );
         } else {
-          // Idan User na yau da kullum ne
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
@@ -232,85 +236,74 @@ const LoginScreen = ({ navigation }) => {
         disableDeviceFallback: false,
       });
 
-      // ... sauran code ɗin naka ...
+      if (!result.success) return;
 
-      console.log("📥 Raw Server Response:", JSON.stringify(response.data));
+      const savedEmail = await AsyncStorage.getItem("savedEmail");
+      const savedPassword = await AsyncStorage.getItem("savedPassword");
 
-      // =========================
-      // FIXED TOKEN EXTRACTION
-      // =========================
+      if (!savedEmail || !savedPassword) {
+        setErrorMessage("Please login with password once before using biometric.");
+        return;
+      }
+
+      setLoading(true);
+      const response = await axios.post(
+        "https://ayax-data-xpress-server.onrender.com/api/v1/auth/login",
+        {
+          email: savedEmail,
+          password: savedPassword,
+        }
+      );
 
       const token =
         response?.data?.token ||
         response?.data?.accessToken ||
         response?.data?.data?.token ||
         "";
-
-      // =========================
-      // FIXED USER EXTRACTION
-      // =========================
-
       const userPayload =
         response?.data?.user ||
         response?.data?.data?.user ||
         response?.data?.data ||
         {};
-
-      // =========================
-      // FIXED ROLE EXTRACTION
-      // =========================
-
       const finalRole =
         userPayload?.role ||
         response?.data?.role ||
         response?.data?.data?.role ||
         "";
-
       const normalizedRole = finalRole.trim().toLowerCase();
-
-      console.log("🎯 FINAL ROLE:", normalizedRole);
-
-      // =========================
-      // VALIDATE TOKEN
-      // =========================
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
         return;
       }
 
-      // =========================
-      // SAVE DATA
-      // =========================
-
       await AsyncStorage.setItem("userToken", token);
-
       await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
 
-      console.log("✅ TOKEN SAVED SUCCESSFULLY");
-
-      // =========================
-      // NAVIGATION (FIXED)
-      // =========================
       setTimeout(() => {
-        if (normalizedRole === "agent") {
-          // Idan Agent ne, muna reset zuwa Main, amma muna sa initial route ya zama AgentDashboard
+        if (normalizedRole === "superadmin" || normalizedRole === "supervisor") {
+          navigation.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: "SupervisorDashboard" }],
+            }),
+          );
+        } else if (normalizedRole === "agent") {
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
               routes: [
                 {
-                  name: "Main", // Sunan Drawer Navigator ɗinka
+                  name: "Main",
                   state: {
                     index: 0,
-                    routes: [{ name: "AgentDashboard" }], // Wannan shi ne zai tilasta AgentDashboard ya buɗe
+                    routes: [{ name: "AgentDashboard" }],
                   },
                 },
               ],
             }),
           );
         } else {
-          // Idan ba Agent ba ne, reset zuwa Main kamar yadda kake da shi
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
@@ -320,28 +313,7 @@ const LoginScreen = ({ navigation }) => {
         }
       }, 300);
     } catch (error) {
-      console.log("❌ Login Error:", error?.response?.data || error.message);
-
-      if (error.response) {
-        const status = error.response.status;
-        const backendMessage = error.response.data?.message || "";
-
-        if (status === 401) {
-          setErrorMessage(
-            backendMessage || "Invalid email or password. Please try again.",
-          );
-        } else if (status === 404) {
-          setErrorMessage("Account not found.");
-        } else {
-          setErrorMessage(backendMessage || "Server error encountered.");
-        }
-      } else if (error.request) {
-        setErrorMessage(
-          "Network error. Please check your internet connection.",
-        );
-      } else {
-        setErrorMessage("Unexpected error occurred.");
-      }
+      setErrorMessage("Biometric login failed. Please use password.");
     } finally {
       setLoading(false);
     }
@@ -428,7 +400,7 @@ const LoginScreen = ({ navigation }) => {
                 />
               </TouchableOpacity>
             </View>
-            {/* Supervisor Toggle */}
+
             <TouchableOpacity
               style={{
                 flexDirection: "row",
