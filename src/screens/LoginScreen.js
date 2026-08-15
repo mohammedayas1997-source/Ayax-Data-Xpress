@@ -181,6 +181,7 @@ const LoginScreen = ({ navigation }) => {
 
       console.log("✅ Login Successful. Redirecting...");
 
+// Tsarin Kai mai amfani zuwa shafin da ya dace bisa ga ainihin role ɗinsa
       setTimeout(() => {
         if (normalizedRole === "superadmin" || normalizedRole === "supervisor") {
           navigation.dispatch(
@@ -202,6 +203,7 @@ const LoginScreen = ({ navigation }) => {
             }),
           );
         } else {
+          // Idan Customer Service ne, ko Staff, ko Normal User - zaka iya musu routing anan ko zuwa Main Dashboard
           navigation.dispatch(
             CommonActions.reset({
               index: 0,
