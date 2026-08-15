@@ -83,6 +83,13 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
+  // Duba ko mai amfani yana da PIN ko babu ta hanyar properties daban-daban
+  const hasPinConfigured = Boolean(
+    userData?.hasPin || 
+    userData?.has_transaction_pin || 
+    userData?.transactionPin
+  );
+
   if (loading) {
     return (
       <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
@@ -173,18 +180,25 @@ const ProfileScreen = ({ navigation }) => {
         <Text style={[styles.sectionLabel, { marginTop: 25 }]}>Security & Settings</Text>
 
         <View style={styles.infoBox}>
+          {/* Change or Setup Transaction PIN Action */}
           <TouchableOpacity
             style={styles.actionRow}
-            onPress={() => navigation.navigate("UpdatePin")}
+            onPress={() => navigation.navigate("UpdatePin", { isUpdating: hasPinConfigured })}
             activeOpacity={0.7}
           >
             <View style={[styles.iconCircle, { backgroundColor: "#f0fdf4" }]}>
               <MaterialCommunityIcons name="lock-reset" size={18} color="#16a34a" />
             </View>
-            <Text style={styles.actionText}>Change Transaction PIN</Text>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.actionTextTitle}>Transaction PIN</Text>
+              <Text style={styles.actionTextSub}>
+                {hasPinConfigured ? "Change / Reset PIN" : "Setup Transaction PIN"}
+              </Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
 
+          {/* Log Out Action */}
           <TouchableOpacity
             style={[styles.actionRow, { borderBottomWidth: 0 }]}
             onPress={handleLogout}
@@ -193,7 +207,10 @@ const ProfileScreen = ({ navigation }) => {
             <View style={[styles.iconCircle, { backgroundColor: "#fef2f2" }]}>
               <Ionicons name="log-out-outline" size={18} color="#dc2626" />
             </View>
-            <Text style={[styles.actionText, { color: "#dc2626" }]}>Log Out of Terminal</Text>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={[styles.actionTextTitle, { color: "#dc2626" }]}>Session Termination</Text>
+              <Text style={[styles.actionTextSub, { color: "#fca5a5" }]}>Log Out of Terminal</Text>
+            </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
         </View>
@@ -313,12 +330,16 @@ const styles = StyleSheet.create({
     color: "#1e293b",
     marginTop: 2,
   },
-  actionText: {
+  actionTextTitle: {
     fontSize: 14,
     fontWeight: "bold",
     color: "#1e293b",
-    marginLeft: 14,
-    flex: 1,
+  },
+  actionTextSub: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2,
+    fontWeight: "500",
   },
   editBtn: {
     marginHorizontal: 20,
