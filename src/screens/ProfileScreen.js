@@ -85,10 +85,8 @@ const ProfileScreen = ({ navigation }) => {
 
   // Duba ko mai amfani yana da PIN ko babu ta hanyar properties daban-daban
   const hasPinConfigured = Boolean(
-    userData?.hasPin || 
-    userData?.has_transaction_pin || 
-    userData?.transactionPin
-  );
+  userData?.pin && userData.pin !== "0000" && !userData.pin.startsWith("0000")
+);
 
   if (loading) {
     return (
