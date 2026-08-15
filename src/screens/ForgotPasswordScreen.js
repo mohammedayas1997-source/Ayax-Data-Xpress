@@ -21,7 +21,6 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Helper to validate email format before sending to server
   const validateEmail = (text) => {
     let reg = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w\w+)+$/;
     return reg.test(text);
@@ -35,13 +34,12 @@ const ForgotPasswordScreen = ({ navigation }) => {
     if (!validateEmail(email)) {
       return Alert.alert(
         "Invalid Email",
-        "Please enter a valid email address format.",
+        "Please enter a valid email address format."
       );
     }
 
     setLoading(true);
     try {
-      // Tura buƙatar OTP zuwa sabar domin tura OTP zuwa layin wayar mai amfani/email
       const response = await axios.post(
         `${BASE_URL}/auth/forgot-password`,
         { email },
@@ -52,7 +50,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
       if (result.success || response.status === 200 || result.status === "success") {
         Alert.alert(
           "OTP Sent",
-          "A verification OTP has been sent to your registered mobile number and email.",
+          "A secure verification OTP has been generated and dispatched to your registered mobile phone and email address.",
           [
             {
               text: "Proceed",
@@ -95,7 +93,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
         <Text style={styles.title}>Forgot Password?</Text>
         <Text style={styles.subtitle}>
-          Enter your registered email address. We will generate and send a security OTP directly to your phone number and email to reset your password.
+          Enter your registered email address. A real-time verification OTP will be sent directly to your registered phone number and email account.
         </Text>
 
         <View style={styles.inputWrapper}>

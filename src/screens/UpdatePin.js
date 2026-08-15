@@ -16,22 +16,26 @@ import axios from "axios";
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const UpdatePinScreen = ({ navigation, route }) => {
-  const [oldPin, setOldPin] = useState("");
+  const [password, setPassword] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Zaka iya sanin ko yana son canzawa ne ko sabon kirkira ne daga params ko kuma ka bar shi ya duba biyu
   const isUpdating = route?.params?.isUpdating || false;
 
   const handleSavePin = async () => {
+    if (isUpdating && !password) {
+      Alert.alert("Error", "Please enter your account password to proceed.");
+      return;
+    }
+
     if (!newPin || newPin.length !== 4) {
-      Alert.alert("Kuskure", "Da fatan za a saka sabon PIN mai lamba 4 (4-digit PIN).");
+      Alert.alert("Error", "Please enter a valid 4-digit PIN.");
       return;
     }
 
     if (newPin !== confirmPin) {
-      Alert.alert("Kuskure", "Sabbin PIN ɗin da ka saka ba su yi daidai ba.");
+      Alert.alert("Error", "The new PINs do not match.");
       return;
     }
 
@@ -39,21 +43,19 @@ const UpdatePinScreen = ({ navigation, route }) => {
       setLoading(true);
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Oga!", "Zaman ka ya kare, da fatan za a sake shiga (Login).");
+        Alert.alert("Session Expired", "Please log in again.");
         navigation.replace("Login");
         return;
       }
 
       const config = { headers: { Authorization: `Bearer ${token}` } };
       
-      // Muna amfani da endpoint ɗin da ya dace
       const endpoint = isUpdating ? `${BASE_URL}/auth/update-pin` : `${BASE_URL}/auth/create-pin`;
-      const payload = isUpdating ? { oldPin, newPin } : { newPin };
+      const payload = isUpdating ? { password, newPin } : { newPin };
 
       const response = await axios.post(endpoint, payload, config);
 
       if (response.data.success) {
-        // Sabunta cache a cikin AsyncStorage cewa an saita PIN
         const cachedUser = await AsyncStorage.getItem("userData");
         if (cachedUser) {
           const parsedUser = JSON.parse(cachedUser);
@@ -63,8 +65,8 @@ const UpdatePinScreen = ({ navigation, route }) => {
         }
 
         Alert.alert(
-          "Nasara! 🎉",
-          response.data.message || "An saita Transaction PIN ɗinka cikin nasara.",
+          "Success 🎉",
+          response.data.message || "Transaction PIN successfully configured.",
           [
             {
               text: "OK",
@@ -75,8 +77,8 @@ const UpdatePinScreen = ({ navigation, route }) => {
       }
     } catch (error) {
       console.error("PIN Error:", error.response?.data || error.message);
-      const errorMsg = error.response?.data?.message || "An samu matsala wajen ajiye PIN ɗinka. Gwada daga baya.";
-      Alert.alert("Kuskure", errorMsg);
+      const errorMsg = error.response?.data?.message || "Failed to process PIN request. Please try again.";
+      Alert.alert("Error", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -91,7 +93,7 @@ const UpdatePinScreen = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Transaction PIN Setup</Text>
+        <Text style={styles.headerTitle}>{isUpdating ? "Change Transaction PIN" : "Setup Transaction PIN"}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -101,29 +103,27 @@ const UpdatePinScreen = ({ navigation, route }) => {
         </View>
         <Text style={styles.title}>Secure Your Transactions</Text>
         <Text style={styles.subtitle}>
-          Saka lamba 4 (PIN) wacce zaka riƙa amfani da ita wajen tura kuɗi ko siyan data a Ayax Xpress.
+          Enter a 4-digit PIN to authorize transfers and utility purchases on Ayax Xpress.
         </Text>
 
         {isUpdating && (
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Tsohon PIN (Current PIN)</Text>
+            <Text style={styles.label}>Account Password</Text>
             <TextInput
-              style={styles.input}
-              placeholder="****"
+              style={styles.textInput}
+              placeholder="Enter your login password"
               placeholderTextColor="#94a3b8"
-              keyboardType="numeric"
-              maxLength={4}
               secureTextEntry
-              value={oldPin}
-              onChangeText={setOldPin}
+              value={password}
+              onChangeText={setPassword}
             />
           </View>
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Sabon PIN (New PIN)</Text>
+          <Text style={styles.label}>New 4-Digit PIN</Text>
           <TextInput
-            style={styles.input}
+            style={styles.pinInput}
             placeholder="****"
             placeholderTextColor="#94a3b8"
             keyboardType="numeric"
@@ -135,9 +135,9 @@ const UpdatePinScreen = ({ navigation, route }) => {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Tabbatar da Sabon PIN (Confirm PIN)</Text>
+          <Text style={styles.label}>Confirm New PIN</Text>
           <TextInput
-            style={styles.input}
+            style={styles.pinInput}
             placeholder="****"
             placeholderTextColor="#94a3b8"
             keyboardType="numeric"
@@ -156,7 +156,7 @@ const UpdatePinScreen = ({ navigation, route }) => {
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.saveBtnText}>AJIYE PIN DIN</Text>
+            <Text style={styles.saveBtnText}>SAVE TRANSACTION PIN</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: "#64748b", textAlign: "center", marginTop: 5, marginBottom: 25 },
   inputGroup: { marginBottom: 18 },
   label: { fontSize: 12, fontWeight: "bold", color: "#475569", marginBottom: 6, textTransform: "uppercase" },
-  input: {
+  pinInput: {
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#cbd5e1",
@@ -202,6 +202,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: "#1e293b",
     letterSpacing: 5,
+  },
+  textInput: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    height: 52,
+    fontSize: 15,
+    color: "#1e293b",
   },
   saveBtn: {
     backgroundColor: "#1e3a8a",
