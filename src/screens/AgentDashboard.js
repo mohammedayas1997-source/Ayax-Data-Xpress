@@ -14,6 +14,7 @@ import {
   Platform,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -40,6 +41,10 @@ const AgentDashboard = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const { isDarkMode } = useContext(ThemeContext);
+
+  // States na Virtual Account
+  const [virtualAccount, setVirtualAccount] = useState(null);
+  const [loadingAccount, setLoadingAccount] = useState(false);
 
   const [performance, setPerformance] = useState({
     totalGB: 0,
@@ -75,7 +80,11 @@ const AgentDashboard = ({ navigation }) => {
       ]);
 
       if (profileRes.data && (profileRes.data.success || profileRes.data.user || profileRes.data.data)) {
-        setUserData(profileRes.data.user || profileRes.data.data);
+        const user = profileRes.data.user || profileRes.data.data;
+        setUserData(user);
+        if (user.virtualAccount && user.virtualAccount.accountNumber) {
+          setVirtualAccount(user.virtualAccount);
+        }
       }
 
       if (perfRes.data?.data) {
@@ -121,6 +130,49 @@ const AgentDashboard = ({ navigation }) => {
   const onRefresh = () => {
     setRefreshing(true);
     fetchAgentAndProfileData();
+  };
+
+  // Aikin fetch ko kirkirar Virtual Account
+  const handleGetVirtualAccount = async () => {
+    try {
+      setLoadingAccount(true);
+      const token = await AsyncStorage.getItem("userToken");
+      
+      const response = await axios.post(
+        `${BASE_URL}/virtual-account/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data && response.data.success) {
+        setVirtualAccount(response.data.data);
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
+        }
+      }
+    } catch (error) {
+      console.error("Virtual Account Error:", error.response?.data || error.message);
+      Alert.alert("Error", "Could not fetch or create virtual account. Try again later.");
+    } finally {
+      setLoadingAccount(false);
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    if (!text) return;
+    Clipboard.setStringAsync(text);
+    if (Platform.OS === "android") {
+      ToastAndroid.show("Copied to clipboard", ToastAndroid.SHORT);
+    } else {
+      Alert.alert("Copied", text);
+    }
   };
 
   const openWhatsApp = () => {
@@ -210,6 +262,7 @@ const AgentDashboard = ({ navigation }) => {
           }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
+          {/* Wallet Card */}
           <LinearGradient colors={["#1e40af", "#1e3a8a"]} style={styles.walletCard}>
             <View style={styles.walletTop}>
               <Text style={styles.walletLabel}>Agent Available Balance</Text>
@@ -259,6 +312,74 @@ const AgentDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
           </LinearGradient>
+
+          {/* Dedicated Virtual Account Section */}
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: isDarkMode ? "#fff" : "#1e293b" },
+            ]}
+          >
+            My Dedicated Account
+          </Text>
+
+          <View
+            style={[
+              styles.dvaCard,
+              { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+            ]}
+          >
+            {virtualAccount ? (
+              <View>
+                <View style={styles.dvaTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.bankNameText, { color: isDarkMode ? "#38bdf8" : "#1e40af" }]}>
+                      {virtualAccount.bankName}
+                    </Text>
+                    <Text style={[styles.accountNameText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+                      {virtualAccount.accountName}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.copyAccBtn}
+                    onPress={() => copyToClipboard(virtualAccount.accountNumber)}
+                  >
+                    <Ionicons name="copy-outline" size={18} color="#fff" />
+                    <Text style={styles.copyText}>Copy</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.accNumberRow}>
+                  <Text style={[styles.accountNumberVal, { color: isDarkMode ? "#fff" : "#0f172a" }]}>
+                    {virtualAccount.accountNumber}
+                  </Text>
+                </View>
+                <Text style={styles.dvaNote}>
+                  Transfer any amount to this account for instant wallet funding.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.noAccountContainer}>
+                <Text style={[styles.noAccText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+                  You don't have an automated account assigned yet.
+                </Text>
+                <TouchableOpacity
+                  style={styles.generateBtn}
+                  onPress={handleGetVirtualAccount}
+                  disabled={loadingAccount}
+                >
+                  {loadingAccount ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="card-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.generateBtnText}>Get Virtual Account</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
 
           <Text style={styles.sectionLabel}>Performance Metrics</Text>
 
@@ -485,6 +606,78 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 0.48, height: 48, borderRadius: 14, overflow: "hidden" },
   innerBtnGradient: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center" },
   actionBtnText: { color: "#fff", fontWeight: "bold", fontSize: 12, marginLeft: 8 },
+  dvaCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 25,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  dvaTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  bankNameText: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  accountNameText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  copyAccBtn: {
+    backgroundColor: "#1e40af",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  copyText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 4,
+  },
+  accNumberRow: {
+    marginVertical: 4,
+  },
+  accountNumberVal: {
+    fontSize: 22,
+    fontWeight: "bold",
+    letterSpacing: 1,
+  },
+  dvaNote: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  noAccountContainer: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  noAccText: {
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  generateBtn: {
+    backgroundColor: "#1e40af",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  generateBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
   sectionLabel: { fontSize: 16, fontWeight: "700", color: "#1e293b", marginTop: 15, marginBottom: 15, paddingLeft: 4 },
   statsGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
   statsGridAlt: { flexDirection: "row", justifyContent: "space-between", marginBottom: 15 },
@@ -505,7 +698,7 @@ const styles = StyleSheet.create({
   progressBar: { height: "100%", backgroundColor: "#059669", borderRadius: 5 },
   progressSubText: { fontSize: 12, color: "#64748b" },
   remainingText: { fontSize: 12, color: "#64748b" },
-  boldText: { fontWeight: "700", color: "#0f172a" },
+  boldText: { fontWeight: "700", color: "#0f172,a" },
   boldTextRed: { fontWeight: "700", color: "#dc2626" },
   servicesContainer: { borderRadius: 28, padding: 20, elevation: 4, marginBottom: 20 },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },

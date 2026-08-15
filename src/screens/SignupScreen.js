@@ -56,7 +56,7 @@ const SignupScreen = ({ navigation }) => {
       if (status !== "granted") {
         showAlert(
           "Permission Denied",
-          "Sorry, we need camera roll permissions to make this work!",
+          "Sorry, we need camera roll permissions to make this work!"
         );
         return;
       }
@@ -97,42 +97,42 @@ const SignupScreen = ({ navigation }) => {
     ) {
       showAlert(
         "Missing Fields",
-        "Please fill all the compulsory fields before proceeding.",
+        "Please fill all the compulsory fields before proceeding."
       );
       return false;
     }
     if (!emailRegex.test(email.trim())) {
       showAlert(
         "Invalid Email",
-        "The email address enter format is wrong. Check it well.",
+        "The email address enter format is wrong. Check it well."
       );
       return false;
     }
     if (!phoneRegex.test(phone.trim())) {
       showAlert(
         "Invalid Phone Number",
-        "Please enter a valid Nigerian phone number.",
+        "Please enter a valid Nigerian phone number."
       );
       return false;
     }
     if (password.length < 6) {
       showAlert(
         "Password Too Short",
-        "Your password must be at least 6 characters long.",
+        "Your password must be at least 6 characters long."
       );
       return false;
     }
     if (password !== confirmPassword) {
       showAlert(
         "Password Mismatch",
-        "The two passwords do not match. Please re-enter.",
+        "The two passwords do not match. Please re-enter."
       );
       return false;
     }
     if (role === "agent" && (!state.trim() || !lga.trim() || !address.trim())) {
       showAlert(
         "Agent Verification Missing",
-        "As an Agent, your State, LGA, and Business Address are compulsory.",
+        "As an Agent, your State, LGA, and Business Address are compulsory."
       );
       return false;
     }
@@ -163,9 +163,10 @@ const SignupScreen = ({ navigation }) => {
         if (image) registrationData.businessImage = image;
       }
 
+      // 1. Yin rijistar mai amfani
       const response = await axios({
         method: "POST",
-        url: "https://ayax-data-xpress-server.onrender.com/api/v1/auth/register",
+        url: "https://ayax-data-xpress-server.onrender.com/api/v1/virtual-account/create",
         data: registrationData,
         headers: {
           "Content-Type": "application/json",
@@ -181,33 +182,59 @@ const SignupScreen = ({ navigation }) => {
         response.data?.status === "success";
 
       if (isSuccess) {
-        const userPayload = response.data.user ||
+        const token = response.data.token;
+        let userPayload = response.data.user ||
           response.data.data?.user ||
           response.data.data || { role: role.trim().toLowerCase() };
 
-        await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
-        if (response.data.token) {
-          await AsyncStorage.setItem("userToken", response.data.token);
+        if (token) {
+          await AsyncStorage.setItem("userToken", token);
         }
+
+        // 2. KIRKIRAR ACCOUNT NUMBER NAN TAKE BATARE DA BATA LOKACI BA
+        try {
+          const accountRes = await axios({
+            method: "POST",
+            url: "https://ayax-data-xpress-server.onrender.com/api/v1/user/create-virtual-account", // Tabbatar da cewa wannan shine daidai endpoint din kirkiro account number a server dinka
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            timeout: 60000,
+          });
+
+          // Idan server ta dawo da bayanai account number, sai mu hada su da userPayload
+          if (accountRes.data && (accountRes.data.accountNumber || accountRes.data.data)) {
+            const accData = accountRes.data.accountNumber || accountRes.data.data;
+            userPayload = { ...userPayload, ...accData };
+          }
+        } catch (accError) {
+          console.error("Account Number Generation Error:", accError.response?.data || accError.message);
+          // Ba za mu katse tafiyar ba idan account generation din ya samu matsala a wajen request din, amma zamu iya cigaba da adana wadanda aka samu
+        }
+
+        // Adana bayanan karshe a AsyncStorage
+        await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
 
         setLoading(false);
 
         showAlert(
           "Account Created 🎉",
-          "Your registration has been completed successfully! Click OK to proceed.",
+          "Your registration and account number generation have been completed successfully! Click OK to proceed.",
           [
             {
               text: "OK",
               onPress: () => navigation.replace("Success"),
             },
-          ],
+          ]
         );
       } else {
         setLoading(false);
         showAlert(
           "Registration Alert",
           response.data?.message ||
-            "Unexpected response from server. Please check.",
+            "Unexpected response from server. Please check."
         );
       }
     } catch (error) {
@@ -219,7 +246,7 @@ const SignupScreen = ({ navigation }) => {
       if (error.code === "ECONNABORTED") {
         showAlert(
           "Network Timeout",
-          "Connection took too long to respond. Check your internet connection.",
+          "Connection took too long to respond. Check your internet connection."
         );
       } else {
         showAlert("Registration Failed ❌", serverMsg);
@@ -227,7 +254,7 @@ const SignupScreen = ({ navigation }) => {
 
       console.error(
         "Registration Log Error:",
-        error.response?.data || error.message,
+        error.response?.data || error.message
       );
     }
   };
@@ -489,7 +516,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f1f5f9",
   },
-  // AN GYARA ALLON WAYA NAN: Maimakon box shape da ke takura layout a waya, mun bar shi ya gudanar da scrolling din sa lami-lafiya a kowane irin allo
   container: {
     flexGrow: 1,
     backgroundColor: "#ffffff",
@@ -498,7 +524,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: Platform.OS === "web" ? 450 : "100%",
     alignSelf: "center",
-    // Inuwa don Web browser da PC kadai
     ...Platform.select({
       web: {
         borderRadius: 24,
@@ -589,7 +614,6 @@ const styles = StyleSheet.create({
       web: { cursor: "pointer" },
     }),
   },
-  // AN GYARA NAN: An ba TextInput din width 100% don ya bude radau a wayoyin Android da iOS
   inputText: { color: "#0f172a", fontSize: 14, width: "100%", height: "100%" },
   agentSection: {
     marginTop: 5,

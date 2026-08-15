@@ -13,6 +13,7 @@ import {
   Linking,
   Alert,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -31,8 +32,11 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 const HomeScreen = ({ navigation }) => {
   const { isDarkMode } = useContext(ThemeContext);
   const [userData, setUserData] = useState(null);
-
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+
+  // States na Virtual Account
+  const [virtualAccount, setVirtualAccount] = useState(null);
+  const [loadingAccount, setLoadingAccount] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -54,7 +58,11 @@ const HomeScreen = ({ navigation }) => {
       });
 
       if (response.data && response.data.success) {
-        setUserData(response.data.user || response.data.data);
+        const user = response.data.user || response.data.data;
+        setUserData(user);
+        if (user.virtualAccount && user.virtualAccount.accountNumber) {
+          setVirtualAccount(user.virtualAccount);
+        }
       }
     } catch (err) {
       if (err.response && err.response.status === 401) {
@@ -66,11 +74,46 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
+  // Aikin fetch ko kirkirar Virtual Account ta sabon router din mu
+  const handleGetVirtualAccount = async () => {
+    try {
+      setLoadingAccount(true);
+      const token = await AsyncStorage.getItem("userToken");
+      
+      const response = await axios.post(
+        `${BASE_URL}/virtual-account/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data && response.data.success) {
+        setVirtualAccount(response.data.data);
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
+        }
+      }
+    } catch (error) {
+      console.error("Virtual Account Error:", error.response?.data || error.message);
+      Alert.alert("Error", "Could not fetch or create virtual account. Try again later.");
+    } finally {
+      setLoadingAccount(false);
+    }
+  };
+
   const copyToClipboard = (text) => {
     if (!text) return;
     Clipboard.setStringAsync(text);
     if (Platform.OS === "android") {
       ToastAndroid.show("Copied to clipboard", ToastAndroid.SHORT);
+    } else {
+      Alert.alert("Copied", text);
     }
   };
 
@@ -143,7 +186,7 @@ const HomeScreen = ({ navigation }) => {
               ]}
             >
               {userData
-                ? `${userData.firstName} ${userData.surname}`
+                ? `${userData.firstName || userData.name || "User"}`
                 : "Loading..."}
             </Text>
           </View>
@@ -171,7 +214,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.balanceContainer}>
               <Text style={styles.currency}>₦</Text>
               <Text style={styles.balanceText}>
-                {isBalanceVisible ? userData?.walletBalance || "0.00" : "****"}
+                {isBalanceVisible ? userData?.walletBalance || userData?.balance || "0.00" : "****"}
               </Text>
               <TouchableOpacity
                 onPress={() => setIsBalanceVisible(!isBalanceVisible)}
@@ -214,7 +257,75 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </LinearGradient>
 
-          {/* 2. Quick Funding Options Section */}
+          {/* 2. Dedicated Virtual Account Card Section */}
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: isDarkMode ? "#fff" : "#1e293b" },
+            ]}
+          >
+            My Dedicated Account
+          </Text>
+
+          <View
+            style={[
+              styles.dvaCard,
+              { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+            ]}
+          >
+            {virtualAccount ? (
+              <View>
+                <View style={styles.dvaTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.bankNameText, { color: isDarkMode ? "#38bdf8" : "#1e40af" }]}>
+                      {virtualAccount.bankName}
+                    </Text>
+                    <Text style={[styles.accountNameText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+                      {virtualAccount.accountName}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.copyAccBtn}
+                    onPress={() => copyToClipboard(virtualAccount.accountNumber)}
+                  >
+                    <Ionicons name="copy-outline" size={18} color="#fff" />
+                    <Text style={styles.copyText}>Copy</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.accNumberRow}>
+                  <Text style={[styles.accountNumberVal, { color: isDarkMode ? "#fff" : "#0f172a" }]}>
+                    {virtualAccount.accountNumber}
+                  </Text>
+                </View>
+                <Text style={styles.dvaNote}>
+                  Transfer any amount to this account for instant wallet funding.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.noAccountContainer}>
+                <Text style={[styles.noAccText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+                  You don't have an automated account assigned yet.
+                </Text>
+                <TouchableOpacity
+                  style={styles.generateBtn}
+                  onPress={handleGetVirtualAccount}
+                  disabled={loadingAccount}
+                >
+                  {loadingAccount ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="card-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.generateBtnText}>Get Virtual Account</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* 3. Quick Funding Options Section */}
           <Text
             style={[
               styles.sectionLabel,
@@ -244,7 +355,7 @@ const HomeScreen = ({ navigation }) => {
             />
           </ScrollView>
 
-          {/* 3. Quick Services Grid */}
+          {/* 4. Quick Services Grid */}
           <Text
             style={[
               styles.sectionLabel,
@@ -328,7 +439,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* 4. Branding & Trust */}
+          {/* 5. Branding & Trust */}
           <View style={styles.footerBranding}>
             <Text style={styles.footerHeadline}>Why Choose Ayax Xpress?</Text>
             <View style={styles.trustGrid}>
@@ -519,6 +630,78 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 12,
     marginLeft: 8,
+  },
+  dvaCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 25,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  dvaTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  bankNameText: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  accountNameText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  copyAccBtn: {
+    backgroundColor: "#1e40af",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  copyText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 4,
+  },
+  accNumberRow: {
+    marginVertical: 4,
+  },
+  accountNumberVal: {
+    fontSize: 22,
+    fontWeight: "bold",
+    letterSpacing: 1,
+  },
+  dvaNote: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  noAccountContainer: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  noAccText: {
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  generateBtn: {
+    backgroundColor: "#1e40af",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  generateBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
   },
   sectionLabel: {
     fontSize: 16,
