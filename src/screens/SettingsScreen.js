@@ -242,7 +242,10 @@ const ProfileScreen = ({ navigation }) => {
           {/* Set / Change Transaction PIN */}
           <TouchableOpacity 
             style={styles.infoItem}
-            onPress={() => navigation.navigate("UpdatePin")}
+            onPress={() => {
+              const hasPinSet = userData?.hasPin || userData?.has_transaction_pin;
+              navigation.navigate("UpdatePin", { isUpdating: hasPinSet });
+            }}
             activeOpacity={0.7}
           >
             <View style={styles.iconCircle}>
@@ -256,7 +259,7 @@ const ProfileScreen = ({ navigation }) => {
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
           </TouchableOpacity>
-
+          
           {/* Fingerprint Login Toggle */}
           <View style={styles.infoItem}>
             <View style={styles.iconCircle}>
