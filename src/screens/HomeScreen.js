@@ -14,8 +14,6 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
-  Modal,
-  TextInput,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -39,12 +37,6 @@ const HomeScreen = ({ navigation }) => {
   // States na Virtual Account
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
-
-  // PIN Verification States
-  const [pinModalVisible, setPinModalVisible] = useState(false);
-  const [enteredPin, setEnteredPin] = useState("");
-  const [selectedRoute, setSelectedRoute] = useState(null);
-  const [verifyingPin, setVerifyingPin] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -82,50 +74,7 @@ const HomeScreen = ({ navigation }) => {
     }
   };
 
-  // Aikin bincike da tura mai amfani zuwa Service bayan yasa PIN
-  const verifyPinAndNavigate = (route) => {
-    setSelectedRoute(route);
-    setPinModalVisible(true);
-  };
-
-  const handlePinSubmit = async () => {
-    if (!enteredPin || enteredPin.length !== 4) {
-      Alert.alert("Error", "Please enter a valid 4-digit PIN.");
-      return;
-    }
-
-    try {
-      setVerifyingPin(true);
-      const token = await AsyncStorage.getItem("userToken");
-      
-      const response = await axios.post(
-        `${BASE_URL}/auth/verify-pin`,
-        { pin: enteredPin },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
-
-      if (response.data && response.data.success) {
-        setPinModalVisible(false);
-        setEnteredPin("");
-        if (selectedRoute) {
-          navigation.navigate(selectedRoute);
-        }
-      }
-    } catch (error) {
-      console.error("PIN Verification Error:", error.response?.data || error.message);
-      Alert.alert("Error", error.response?.data?.message || "Invalid Transaction PIN.");
-      setEnteredPin("");
-    } finally {
-      setVerifyingPin(false);
-    }
-  };
-
-  // Aikin fetch ko kirkirar Virtual Account ta sabon router din mu
+  // Aikin fetch ko kirkirar Virtual Account
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
@@ -191,59 +140,6 @@ const HomeScreen = ({ navigation }) => {
         translucent
         backgroundColor="transparent"
       />
-
-      {/* PIN Verification Modal */}
-      <Modal visible={pinModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: isDarkMode ? "#0f172a" : "#fff" }]}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
-              <Text style={[styles.modalTitle, { color: isDarkMode ? "#fff" : "#0f172a" }]}>Enter Transaction PIN</Text>
-              <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to proceed</Text>
-            </View>
-
-            <TextInput
-              style={[
-                styles.pinInput,
-                {
-                  backgroundColor: isDarkMode ? "#1e293b" : "#f8fafc",
-                  color: isDarkMode ? "#fff" : "#0f172a",
-                  borderColor: isDarkMode ? "#334155" : "#cbd5e1",
-                },
-              ]}
-              keyboardType="number-pad"
-              maxLength={4}
-              secureTextEntry
-              value={enteredPin}
-              onChangeText={setEnteredPin}
-              placeholder="••••"
-              placeholderTextColor="#94a3b8"
-            />
-
-            <TouchableOpacity
-              style={styles.verifyModalBtn}
-              onPress={handlePinSubmit}
-              disabled={verifyingPin}
-            >
-              {verifyingPin ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.verifyModalBtnText}>Verify & Proceed</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelModalBtn}
-              onPress={() => {
-                setPinModalVisible(false);
-                setEnteredPin("");
-              }}
-            >
-              <Text style={styles.cancelModalBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
 
       <ImageBackground
         source={require("../assets/ayax_promo_hijab.png")}
@@ -459,7 +355,7 @@ const HomeScreen = ({ navigation }) => {
             />
           </ScrollView>
 
-          {/* 4. Quick Services Grid (An sanya Pin Verification) */}
+          {/* 4. Quick Services Grid (An shiga kai tsaye ba tare da PIN a nan ba) */}
           <Text
             style={[
               styles.sectionLabel,
@@ -480,56 +376,56 @@ const HomeScreen = ({ navigation }) => {
                 color="#0ea5e9"
                 label="Data"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("BuyData")}
+                onPress={() => navigation.navigate("BuyData")}
               />
               <ServiceItem
                 icon="phone-alt"
                 color="#22c55e"
                 label="Airtime"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("BuyAirtime")}
+                onPress={() => navigation.navigate("BuyAirtime")}
               />
               <ServiceItem
                 icon="bolt"
                 color="#eab308"
                 label="Power"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("Electricity")}
+                onPress={() => navigation.navigate("Electricity")}
               />
               <ServiceItem
                 icon="tv"
                 color="#8b5cf6"
                 label="Cable"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("Cable")}
+                onPress={() => navigation.navigate("Cable")}
               />
               <ServiceItem
                 icon="id-card"
                 color="#f43f5e"
                 label="NIMC Varify"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("NIMC")}
+                onPress={() => navigation.navigate("NIMC")}
               />
               <ServiceItem
                 icon="fingerprint"
                 color="#ec4899"
                 label="NIMC Mod"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("NIMCModification")}
+                onPress={() => navigation.navigate("NIMCModification")}
               />
               <ServiceItem
                 icon="user-shield"
                 color="#64748b"
                 label="BVN"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("BVNScreen")}
+                onPress={() => navigation.navigate("BVNScreen")}
               />
               <ServiceItem
                 icon="shield-alt"
                 color="#1e40af"
                 label="NIN Valid"
                 isDarkMode={isDarkMode}
-                onPress={() => verifyPinAndNavigate("NINValidation")}
+                onPress={() => navigation.navigate("NINValidation")}
               />
               <ServiceItem
                 icon="history"
@@ -917,69 +813,6 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     textAlign: "center",
     marginTop: 2,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    width: "100%",
-    maxWidth: 340,
-    borderRadius: 24,
-    padding: 24,
-    alignItems: "center",
-    elevation: 10,
-  },
-  modalHeader: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 10,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: "#64748b",
-    marginTop: 4,
-    textAlign: "center",
-  },
-  pinInput: {
-    width: "100%",
-    height: 55,
-    borderWidth: 1,
-    borderRadius: 14,
-    textAlign: "center",
-    fontSize: 24,
-    letterSpacing: 8,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-  verifyModalBtn: {
-    width: "100%",
-    height: 48,
-    backgroundColor: "#1e40af",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  verifyModalBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  cancelModalBtn: {
-    paddingVertical: 8,
-  },
-  cancelModalBtnText: {
-    color: "#ef4444",
-    fontWeight: "600",
-    fontSize: 13,
   },
 });
 

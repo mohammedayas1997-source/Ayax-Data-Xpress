@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import axios from "axios";
@@ -32,9 +33,13 @@ const VerificationScreen = ({ navigation }) => {
     phone_verify: 300,
   });
 
-  const [formData, setFormData] = useState({ searchValue: "", pin: "" });
+  const [formData, setFormData] = useState({ searchValue: "" });
   const [verificationResult, setVerificationResult] = useState(null);
   const [newPrice, setNewPrice] = useState("");
+
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pin, setPin] = useState("");
 
   const services = [
     {
@@ -93,11 +98,16 @@ const VerificationScreen = ({ navigation }) => {
     Alert.alert("Success", "Service fee updated successfully.");
   };
 
-  const handleVerify = async () => {
-    if (!formData.searchValue || !formData.pin) {
-      return Alert.alert("Error", "Please fill in all fields including your Transaction PIN.");
+  // Wannan zai bincika ko an cika lambar bincike kafin buɗe PIN Modal
+  const handleInitiateVerification = () => {
+    if (!formData.searchValue) {
+      return Alert.alert("Error", `Please enter ${selectedTask?.inputLabel || "search value"}.`);
     }
-    if (formData.pin.length < 4) {
+    setPinModalVisible(true);
+  };
+
+  const handleVerify = async () => {
+    if (!pin || pin.length < 4) {
       return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
@@ -115,7 +125,7 @@ const VerificationScreen = ({ navigation }) => {
         {
           type: selectedTask.id,
           value: formData.searchValue,
-          transactionPin: formData.pin, // Dole a tura PIN don tabbatarwa a Server
+          transactionPin: pin,
           charge: prices[selectedTask.id],
         },
         { headers: { Authorization: `Bearer ${token}` } },
@@ -123,6 +133,8 @@ const VerificationScreen = ({ navigation }) => {
 
       const result = res.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         setVerificationResult(result.data || result);
         setView("result");
       } else {
@@ -201,7 +213,7 @@ const VerificationScreen = ({ navigation }) => {
               onPress={() => {
                 setSelectedTask(s);
                 setView("form");
-                setFormData({ searchValue: "", pin: "" });
+                setFormData({ searchValue: "" });
               }}
               activeOpacity={0.8}
             >
@@ -220,7 +232,6 @@ const VerificationScreen = ({ navigation }) => {
               <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
             </TouchableOpacity>
 
-            {/* Admin Controls (Admin Kaɗai) */}
             {isAdmin && (
               <View style={styles.adminRow}>
                 <TextInput
@@ -273,35 +284,63 @@ const VerificationScreen = ({ navigation }) => {
             keyboardType="numeric"
             maxLength={selectedTask?.maxLength}
             value={formData.searchValue}
-            onChangeText={(v) => setFormData({ ...formData, searchValue: v })}
-          />
-        </View>
-
-        <View style={styles.inputBox}>
-          <Text style={styles.inputLabel}>Transaction PIN (Required)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your 4-digit PIN"
-            placeholderTextColor="#94a3b8"
-            secureTextEntry
-            keyboardType="numeric"
-            maxLength={4}
-            value={formData.pin}
-            onChangeText={(v) => setFormData({ ...formData, pin: v })}
+            onChangeText={(v) => setFormData({ searchValue: v })}
           />
         </View>
 
         <TouchableOpacity
-          style={[styles.mainBtn, loading && { opacity: 0.7 }]}
-          onPress={handleVerify}
-          disabled={loading}
+          style={styles.mainBtn}
+          onPress={handleInitiateVerification}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.mainBtnText}>VERIFY IDENTITY NOW</Text>
-          )}
+          <Text style={styles.mainBtnText}>VERIFY IDENTITY NOW</Text>
         </TouchableOpacity>
+
+        {/* PIN Verification Modal */}
+        <Modal visible={pinModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeaderIcon}>
+                <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
+              </View>
+              <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+              <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this verification fee</Text>
+
+              <TextInput
+                style={styles.pinInput}
+                placeholder="••••"
+                placeholderTextColor="#94a3b8"
+                keyboardType="numeric"
+                secureTextEntry
+                value={pin}
+                onChangeText={setPin}
+                maxLength={4}
+              />
+
+              <TouchableOpacity
+                style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+                onPress={handleVerify}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.verifyModalBtnText}>Confirm & Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelModalBtn}
+                onPress={() => {
+                  setPinModalVisible(false);
+                  setPin("");
+                }}
+              >
+                <Text style={styles.cancelModalBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <View style={{ height: 50 }} />
       </ScrollView>
     );
@@ -533,6 +572,76 @@ const styles = StyleSheet.create({
   pdfBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14, marginLeft: 10 },
   closeBtn: { marginTop: 20, padding: 10, alignItems: "center" },
   closeBtnText: { fontSize: 15, fontWeight: "bold", color: "#0a1d37" },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  pinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#0a1d37",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#ef4444",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default VerificationScreen;

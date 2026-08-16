@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Dimensions,
   StatusBar,
+  Modal,
 } from "react-native";
 import {
   MaterialCommunityIcons,
@@ -26,7 +27,12 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 const NIMCScreen = ({ navigation }) => {
   const [view, setView] = useState("main");
   const [searchType, setSearchType] = useState(null);
-  const [formData, setFormData] = useState({ searchValue: "", pin: "" });
+  const [formData, setFormData] = useState({ searchValue: "" });
+  
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pin, setPin] = useState("");
+
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [prices, setPrices] = useState({});
@@ -48,12 +54,16 @@ const NIMCScreen = ({ navigation }) => {
     fetchPrices();
   }, []);
 
-  const handleVerification = async () => {
-    if (!formData.searchValue || !formData.pin) {
-      Alert.alert("Required", "Please enter ID number and valid Transaction PIN.");
+  const handleInitiateVerification = () => {
+    if (!formData.searchValue) {
+      Alert.alert("Required", "Please enter ID number/value.");
       return;
     }
-    if (formData.pin.length < 4) {
+    setPinModalVisible(true);
+  };
+
+  const handleVerification = async () => {
+    if (!pin || pin.length < 4) {
       return Alert.alert("Error", "Enter a valid 4-digit Transaction PIN.");
     }
 
@@ -71,13 +81,15 @@ const NIMCScreen = ({ navigation }) => {
         {
           searchValue: formData.searchValue,
           searchType: searchType.id,
-          pin: formData.pin,
+          pin: pin,
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         setUserData(result.data || result);
         setView("result");
       } else {
@@ -216,18 +228,6 @@ const NIMCScreen = ({ navigation }) => {
             onChangeText={(v) => setFormData({ ...formData, searchValue: v })}
           />
 
-          <Text style={styles.inputLabel}>Transaction PIN (Required)</Text>
-          <TextInput
-            placeholder="****"
-            placeholderTextColor="#94a3b8"
-            style={styles.pinInput}
-            secureTextEntry
-            keyboardType="numeric"
-            maxLength={4}
-            value={formData.pin}
-            onChangeText={(v) => setFormData({ ...formData, pin: v })}
-          />
-
           <View style={styles.priceTag}>
             <Text style={styles.priceLabel}>Service Fee:</Text>
             <Text style={styles.priceValue}>₦{prices[searchType.id] || 1000}</Text>
@@ -235,16 +235,58 @@ const NIMCScreen = ({ navigation }) => {
 
           <TouchableOpacity
             style={styles.submitBtn}
-            onPress={handleVerification}
-            disabled={loading}
+            onPress={handleInitiateVerification}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitText}>VERIFY & PRINT SLIP</Text>
-            )}
+            <Text style={styles.submitText}>VERIFY & PRINT SLIP</Text>
           </TouchableOpacity>
         </View>
+
+        {/* PIN Verification Modal */}
+        <Modal visible={pinModalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeaderIcon}>
+                <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
+              </View>
+              <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+              <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this NIMC service fee</Text>
+
+              <TextInput
+                style={styles.modalPinInput}
+                placeholder="••••"
+                placeholderTextColor="#94a3b8"
+                keyboardType="numeric"
+                secureTextEntry
+                value={pin}
+                onChangeText={setPin}
+                maxLength={4}
+              />
+
+              <TouchableOpacity
+                style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+                onPress={handleVerification}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.verifyModalBtnText}>Confirm & Verify</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelModalBtn}
+                onPress={() => {
+                  setPinModalVisible(false);
+                  setPin("");
+                }}
+              >
+                <Text style={styles.cancelModalBtnText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <View style={{ height: 50 }} />
       </ScrollView>
     );
@@ -255,7 +297,7 @@ const NIMCScreen = ({ navigation }) => {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
         <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => { setView("main"); setSearchType(null); setFormData({ searchValue: "", pin: "" }); }}>
+          <TouchableOpacity onPress={() => { setView("main"); setSearchType(null); setFormData({ searchValue: "" }); }}>
             <Ionicons name="close" size={26} color="#1e3a8a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verification Successful</Text>
@@ -419,18 +461,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#0f172a",
   },
-  pinInput: {
-    backgroundColor: "#f8fafc",
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 20,
-    fontSize: 18,
-    textAlign: "center",
-    letterSpacing: 6,
-    color: "#0f172a",
-  },
   priceTag: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -493,6 +523,78 @@ const styles = StyleSheet.create({
     marginTop: 15,
   },
   downloadText: { color: "#fff", fontWeight: "bold", fontSize: 14, marginLeft: 8 },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e3a8a",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  modalPinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#1e3a8a",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#dc2626",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default NIMCScreen;

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Clipboard,
+  Modal,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -37,7 +38,11 @@ const ElectricityScreen = ({ navigation }) => {
   const [amount, setAmount] = useState("");
   const [meterType, setMeterType] = useState("prepaid");
   const [customerName, setCustomerName] = useState("");
+  
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
+
   const [verifying, setVerifying] = useState(false);
   const [paying, setPaying] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -98,11 +103,17 @@ const ElectricityScreen = ({ navigation }) => {
     }
   };
 
-  const handlePayment = async () => {
+  // Wannan zai bincika ko komai ya cika kafin buɗe PIN Modal
+  const handleInitiatePayment = () => {
     if (!customerName)
       return Alert.alert("Error", "Please verify meter details first");
     if (!amount || parseInt(amount) < 500)
       return Alert.alert("Error", "Minimum purchase amount is ₦500");
+    
+    setPinModalVisible(true);
+  };
+
+  const handlePayment = async () => {
     if (!pin || pin.length < 4)
       return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN");
 
@@ -130,6 +141,8 @@ const ElectricityScreen = ({ navigation }) => {
 
       const result = res.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         const tokenVal = result.token || result.data?.token || "N/A";
         const unitsVal = result.units || result.data?.units || "N/A";
 
@@ -167,7 +180,7 @@ const ElectricityScreen = ({ navigation }) => {
 
       <Text style={styles.header}>Utility Payments (Electricity)</Text>
 
-      {/* Admin Fee Control (Admin Kaɗai) */}
+      {/* Admin Fee Control */}
       {isAdmin && (
         <View style={styles.adminPane}>
           <Text style={styles.adminLabel}>
@@ -300,31 +313,60 @@ const ElectricityScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <Text style={styles.label}>Transaction PIN (Required)</Text>
-      <TextInput
-        style={styles.pinInput}
-        placeholder="****"
-        placeholderTextColor="#64748b"
-        keyboardType="numeric"
-        secureTextEntry
-        maxLength={4}
-        value={pin}
-        onChangeText={setPin}
-      />
-
       <TouchableOpacity
-        style={[styles.payBtn, paying && { opacity: 0.7 }]}
-        onPress={handlePayment}
-        disabled={paying}
+        style={styles.payBtn}
+        onPress={handleInitiatePayment}
       >
-        {paying ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.whiteText}>
-            CONFIRM & PAY ₦{(parseInt(amount || 0) + fee).toLocaleString()}
-          </Text>
-        )}
+        <Text style={styles.whiteText}>
+          CONFIRM & PAY ₦{(parseInt(amount || 0) + fee).toLocaleString()}
+        </Text>
       </TouchableOpacity>
+
+      {/* PIN Verification Modal */}
+      <Modal visible={pinModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderIcon}>
+              <Ionicons name="shield-checkmark" size={32} color="#38bdf8" />
+            </View>
+            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this electricity token purchase</Text>
+
+            <TextInput
+              style={styles.modalPinInput}
+              placeholder="••••"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              secureTextEntry
+              value={pin}
+              onChangeText={setPin}
+              maxLength={4}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, { opacity: paying ? 0.7 : 1 }]}
+              onPress={handlePayment}
+              disabled={paying}
+            >
+              {paying ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>Confirm & Pay</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelModalBtn}
+              onPress={() => {
+                setPinModalVisible(false);
+                setPin("");
+              }}
+            >
+              <Text style={styles.cancelModalBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 60 }} />
     </ScrollView>
@@ -439,17 +481,6 @@ const styles = StyleSheet.create({
   nameLabel: { color: "#38bdf8", fontSize: 11, fontWeight: "bold" },
   nameValue: { color: "#fff", fontWeight: "bold", fontSize: 15 },
   billingRow: { flexDirection: "row", justifyContent: "space-between" },
-  pinInput: {
-    backgroundColor: "#1e293b",
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#334155",
-    fontSize: 18,
-    textAlign: "center",
-    letterSpacing: 6,
-    color: "#fff",
-  },
   payBtn: {
     backgroundColor: "#1d4ed8",
     padding: 18,
@@ -462,6 +493,78 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   whiteText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#1e293b",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  modalPinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#1d4ed8",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#38bdf8",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default ElectricityScreen;

@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -23,8 +24,11 @@ const CableScreen = ({ navigation }) => {
   const [validating, setValidating] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [selectedPackage, setSelectedPackage] = useState(null);
-  const [pin, setPin] = useState("");
   const [packages, setPackages] = useState([]);
+
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pin, setPin] = useState("");
 
   // Admin & Pricing State
   const [isAdmin, setIsAdmin] = useState(false);
@@ -114,14 +118,19 @@ const CableScreen = ({ navigation }) => {
     }
   };
 
-  const handlePayment = async () => {
-    if (!smartCard || !selectedPackage || !pin) {
-      return Alert.alert("Error", "Please fill in all fields including your Transaction PIN.");
+  // Wannan zai bincika ko komai ya cika kafin buɗe PIN Modal
+  const handleInitiatePayment = () => {
+    if (!smartCard || !selectedPackage) {
+      return Alert.alert("Error", "Please enter IUC number and select a package.");
     }
     if (!customerName) {
       return Alert.alert("Error", "Please validate the Smartcard/IUC number first.");
     }
-    if (pin.length < 4) {
+    setPinModalVisible(true);
+  };
+
+  const handlePayment = async () => {
+    if (!pin || pin.length < 4) {
       return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
@@ -143,13 +152,15 @@ const CableScreen = ({ navigation }) => {
           smartCard,
           packageId: selectedPackage.id,
           amount: totalAmount,
-          transactionPin: pin, // Dole a tura PIN don tabbatarwa a Server
+          transactionPin: pin,
         },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         Alert.alert("Success!", `${selectedPackage.name} subscription successfully activated for ${smartCard}`, [
           { text: "Done", onPress: () => navigation.goBack() }
         ]);
@@ -177,7 +188,7 @@ const CableScreen = ({ navigation }) => {
         <Text style={styles.header}>Cable TV Subscription</Text>
       </View>
 
-      {/* Admin Price Control (Admin Kaɗai) */}
+      {/* Admin Price Control */}
       {isAdmin && (
         <View style={styles.adminSection}>
           <Text style={styles.adminLabel}>
@@ -289,29 +300,58 @@ const CableScreen = ({ navigation }) => {
         ))}
       </View>
 
-      <Text style={styles.label}>Transaction PIN (Required)</Text>
-      <TextInput
-        style={styles.pinInput}
-        placeholder="****"
-        placeholderTextColor="#94a3b8"
-        secureTextEntry
-        keyboardType="numeric"
-        maxLength={4}
-        value={pin}
-        onChangeText={setPin}
-      />
-
       <TouchableOpacity
-        style={[styles.payBtn, loading && { opacity: 0.7 }]}
-        onPress={handlePayment}
-        disabled={loading}
+        style={styles.payBtn}
+        onPress={handleInitiatePayment}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.payBtnText}>PROCEED & ACTIVATE SUBSCRIPTION</Text>
-        )}
+        <Text style={styles.payBtnText}>PROCEED & ACTIVATE SUBSCRIPTION</Text>
       </TouchableOpacity>
+
+      {/* PIN Verification Modal */}
+      <Modal visible={pinModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderIcon}>
+              <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
+            </View>
+            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this cable subscription</Text>
+
+            <TextInput
+              style={styles.pinInput}
+              placeholder="••••"
+              placeholderTextColor="#94a3b8"
+              keyboardType="numeric"
+              secureTextEntry
+              value={pin}
+              onChangeText={setPin}
+              maxLength={4}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+              onPress={handlePayment}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>Confirm & Pay</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelModalBtn}
+              onPress={() => {
+                setPinModalVisible(false);
+                setPin("");
+              }}
+            >
+              <Text style={styles.cancelModalBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 50 }} />
     </ScrollView>
@@ -438,17 +478,6 @@ const styles = StyleSheet.create({
   pkgTitle: { fontSize: 15, fontWeight: "bold", color: "#1e293b" },
   pkgCaption: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
   pkgCost: { fontSize: 16, fontWeight: "bold", color: "#0a1d37" },
-  pinInput: {
-    backgroundColor: "#f8fafc",
-    padding: 15,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    fontSize: 18,
-    textAlign: "center",
-    letterSpacing: 6,
-    color: "#0f172a",
-  },
   payBtn: {
     backgroundColor: "#0a1d37",
     padding: 18,
@@ -458,6 +487,76 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   payBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  pinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#0a1d37",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#ef4444",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default CableScreen;

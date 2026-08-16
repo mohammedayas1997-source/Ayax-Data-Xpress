@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
@@ -24,6 +25,9 @@ const NIMCModification = ({ navigation }) => {
   const [prices, setPrices] = useState({});
   const [selectedType, setSelectedType] = useState("name");
   const [formData, setFormData] = useState({});
+  
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
 
   useEffect(() => {
@@ -48,11 +52,11 @@ const NIMCModification = ({ navigation }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async () => {
-    if (!pin || !formData.ninNumber) {
+  const handleInitiateSubmit = () => {
+    if (!formData.ninNumber) {
       return Alert.alert(
         "Required",
-        "Please fill in your NIN and Transaction PIN",
+        "Please fill in your NIN number",
       );
     }
 
@@ -60,7 +64,11 @@ const NIMCModification = ({ navigation }) => {
       return Alert.alert("Error", "NIN must be exactly 11 digits");
     }
 
-    if (pin.length !== 4) {
+    setPinModalVisible(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!pin || pin.length !== 4) {
       return Alert.alert("Error", "Transaction PIN must be 4 digits");
     }
 
@@ -86,6 +94,8 @@ const NIMCModification = ({ navigation }) => {
 
       const result = response.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         Alert.alert("Success", "Modification request submitted successfully", [
           { text: "OK", onPress: () => navigation.goBack() }
         ]);
@@ -307,37 +317,61 @@ const NIMCModification = ({ navigation }) => {
             )}
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Authorization PIN</Text>
-            <View style={{ marginTop: 8 }}>
-              <Text style={styles.label}>Transaction PIN (Required)</Text>
-              <TextInput
-                style={styles.pinInput}
-                placeholder="****"
-                placeholderTextColor="#94a3b8"
-                secureTextEntry
-                keyboardType="numeric"
-                maxLength={4}
-                value={pin}
-                onChangeText={setPin}
-              />
-            </View>
-          </View>
-
           <TouchableOpacity
-            style={[styles.submitBtn, { opacity: loading ? 0.7 : 1 }]}
-            onPress={handleSubmit}
-            disabled={loading}
+            style={styles.submitBtn}
+            onPress={handleInitiateSubmit}
             activeOpacity={0.9}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnText}>SUBMIT MODIFICATION REQUEST</Text>
-            )}
+            <Text style={styles.btnText}>SUBMIT MODIFICATION REQUEST</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* PIN Verification Modal */}
+      <Modal visible={pinModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderIcon}>
+              <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
+            </View>
+            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this modification request</Text>
+
+            <TextInput
+              style={styles.modalPinInput}
+              placeholder="••••"
+              placeholderTextColor="#94a3b8"
+              keyboardType="numeric"
+              secureTextEntry
+              value={pin}
+              onChangeText={setPin}
+              maxLength={4}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>Confirm & Submit</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelModalBtn}
+              onPress={() => {
+                setPinModalVisible(false);
+                setPin("");
+              }}
+            >
+              <Text style={styles.cancelModalBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -420,17 +454,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#0f172a",
   },
-  pinInput: {
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    padding: 15,
-    borderRadius: 12,
-    fontSize: 18,
-    textAlign: "center",
-    letterSpacing: 6,
-    color: "#0f172a",
-  },
   submitBtn: {
     backgroundColor: "#1e3a8a",
     padding: 18,
@@ -441,6 +464,78 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   btnText: { color: "#fff", fontSize: 15, fontWeight: "bold" },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e3a8a",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  modalPinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#1e3a8a",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#dc2626",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default NIMCModification;

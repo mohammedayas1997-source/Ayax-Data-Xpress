@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,7 +21,11 @@ const NINValidation = ({ navigation }) => {
   const [selectedType, setSelectedType] = useState("No Record Found");
   const [loading, setLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [formData, setFormData] = useState({ nin: "", pin: "" });
+  const [formData, setFormData] = useState({ nin: "" });
+
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pin, setPin] = useState("");
 
   // Farashin kowane nau'i
   const validationTypes = [
@@ -37,11 +42,11 @@ const NINValidation = ({ navigation }) => {
     (t) => t.name === selectedType,
   )?.cost;
 
-  const handleSubmit = async () => {
-    if (!formData.nin || !formData.pin || !isAuthorized) {
+  const handleInitiateSubmit = () => {
+    if (!formData.nin || !isAuthorized) {
       Alert.alert(
         "Required",
-        "Da fatan ka cika dukkan bayanan sannan ka yarda da Authorization.",
+        "Da fatan ka cika NIN sannan ka yarda da Authorization.",
       );
       return;
     }
@@ -51,7 +56,11 @@ const NINValidation = ({ navigation }) => {
       return;
     }
 
-    if (formData.pin.length !== 4) {
+    setPinModalVisible(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!pin || pin.length !== 4) {
       Alert.alert("Error", "Transaction PIN must be 4 digits.");
       return;
     }
@@ -70,7 +79,7 @@ const NINValidation = ({ navigation }) => {
         {
           type: selectedType,
           nin: formData.nin,
-          pin: formData.pin,
+          pin: pin,
           amount: currentCost,
           timestamp: new Date().toISOString(),
         },
@@ -84,8 +93,10 @@ const NINValidation = ({ navigation }) => {
 
       const result = response.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         Alert.alert("Success", "An aika da validation dinka cikin nasara.", [
-          { text: "Done", onPress: () => { setFormData({ nin: "", pin: "" }); setIsAuthorized(false); } }
+          { text: "Done", onPress: () => { setFormData({ nin: "" }); setIsAuthorized(false); } }
         ]);
       } else {
         throw new Error(result.message || "Akwai matsala gurin aikawa.");
@@ -151,18 +162,6 @@ const NINValidation = ({ navigation }) => {
           value={formData.nin}
           onChangeText={(v) => setFormData({ ...formData, nin: v })}
         />
-
-        <Text style={[styles.label, { marginTop: 15 }]}>Transaction PIN (Required)</Text>
-        <TextInput
-          style={styles.pinInput}
-          placeholder="****"
-          placeholderTextColor="#94a3b8"
-          secureTextEntry
-          keyboardType="numeric"
-          maxLength={4}
-          value={formData.pin}
-          onChangeText={(v) => setFormData({ ...formData, pin: v })}
-        />
       </View>
 
       <View style={styles.card}>
@@ -193,18 +192,61 @@ const NINValidation = ({ navigation }) => {
         <TouchableOpacity
           style={[
             styles.submitBtn,
-            (!isAuthorized || loading) && { backgroundColor: "#cbd5e1" },
+            !isAuthorized && { backgroundColor: "#cbd5e1" },
           ]}
-          onPress={handleSubmit}
-          disabled={!isAuthorized || loading}
+          onPress={handleInitiateSubmit}
+          disabled={!isAuthorized}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitBtnText}>SUBMIT VALIDATION REQUEST</Text>
-          )}
+          <Text style={styles.submitBtnText}>SUBMIT VALIDATION REQUEST</Text>
         </TouchableOpacity>
       </View>
+
+      {/* PIN Verification Modal */}
+      <Modal visible={pinModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderIcon}>
+              <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
+            </View>
+            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this NIN validation request</Text>
+
+            <TextInput
+              style={styles.modalPinInput}
+              placeholder="••••"
+              placeholderTextColor="#94a3b8"
+              keyboardType="numeric"
+              secureTextEntry
+              value={pin}
+              onChangeText={setPin}
+              maxLength={4}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>Confirm & Submit</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelModalBtn}
+              onPress={() => {
+                setPinModalVisible(false);
+                setPin("");
+              }}
+            >
+              <Text style={styles.cancelModalBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <View style={{ height: 50 }} />
     </ScrollView>
   );
@@ -260,17 +302,6 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontSize: 16,
   },
-  pinInput: {
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 12,
-    padding: 15,
-    backgroundColor: "#f8fafc",
-    color: "#0f172a",
-    fontSize: 18,
-    textAlign: "center",
-    letterSpacing: 6,
-  },
   authTitle: { fontSize: 14, fontWeight: "bold", marginLeft: 8, color: "#1e3a8a" },
   checkboxRow: {
     flexDirection: "row",
@@ -294,6 +325,78 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1e3a8a",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  modalPinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#1e3a8a",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#dc2626",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default NINValidation;

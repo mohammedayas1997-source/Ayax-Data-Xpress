@@ -9,6 +9,7 @@ import {
   Alert,
   StatusBar,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,12 +28,16 @@ const AirtimeScreen = ({ navigation }) => {
   const [selectedNet, setSelectedNet] = useState("01");
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
-  const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleAirtimePurchase = async () => {
-    if (!phone || !amount || !pin) {
-      return Alert.alert("Error", "Please fill in all fields including your Transaction PIN.");
+  // PIN Modal States
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [pin, setPin] = useState("");
+
+  // Wannan zai bincika ko an cika bayanan farko kafin a buɗe PIN Modal
+  const handleInitiatePurchase = () => {
+    if (!phone || !amount) {
+      return Alert.alert("Error", "Please fill in recipient phone number and amount.");
     }
 
     if (phone.length < 11) {
@@ -44,7 +49,13 @@ const AirtimeScreen = ({ navigation }) => {
       return Alert.alert("Error", "Minimum airtime purchase is ₦50.");
     }
 
-    if (pin.length < 4) {
+    // Idan komai ya cika, sai a buɗe Modal na PIN
+    setPinModalVisible(true);
+  };
+
+  // Wannan zai tura bayanan da PIN zuwa Server bayan mai amfani ya saka PIN ɗinsa
+  const handleAirtimePurchase = async () => {
+    if (!pin || pin.length < 4) {
       return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
@@ -57,13 +68,15 @@ const AirtimeScreen = ({ navigation }) => {
         return;
       }
 
+      const numericAmount = parseFloat(amount);
+
       const response = await axios.post(
         `${BASE_URL}/vtu/buy-airtime`,
         {
           network: selectedNet,
           phoneNumber: phone,
           amount: numericAmount,
-          transactionPin: pin, // Dole sai an sanya PIN sannan zata tafi server
+          transactionPin: pin,
         },
         {
           headers: {
@@ -74,11 +87,12 @@ const AirtimeScreen = ({ navigation }) => {
 
       const result = response.data;
       if (result.success || result.status === "success") {
+        setPinModalVisible(false);
+        setPin("");
         Alert.alert("Success!", `₦${numericAmount} airtime successfully sent to ${phone}`, [
           { text: "Done", onPress: () => {
             setPhone("");
             setAmount("");
-            setPin("");
           }}
         ]);
       } else {
@@ -174,31 +188,59 @@ const AirtimeScreen = ({ navigation }) => {
         ))}
       </View>
 
-      {/* Transaction PIN (Dole sai ansa) */}
-      <Text style={styles.label}>Transaction PIN (Required)</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Enter your 4-digit PIN"
-        placeholderTextColor="#94a3b8"
-        keyboardType="numeric"
-        secureTextEntry
-        value={pin}
-        onChangeText={setPin}
-        maxLength={4}
-      />
-
       {/* Submit Button */}
       <TouchableOpacity
-        style={[styles.buyBtn, { opacity: loading ? 0.7 : 1 }]}
-        onPress={handleAirtimePurchase}
-        disabled={loading}
+        style={styles.buyBtn}
+        onPress={handleInitiatePurchase}
       >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buyBtnText}>PROCEED & BUY AIRTIME</Text>
-        )}
+        <Text style={styles.buyBtnText}>PROCEED & BUY AIRTIME</Text>
       </TouchableOpacity>
+
+      {/* PIN Verification Modal */}
+      <Modal visible={pinModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeaderIcon}>
+              <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
+            </View>
+            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this airtime recharge</Text>
+
+            <TextInput
+              style={styles.pinInput}
+              placeholder="••••"
+              placeholderTextColor="#94a3b8"
+              keyboardType="numeric"
+              secureTextEntry
+              value={pin}
+              onChangeText={setPin}
+              maxLength={4}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+              onPress={handleAirtimePurchase}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>Confirm & Pay</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelModalBtn}
+              onPress={() => {
+                setPinModalVisible(false);
+                setPin("");
+              }}
+            >
+              <Text style={styles.cancelModalBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 50 }} />
     </ScrollView>
@@ -276,6 +318,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     letterSpacing: 0.5,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    elevation: 10,
+  },
+  modalHeaderIcon: {
+    marginBottom: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  pinInput: {
+    width: "100%",
+    height: 55,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#0a1d37",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#ef4444",
+    fontWeight: "600",
+    fontSize: 13,
   },
 });
 
