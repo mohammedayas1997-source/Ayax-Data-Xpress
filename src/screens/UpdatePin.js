@@ -51,7 +51,11 @@ const UpdatePinScreen = ({ navigation, route }) => {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       
       const endpoint = isUpdating ? `${BASE_URL}/auth/update-pin` : `${BASE_URL}/auth/create-pin`;
-      const payload = isUpdating ? { password, newPin } : { newPin };
+      
+      // AN NAN ZAKA SANYA SHI:
+      const payload = isUpdating 
+        ? { password, newPin, pin: newPin } 
+        : { newPin, pin: newPin };
 
       const response = await axios.post(endpoint, payload, config);
 
