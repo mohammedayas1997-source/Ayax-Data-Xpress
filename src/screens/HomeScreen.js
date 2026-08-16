@@ -35,13 +35,16 @@ const HomeScreen = ({ navigation }) => {
   const { isDarkMode } = useContext(ThemeContext);
   const [userData, setUserData] = useState(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+
+  // States na Virtual Account
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
-  
+
   // PIN Verification States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [enteredPin, setEnteredPin] = useState("");
   const [selectedRoute, setSelectedRoute] = useState(null);
+  const [verifyingPin, setVerifyingPin] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -50,158 +53,934 @@ const HomeScreen = ({ navigation }) => {
   const fetchUserData = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
       const response = await axios.get(`${BASE_URL}/user/profile`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
       });
-      if (response.data?.success) {
-        setUserData(response.data.user || response.data.data);
-        if (response.data.user?.virtualAccount?.accountNumber) {
-          setVirtualAccount(response.data.user.virtualAccount);
+
+      if (response.data && response.data.success) {
+        const user = response.data.user || response.data.data;
+        setUserData(user);
+        if (user.virtualAccount && user.virtualAccount.accountNumber) {
+          setVirtualAccount(user.virtualAccount);
         }
       }
     } catch (err) {
-      if (err.response?.status === 401) {
+      if (err.response && err.response.status === 401) {
         await AsyncStorage.clear();
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Profile Synchronization Failure:", err.message);
       }
     }
   };
 
-  // Logic na tabbatar da PIN kafin zuwa wani guri
+  // Aikin bincike da tura mai amfani zuwa Service bayan yasa PIN
   const verifyPinAndNavigate = (route) => {
-    // Idan PIN din default ne ("0000"), wuce kai tsaye ko ka tura su saiti
-    if (userData?.pin === "0000") {
-      Alert.alert("Action Required", "Please set your Transaction PIN first.");
-      navigation.navigate("Profile");
-      return;
-    }
     setSelectedRoute(route);
     setPinModalVisible(true);
   };
 
   const handlePinSubmit = async () => {
+    if (!enteredPin || enteredPin.length !== 4) {
+      Alert.alert("Error", "Please enter a valid 4-digit PIN.");
+      return;
+    }
+
     try {
+      setVerifyingPin(true);
       const token = await AsyncStorage.getItem("userToken");
-      const response = await axios.post(`${BASE_URL}/user/verify-pin`, 
+      
+      const response = await axios.post(
+        `${BASE_URL}/auth/verify-pin`,
         { pin: enteredPin },
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
       );
 
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         setPinModalVisible(false);
         setEnteredPin("");
-        navigation.navigate(selectedRoute);
+        if (selectedRoute) {
+          navigation.navigate(selectedRoute);
+        }
       }
     } catch (error) {
-      Alert.alert("Error", "Invalid Transaction PIN");
+      console.error("PIN Verification Error:", error.response?.data || error.message);
+      Alert.alert("Error", error.response?.data?.message || "Invalid Transaction PIN.");
       setEnteredPin("");
+    } finally {
+      setVerifyingPin(false);
     }
   };
 
+  // Aikin fetch ko kirkirar Virtual Account ta sabon router din mu
   const handleGetVirtualAccount = async () => {
-    setLoadingAccount(true);
     try {
+      setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
-      const response = await axios.post(`${BASE_URL}/virtual-account/create`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.data.success) {
+      
+      const response = await axios.post(
+        `${BASE_URL}/virtual-account/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (response.data && response.data.success) {
         setVirtualAccount(response.data.data);
-        Alert.alert("Success", "Virtual account generated successfully!");
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
+        }
       }
     } catch (error) {
-      Alert.alert("Error", "Could not create virtual account.");
+      console.error("Virtual Account Error:", error.response?.data || error.message);
+      Alert.alert("Error", "Could not fetch or create virtual account. Try again later.");
     } finally {
       setLoadingAccount(false);
     }
   };
 
   const copyToClipboard = (text) => {
+    if (!text) return;
     Clipboard.setStringAsync(text);
-    ToastAndroid.show("Copied!", ToastAndroid.SHORT);
+    if (Platform.OS === "android") {
+      ToastAndroid.show("Copied to clipboard", ToastAndroid.SHORT);
+    } else {
+      Alert.alert("Copied", text);
+    }
+  };
+
+  const openWhatsApp = () => {
+    const phoneNumber = "+2349061244444";
+    const message = `Hello Ayax Xpress Support, I need assistance with my account.`;
+    const url = `whatsapp://send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`;
+    Linking.openURL(url).catch(() =>
+      Linking.openURL(`https://wa.me/${phoneNumber.replace("+", "")}`),
+    );
   };
 
   return (
-    <View style={[styles.mainContainer, { backgroundColor: isDarkMode ? "#020617" : "#f8fafc" }]}>
-      <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} translucent backgroundColor="transparent" />
-      
+    <View
+      style={[
+        styles.mainContainer,
+        {
+          backgroundColor: isDarkMode ? "#020617" : "#f8fafc",
+        },
+      ]}
+    >
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        translucent
+        backgroundColor="transparent"
+      />
+
       {/* PIN Verification Modal */}
       <Modal visible={pinModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+          <View style={[styles.modalContent, { backgroundColor: isDarkMode ? "#0f172a" : "#fff" }]}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
+              <Text style={[styles.modalTitle, { color: isDarkMode ? "#fff" : "#0f172a" }]}>Enter Transaction PIN</Text>
+              <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to proceed</Text>
+            </View>
+
             <TextInput
-              style={styles.pinInput}
+              style={[
+                styles.pinInput,
+                {
+                  backgroundColor: isDarkMode ? "#1e293b" : "#f8fafc",
+                  color: isDarkMode ? "#fff" : "#0f172a",
+                  borderColor: isDarkMode ? "#334155" : "#cbd5e1",
+                },
+              ]}
               keyboardType="number-pad"
               maxLength={4}
               secureTextEntry
               value={enteredPin}
               onChangeText={setEnteredPin}
+              placeholder="••••"
+              placeholderTextColor="#94a3b8"
             />
-            <TouchableOpacity style={styles.verifyBtn} onPress={handlePinSubmit}>
-              <Text style={{color: '#fff', fontWeight: 'bold'}}>Verify & Proceed</Text>
+
+            <TouchableOpacity
+              style={styles.verifyModalBtn}
+              onPress={handlePinSubmit}
+              disabled={verifyingPin}
+            >
+              {verifyingPin ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>Verify & Proceed</Text>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setPinModalVisible(false)}>
-              <Text style={{marginTop: 10, color: 'red'}}>Cancel</Text>
+
+            <TouchableOpacity
+              style={styles.cancelModalBtn}
+              onPress={() => {
+                setPinModalVisible(false);
+                setEnteredPin("");
+              }}
+            >
+              <Text style={styles.cancelModalBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <ImageBackground source={require("../assets/ayax_promo_hijab.png")} style={styles.backgroundImage}>
-        <LinearGradient colors={isDarkMode ? ["rgba(2,6,23,0.7)", "rgba(2,6,23,0.95)"] : ["rgba(255,255,255,0.6)", "rgba(248,250,252,0.95)"]} style={styles.fullOverlay} />
-        
+      <ImageBackground
+        source={require("../assets/ayax_promo_hijab.png")}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
+        <LinearGradient
+          colors={
+            isDarkMode
+              ? ["rgba(2,6,23,0.7)", "rgba(2,6,23,0.95)"]
+              : ["rgba(255,255,255,0.6)", "rgba(248,250,252,0.95)"]
+          }
+          style={styles.fullOverlay}
+        />
+
         <View style={styles.topHeader}>
           <View style={styles.navRow}>
-            <View style={styles.logoCircle}><Image source={require("../assets/Logo.png")} style={styles.logoImg} /></View>
-            <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-              <Ionicons name="notifications-outline" size={28} color={isDarkMode ? "#fff" : "#0f172a"} />
+            <View style={styles.logoCircle}>
+              <Image
+                source={require("../assets/Logo.png")}
+                style={styles.logoImg}
+              />
+            </View>
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                navigation.navigate("Notifications");
+              }}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={28}
+                color={isDarkMode ? "#fff" : "#0f172a"}
+              />
             </TouchableOpacity>
           </View>
+
           <View style={styles.welcomeSection}>
             <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={[styles.userName, { color: isDarkMode ? "#fff" : "#0f172a" }]}>
-              {userData?.firstName || "User"}
+            <Text
+              style={[
+                styles.userName,
+                { color: isDarkMode ? "#fff" : "#0f172a" },
+              ]}
+            >
+              {userData
+                ? `${userData.firstName || userData.name || "User"}`
+                : "Loading..."}
             </Text>
           </View>
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <LinearGradient colors={["#1e40af", "#1e3a8a"]} style={styles.walletCard}>
-            <Text style={styles.walletLabel}>Available Balance</Text>
+          {/* 1. Wallet Card */}
+          <LinearGradient
+            colors={["#1e40af", "#1e3a8a"]}
+            style={styles.walletCard}
+          >
+            <View style={styles.walletTop}>
+              <Text style={styles.walletLabel}>Available Balance</Text>
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate("Main", { screen: "Wallet History" })
+                }
+              >
+                <Text style={styles.historyText}>
+                  Transactions <Ionicons name="chevron-forward" size={12} />
+                </Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.balanceContainer}>
               <Text style={styles.currency}>₦</Text>
-              <Text style={styles.balanceText}>{isBalanceVisible ? userData?.walletBalance || "0.00" : "****"}</Text>
+              <Text style={styles.balanceText}>
+                {isBalanceVisible ? userData?.walletBalance || userData?.balance || "0.00" : "****"}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setIsBalanceVisible(!isBalanceVisible)}
+              >
+                <Ionicons
+                  name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
+                  size={24}
+                  color="#38bdf8"
+                  style={{ marginLeft: 15 }}
+                />
+              </TouchableOpacity>
             </View>
+
             <View style={styles.walletActions}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate("FundWallet")}>
-                <Text style={styles.actionBtnText}>FUND WALLET</Text>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => navigation.navigate("FundWallet")}
+              >
+                <LinearGradient
+                  colors={["#38bdf8", "#0ea5e9"]}
+                  style={styles.innerBtnGradient}
+                >
+                  <Ionicons name="add-circle" size={18} color="#fff" />
+                  <Text style={styles.actionBtnText}>FUND WALLET</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.actionBtn,
+                  { backgroundColor: "rgba(255,255,255,0.15)" },
+                ]}
+                onPress={openWhatsApp}
+              >
+                <Ionicons name="logo-whatsapp" size={18} color="#22c55e" />
+                <Text style={[styles.actionBtnText, { color: "#fff" }]}>
+                  SUPPORT
+                </Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
 
-          {/* Services Grid da PIN verification */}
-          <View style={[styles.servicesContainer, { backgroundColor: isDarkMode ? "#0f172a" : "#fff" }]}>
+          {/* 2. Dedicated Virtual Account Card Section */}
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: isDarkMode ? "#fff" : "#1e293b" },
+            ]}
+          >
+            My Dedicated Account
+          </Text>
+
+          <View
+            style={[
+              styles.dvaCard,
+              { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+            ]}
+          >
+            {virtualAccount ? (
+              <View>
+                <View style={styles.dvaTopRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.bankNameText, { color: isDarkMode ? "#38bdf8" : "#1e40af" }]}>
+                      {virtualAccount.bankName}
+                    </Text>
+                    <Text style={[styles.accountNameText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+                      {virtualAccount.accountName}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.copyAccBtn}
+                    onPress={() => copyToClipboard(virtualAccount.accountNumber)}
+                  >
+                    <Ionicons name="copy-outline" size={18} color="#fff" />
+                    <Text style={styles.copyText}>Copy</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.accNumberRow}>
+                  <Text style={[styles.accountNumberVal, { color: isDarkMode ? "#fff" : "#0f172a" }]}>
+                    {virtualAccount.accountNumber}
+                  </Text>
+                </View>
+                <Text style={styles.dvaNote}>
+                  Transfer any amount to this account for instant wallet funding.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.noAccountContainer}>
+                <Text style={[styles.noAccText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+                  You don't have an automated account assigned yet.
+                </Text>
+                <TouchableOpacity
+                  style={styles.generateBtn}
+                  onPress={handleGetVirtualAccount}
+                  disabled={loadingAccount}
+                >
+                  {loadingAccount ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="card-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                      <Text style={styles.generateBtnText}>Get Virtual Account</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* 3. Quick Funding Options Section */}
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: isDarkMode ? "#fff" : "#1e293b" },
+            ]}
+          >
+            Quick Wallet Funding
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.bankScroll}
+          >
+            <FundingCard
+              title="Automated Bank Transfer"
+              desc="Instant deposit via your assigned bank"
+              icon="card"
+              color="#38bdf8"
+              onPress={() => navigation.navigate("FundWallet")}
+            />
+            <FundingCard
+              title="Online Payment Gateway"
+              desc="Fund instantly using Card / USSD"
+              icon="flash"
+              color="#22c55e"
+              onPress={() => navigation.navigate("FundWallet")}
+            />
+          </ScrollView>
+
+          {/* 4. Quick Services Grid (An sanya Pin Verification) */}
+          <Text
+            style={[
+              styles.sectionLabel,
+              { color: isDarkMode ? "#fff" : "#1e293b" },
+            ]}
+          >
+            Our Services
+          </Text>
+          <View
+            style={[
+              styles.servicesContainer,
+              { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+            ]}
+          >
             <View style={styles.grid}>
-              <ServiceItem icon="wifi" color="#0ea5e9" label="Data" isDarkMode={isDarkMode} onPress={() => verifyPinAndNavigate("BuyData")} />
-              <ServiceItem icon="phone-alt" color="#22c55e" label="Airtime" isDarkMode={isDarkMode} onPress={() => verifyPinAndNavigate("BuyAirtime")} />
-              {/* Sauran items... */}
+              <ServiceItem
+                icon="wifi"
+                color="#0ea5e9"
+                label="Data"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("BuyData")}
+              />
+              <ServiceItem
+                icon="phone-alt"
+                color="#22c55e"
+                label="Airtime"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("BuyAirtime")}
+              />
+              <ServiceItem
+                icon="bolt"
+                color="#eab308"
+                label="Power"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("Electricity")}
+              />
+              <ServiceItem
+                icon="tv"
+                color="#8b5cf6"
+                label="Cable"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("Cable")}
+              />
+              <ServiceItem
+                icon="id-card"
+                color="#f43f5e"
+                label="NIMC Varify"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("NIMC")}
+              />
+              <ServiceItem
+                icon="fingerprint"
+                color="#ec4899"
+                label="NIMC Mod"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("NIMCModification")}
+              />
+              <ServiceItem
+                icon="user-shield"
+                color="#64748b"
+                label="BVN"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("BVNScreen")}
+              />
+              <ServiceItem
+                icon="shield-alt"
+                color="#1e40af"
+                label="NIN Valid"
+                isDarkMode={isDarkMode}
+                onPress={() => verifyPinAndNavigate("NINValidation")}
+              />
+              <ServiceItem
+                icon="history"
+                color="#f97316"
+                label="History"
+                isDarkMode={isDarkMode}
+                onPress={() =>
+                  navigation.navigate("Main", { screen: "Wallet History" })
+                }
+              />
             </View>
           </View>
+
+          {/* 5. Branding & Trust */}
+          <View style={styles.footerBranding}>
+            <Text style={styles.footerHeadline}>Why Choose Ayax Xpress?</Text>
+            <View style={styles.trustGrid}>
+              <TrustItem
+                icon="shield-check"
+                color="#16a34a"
+                bg="#dcfce7"
+                title="100% Secure"
+                sub="Encrypted"
+              />
+              <TrustItem
+                icon="flash"
+                color="#ca8a04"
+                bg="#fef9c3"
+                title="Instant"
+                sub="Automated"
+              />
+              <TrustItem
+                icon="headset"
+                color="#0284c7"
+                bg="#e0f2fe"
+                title="24/7 Support"
+                sub="Reliable"
+              />
+            </View>
+          </View>
+          <View style={{ height: 120 }} />
         </ScrollView>
       </ImageBackground>
+
+      {/* Bottom Navigation */}
+      <View
+        style={[
+          styles.bottomTab,
+          { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
+        ]}
+      >
+        <TabItem icon="home" label="Home" active onPress={() => {}} />
+        <TabItem
+          icon="time-outline"
+          label="History"
+          onPress={() =>
+            navigation.navigate("Main", { screen: "Wallet History" })
+          }
+        />
+        <TabItem
+          icon="person-outline"
+          label="Profile"
+          onPress={() => navigation.navigate("Profile")}
+        />
+        <TabItem
+          icon="help-buoy-outline"
+          label="Support"
+          onPress={() => navigation.navigate("Contact")}
+        />
+      </View>
     </View>
   );
 };
 
-// Styles... (ka ajiye tsohon salon ka)
+// Sub-Components
+const FundingCard = ({ title, desc, icon, color, onPress }) => (
+  <TouchableOpacity style={styles.bankBox} onPress={onPress}>
+    <View style={styles.bankInfo}>
+      <View style={[styles.bankLogoCircle, { backgroundColor: `${color}15` }]}>
+        <Ionicons name={icon} size={20} color={color} />
+      </View>
+      <View style={{ flex: 1, paddingRight: 5 }}>
+        <Text style={styles.bankTitle}>{title}</Text>
+        <Text style={styles.accNo} numberOfLines={1}>{desc}</Text>
+      </View>
+    </View>
+    <Ionicons name="chevron-forward" size={18} color="#1e40af" />
+  </TouchableOpacity>
+);
+
+const ServiceItem = ({ icon, label, color, onPress, isDarkMode }) => (
+  <TouchableOpacity style={styles.gridItem} onPress={onPress}>
+    <View
+      style={[
+        styles.iconBox,
+        { backgroundColor: isDarkMode ? "#1e293b" : "#f8fafc" },
+      ]}
+    >
+      <FontAwesome5 name={icon} size={20} color={color} />
+    </View>
+
+    <Text
+      style={[
+        styles.gridLabel,
+        {
+          color: isDarkMode ? "#fff" : "#475569",
+        },
+      ]}
+    >
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
+
+const TrustItem = ({ icon, color, bg, title, sub }) => (
+  <View style={styles.trustItem}>
+    <View style={[styles.trustIconCircle, { backgroundColor: bg }]}>
+      {icon === "flash" ? (
+        <Ionicons name={icon} size={28} color={color} />
+      ) : (
+        <MaterialCommunityIcons name={icon} size={28} color={color} />
+      )}
+    </View>
+    <Text style={styles.trustTitle}>{title}</Text>
+    <Text style={styles.trustSub}>{sub}</Text>
+  </View>
+);
+
+const TabItem = ({ icon, label, active, onPress }) => (
+  <TouchableOpacity style={styles.tabItem} onPress={onPress}>
+    <Ionicons name={icon} size={24} color={active ? "#1e40af" : "#94a3b8"} />
+    <Text style={[styles.tabLabel, { color: active ? "#1e40af" : "#94a3b8" }]}>
+      {label}
+    </Text>
+  </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
-  // ... (Tsohon Styles din ka)
-  modalOverlay: { flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)', padding: 20 },
-  modalContent: { backgroundColor: '#fff', padding: 20, borderRadius: 20, alignItems: 'center' },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-  pinInput: { width: '100%', height: 50, borderWidth: 1, borderColor: '#ccc', borderRadius: 10, textAlign: 'center', fontSize: 20 },
-  verifyBtn: { backgroundColor: '#1e40af', padding: 15, borderRadius: 10, marginTop: 15, width: '100%', alignItems: 'center' },
+  mainContainer: { flex: 1, backgroundColor: "#f8fafc" },
+  backgroundImage: { flex: 1, width: "100%", height: "100%" },
+  fullOverlay: { position: "absolute", width: "100%", height: "100%" },
+  topHeader: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 20 },
+  navRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  logoCircle: {
+    width: 45,
+    height: 45,
+    backgroundColor: "#0f172a",
+    borderRadius: 23,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  logoImg: { width: 32, height: 32, resizeMode: "contain" },
+  welcomeSection: { marginBottom: 10 },
+  welcomeText: { color: "#64748b", fontSize: 14, fontWeight: "500" },
+  userName: { color: "#0f172a", fontSize: 24, fontWeight: "bold" },
+  content: { flex: 1, paddingHorizontal: 16 },
+  walletCard: {
+    borderRadius: 24,
+    padding: 22,
+    marginBottom: 25,
+    elevation: 10,
+  },
+  walletTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  walletLabel: { color: "#dbeafe", fontSize: 13 },
+  historyText: { color: "#38bdf8", fontSize: 12, fontWeight: "600" },
+  balanceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 15,
+  },
+  currency: { color: "#fff", fontSize: 24, fontWeight: "600" },
+  balanceText: {
+    color: "#fff",
+    fontSize: 34,
+    fontWeight: "bold",
+    marginLeft: 8,
+  },
+  walletActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+  actionBtn: { flex: 0.48, height: 48, borderRadius: 14, overflow: "hidden" },
+  innerBtnGradient: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 12,
+    marginLeft: 8,
+  },
+  dvaCard: {
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 25,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  dvaTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  bankNameText: {
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  accountNameText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  copyAccBtn: {
+    backgroundColor: "#1e40af",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  copyText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 4,
+  },
+  accNumberRow: {
+    marginVertical: 4,
+  },
+  accountNumberVal: {
+    fontSize: 22,
+    fontWeight: "bold",
+    letterSpacing: 1,
+  },
+  dvaNote: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 4,
+  },
+  noAccountContainer: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  noAccText: {
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  generateBtn: {
+    backgroundColor: "#1e40af",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  generateBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1e293b",
+    marginTop: 10,
+    marginBottom: 15,
+    paddingLeft: 4,
+  },
+  bankScroll: { marginBottom: 25 },
+  bankBox: {
+    backgroundColor: "#fff",
+    width: width * 0.75,
+    padding: 16,
+    borderRadius: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginRight: 15,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: "#1e40af",
+  },
+  bankInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
+  bankLogoCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#f1f5f9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  bankTitle: { fontSize: 11, color: "#64748b", fontWeight: "600" },
+  accNo: { fontSize: 13, color: "#0f172a", fontWeight: "bold" },
+  servicesContainer: {
+    borderRadius: 28,
+    padding: 20,
+    elevation: 4,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  gridItem: { width: "23%", alignItems: "center", marginBottom: 22 },
+  iconBox: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: "#f8fafc",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+    elevation: 1,
+  },
+  gridLabel: {
+    color: "#475569",
+    fontSize: 11,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  bottomTab: {
+    height: 85,
+    backgroundColor: "#fff",
+    flexDirection: "row",
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingBottom: 20,
+    elevation: 20,
+  },
+  tabItem: { flex: 1, justifyContent: "center", alignItems: "center" },
+  tabLabel: { fontSize: 10, marginTop: 4, fontWeight: "600" },
+  footerBranding: {
+    marginTop: 30,
+    paddingBottom: 40,
+    backgroundColor: "transparent",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 20,
+  },
+  footerHeadline: {
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#64748b",
+    marginBottom: 20,
+    textTransform: "uppercase",
+  },
+  trustGrid: { flexDirection: "row", justifyContent: "space-around" },
+  trustItem: { alignItems: "center", width: "30%" },
+  trustIconCircle: {
+    width: 55,
+    height: 55,
+    borderRadius: 27.5,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+    elevation: 3,
+  },
+  trustTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#1e293b",
+    textAlign: "center",
+  },
+  trustSub: {
+    fontSize: 10,
+    color: "#94a3b8",
+    textAlign: "center",
+    marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    elevation: 10,
+  },
+  modalHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginTop: 10,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  pinInput: {
+    width: "100%",
+    height: 55,
+    borderWidth: 1,
+    borderRadius: 14,
+    textAlign: "center",
+    fontSize: 24,
+    letterSpacing: 8,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  verifyModalBtn: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#1e40af",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  verifyModalBtnText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  cancelModalBtn: {
+    paddingVertical: 8,
+  },
+  cancelModalBtnText: {
+    color: "#ef4444",
+    fontWeight: "600",
+    fontSize: 13,
+  },
 });
 
 export default HomeScreen;
