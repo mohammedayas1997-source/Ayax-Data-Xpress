@@ -10,6 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Modal,
+  Platform,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -34,37 +35,55 @@ const AirtimeScreen = ({ navigation }) => {
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
 
-  // Wannan zai bincika ko an cika bayanan farko kafin a buɗe PIN Modal
+  // Helper don nuna popup a Web da Mobile
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
+  // Bincika bayanan farko kafin a bude PIN Modal
   const handleInitiatePurchase = () => {
-    if (!phone || !amount) {
-      return Alert.alert("Error", "Please fill in recipient phone number and amount.");
+    if (!phone.trim() || !amount.trim()) {
+      return showAlert("Error", "Please fill in recipient phone number and amount.");
     }
 
-    if (phone.length < 11) {
-      return Alert.alert("Error", "Enter a valid 11-digit phone number.");
+    if (phone.trim().length < 11) {
+      return showAlert("Error", "Enter a valid 11-digit phone number.");
     }
 
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount < 50) {
-      return Alert.alert("Error", "Minimum airtime purchase is ₦50.");
+      return showAlert("Error", "Minimum airtime purchase is ₦50.");
     }
 
-    // Idan komai ya cika, sai a buɗe Modal na PIN
     setPinModalVisible(true);
   };
 
-  // Wannan zai tura bayanan da PIN zuwa Server bayan mai amfani ya saka PIN ɗinsa
+  // Tura bayanan da PIN zuwa Server
   const handleAirtimePurchase = async () => {
     if (!pin || pin.length < 4) {
-      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
+      return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -74,14 +93,17 @@ const AirtimeScreen = ({ navigation }) => {
         `${BASE_URL}/vtu/buy-airtime`,
         {
           network: selectedNet,
-          phoneNumber: phone,
+          phoneNumber: phone.trim(),
           amount: numericAmount,
-          transactionPin: pin,
+          transactionPin: pin.trim(),
+          pin: pin.trim(), // Added backup pin field to ensure backend picks it up
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
           },
+          timeout: 20000
         },
       );
 
@@ -89,20 +111,19 @@ const AirtimeScreen = ({ navigation }) => {
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        Alert.alert("Success!", `₦${numericAmount} airtime successfully sent to ${phone}`, [
-          { text: "Done", onPress: () => {
-            setPhone("");
-            setAmount("");
-          }}
-        ]);
+        showAlert("Success 🎉", `₦${numericAmount} airtime successfully sent to ${phone}`, () => {
+          setPhone("");
+          setAmount("");
+        });
       } else {
         throw new Error(result.message || "Transaction Error");
       }
     } catch (error) {
-      Alert.alert(
-        "Failed",
-        error.response?.data?.message || error.message || "Transaction could not be completed.",
-      );
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Transaction Failed", errorMsg);
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,7 @@ import {
   StatusBar,
   ActivityIndicator,
   Modal,
+  Platform,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -45,13 +46,33 @@ const BuyDataScreen = ({ navigation }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [newRate, setNewRate] = useState("");
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   useEffect(() => {
     const checkUserStatus = async () => {
       const storedUser = await AsyncStorage.getItem("userData");
       if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setUserRole(parsed.role || "user");
-        setIsAdmin(parsed.role === "admin");
+        try {
+          const parsed = JSON.parse(storedUser);
+          setUserRole(parsed.role || "user");
+          setIsAdmin(parsed.role === "admin");
+        } catch (e) {
+          console.log("Error parsing user cache");
+        }
       }
 
       try {
@@ -73,14 +94,15 @@ const BuyDataScreen = ({ navigation }) => {
 
   const handleUpdateRate = async () => {
     if (!isAdmin) {
-      return Alert.alert("Unauthorized", "Only administrators can update data rates.");
+      return showAlert("Unauthorized", "Only administrators can update data rates.");
     }
-    if (!newRate) return Alert.alert("Error", "Enter new rate per GB");
+    if (!newRate) return showAlert("Error", "Enter new rate per GB");
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -90,44 +112,45 @@ const BuyDataScreen = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } },
       );
       setPricePerGb(parseFloat(newRate));
-      Alert.alert("Success", "Rate updated for all users");
+      showAlert("Success", "Rate updated for all users");
       setNewRate("");
     } catch (error) {
-      Alert.alert("Update Failed", error.response?.data?.message || "You do not have permission.");
+      showAlert("Update Failed", error.response?.data?.message || "You do not have permission.");
     }
   };
 
-  // Wannan zai bincika ko an cika bayanan farko kafin a buɗe PIN Modal
+  // Bincika bayanan farko kafin a bude PIN Modal
   const handleInitiatePurchase = () => {
-    if (!phone || !gbAmount) {
-      return Alert.alert("Error", "Please fill in phone number and data quantity.");
+    if (!phone.trim() || !gbAmount) {
+      return showAlert("Error", "Please fill in phone number and data quantity.");
     }
 
-    if (phone.length < 11) {
-      return Alert.alert("Error", "Enter a valid 11-digit phone number.");
+    if (phone.trim().length < 11) {
+      return showAlert("Error", "Enter a valid 11-digit phone number.");
     }
 
     const gbNum = parseFloat(gbAmount);
-    if (gbNum < 1 || gbNum > 100) {
-      return Alert.alert("Error", "Data quantity must be between 1GB and 100GB.");
+    if (isNaN(gbNum) || gbNum < 1 || gbNum > 100) {
+      return showAlert("Error", "Data quantity must be between 1GB and 100GB.");
     }
 
-    // Idan komai ya cika, sai a buɗe Modal na PIN
     setPinModalVisible(true);
   };
 
-  // Wannan zai tura bayanan da PIN zuwa Server bayan mai amfani ya saka PIN ɗinsa
+  // Tura bayanan ciniki da PIN zuwa Server
   const handlePurchase = async () => {
     if (!pin || pin.length < 4) {
-      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
+      return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -138,31 +161,38 @@ const BuyDataScreen = ({ navigation }) => {
         {
           networkId: selectedNet,
           gbQuantity: gbNum,
-          phoneNumber: phone,
+          phoneNumber: phone.trim(),
           amount: totalPrice,
-          transactionPin: pin,
+          transactionPin: pin.trim(),
+          pin: pin.trim(),
         },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 20000 
+        },
       );
 
       const result = response.data;
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
+        const enteredPin = pin;
         setPin("");
-        Alert.alert("Success", `${gbNum}GB has been successfully sent to ${phone}`, [
-          { text: "Done", onPress: () => {
-            setPhone("");
-            setGbAmount("");
-          }}
-        ]);
+        showAlert("Success 🎉", `${gbNum}GB has been successfully sent to ${phone}`, () => {
+          setPhone("");
+          setGbAmount("");
+        });
       } else {
         throw new Error(result.message || "Transaction Error");
       }
     } catch (error) {
-      Alert.alert(
-        "Transaction Failed",
-        error.response?.data?.message || error.message || "Server Error",
-      );
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Transaction Failed", errorMsg);
     } finally {
       setLoading(false);
     }

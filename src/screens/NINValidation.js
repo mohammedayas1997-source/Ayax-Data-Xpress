@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Modal,
+  Platform,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,6 +28,22 @@ const NINValidation = ({ navigation }) => {
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   // Farashin kowane nau'i
   const validationTypes = [
     { id: 1, name: "No Record Found", cost: 1300 },
@@ -43,17 +60,15 @@ const NINValidation = ({ navigation }) => {
   )?.cost;
 
   const handleInitiateSubmit = () => {
-    if (!formData.nin || !isAuthorized) {
-      Alert.alert(
+    if (!formData.nin.trim() || !isAuthorized) {
+      return showAlert(
         "Required",
         "Da fatan ka cika NIN sannan ka yarda da Authorization.",
       );
-      return;
     }
 
-    if (formData.nin.length !== 11) {
-      Alert.alert("Error", "NIN must be exactly 11 digits.");
-      return;
+    if (formData.nin.trim().length !== 11) {
+      return showAlert("Error", "NIN must be exactly 11 digits.");
     }
 
     setPinModalVisible(true);
@@ -61,16 +76,17 @@ const NINValidation = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!pin || pin.length !== 4) {
-      Alert.alert("Error", "Transaction PIN must be 4 digits.");
-      return;
+      return showAlert("Error", "Transaction PIN must be 4 digits.");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -78,8 +94,9 @@ const NINValidation = ({ navigation }) => {
         `${BASE_URL}/nin/validate`,
         {
           type: selectedType,
-          nin: formData.nin,
-          pin: pin,
+          nin: formData.nin.trim(),
+          pin: pin.trim(),
+          transactionPin: pin.trim(),
           amount: currentCost,
           timestamp: new Date().toISOString(),
         },
@@ -88,6 +105,7 @@ const NINValidation = ({ navigation }) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          timeout: 25000,
         }
       );
 
@@ -95,16 +113,19 @@ const NINValidation = ({ navigation }) => {
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        Alert.alert("Success", "An aika da validation dinka cikin nasara.", [
-          { text: "Done", onPress: () => { setFormData({ nin: "" }); setIsAuthorized(false); } }
-        ]);
+        showAlert("Success 🎉", "An aika da validation dinka cikin nasara.", () => {
+          setFormData({ nin: "" });
+          setIsAuthorized(false);
+        });
       } else {
         throw new Error(result.message || "Akwai matsala gurin aikawa.");
       }
     } catch (error) {
       const errorMsg =
-        error.response?.data?.message || error.message || "Connection error.";
-      Alert.alert("Failed", errorMsg);
+        error.response?.data?.message ||
+        error.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -209,7 +230,9 @@ const NINValidation = ({ navigation }) => {
               <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this NIN validation request</Text>
+            <Text style={styles.modalSubtitle}>
+              Please input your 4-digit PIN to authorize this NIN validation request
+            </Text>
 
             <TextInput
               style={styles.modalPinInput}

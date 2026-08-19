@@ -21,18 +21,36 @@ const ForgotPasswordScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   const validateEmail = (text) => {
     let reg = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w\w+)+$/;
     return reg.test(text);
   };
 
   const handleReset = async () => {
-    if (!email) {
-      return Alert.alert("Required", "Please enter your email address.");
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      return showAlert("Required", "Please enter your email address.");
     }
 
-    if (!validateEmail(email)) {
-      return Alert.alert(
+    if (!validateEmail(trimmedEmail)) {
+      return showAlert(
         "Invalid Email",
         "Please enter a valid email address format."
       );
@@ -42,31 +60,32 @@ const ForgotPasswordScreen = ({ navigation }) => {
     try {
       const response = await axios.post(
         `${BASE_URL}/auth/forgot-password`,
-        { email },
-        { timeout: 15000 }
+        { email: trimmedEmail },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          timeout: 15000,
+        }
       );
 
       const result = response.data;
       if (result.success || response.status === 200 || result.status === "success") {
-        Alert.alert(
-          "OTP Sent",
+        showAlert(
+          "OTP Sent 🎉",
           "A secure verification OTP has been generated and dispatched to your registered mobile phone and email address.",
-          [
-            {
-              text: "Proceed",
-              onPress: () => navigation.navigate("ResetPassword", { email }),
-            },
-          ]
+          () => navigation.navigate("ResetPassword", { email: trimmedEmail })
         );
       } else {
-        Alert.alert("Failed", result.message || "Unable to process request.");
+        showAlert("Failed", result.message || "Unable to process request.");
       }
     } catch (error) {
       const errorMessage =
         error.response?.data?.message ||
         error.message ||
         "Unable to connect to the server. Please check your internet and try again.";
-      Alert.alert("Request Failed", errorMessage);
+      showAlert("Request Failed", errorMessage);
     } finally {
       setLoading(false);
     }

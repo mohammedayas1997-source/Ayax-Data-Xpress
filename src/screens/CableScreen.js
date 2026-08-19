@@ -10,10 +10,11 @@ import {
   ActivityIndicator,
   StatusBar,
   Modal,
+  Platform,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
@@ -35,7 +36,22 @@ const CableScreen = ({ navigation }) => {
   const [serviceCharge, setServiceCharge] = useState(50);
   const [newCharge, setNewCharge] = useState("");
 
-  // Dynamic Real-World Packages
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   const cableData = {
     GOTV: [
       { id: "gotv-lite", name: "GOtv Lite", price: 1500 },
@@ -64,8 +80,12 @@ const CableScreen = ({ navigation }) => {
     const checkAdmin = async () => {
       const user = await AsyncStorage.getItem("userData");
       if (user) {
-        const parsed = JSON.parse(user);
-        setIsAdmin(parsed.role === "admin");
+        try {
+          const parsed = JSON.parse(user);
+          setIsAdmin(parsed.role === "admin");
+        } catch (e) {
+          console.log("Error parsing user cache");
+        }
       }
     };
     checkAdmin();
@@ -76,17 +96,19 @@ const CableScreen = ({ navigation }) => {
 
   const updateGlobalCharge = async () => {
     if (!isAdmin) {
-      return Alert.alert("Unauthorized", "Only administrators can update service charges.");
+      return showAlert("Unauthorized", "Only administrators can update service charges.");
     }
-    if (!newCharge) return Alert.alert("Error", "Enter new charge amount");
+    if (!newCharge || isNaN(parseInt(newCharge))) {
+      return showAlert("Error", "Enter a valid new charge amount");
+    }
     setServiceCharge(parseInt(newCharge));
     setNewCharge("");
-    Alert.alert("Success", "Service charge updated successfully.");
+    showAlert("Success", "Service charge updated successfully.");
   };
 
   const validateIUC = async () => {
-    if (!smartCard || smartCard.length < 9) {
-      return Alert.alert("Error", "Enter a valid IUC/Smartcard Number.");
+    if (!smartCard || smartCard.trim().length < 9) {
+      return showAlert("Error", "Enter a valid IUC/Smartcard Number.");
     }
 
     setValidating(true);
@@ -94,52 +116,67 @@ const CableScreen = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
       const res = await axios.post(
         `${BASE_URL}/vtu/validate-cable`,
-        { provider, smartCard },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { provider, smartCard: smartCard.trim() },
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 20000 
+        },
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
-        setCustomerName(result.customerName || result.name || result.data?.customerName || "Verified Customer");
+        setCustomerName(
+          result.customerName ||
+          result.name ||
+          result.data?.customerName ||
+          "Verified Customer"
+        );
       } else {
         throw new Error(result.message || "Validation failed");
       }
     } catch (err) {
-      Alert.alert("Validation Error", err.response?.data?.message || err.message || "Check the IUC number and try again.");
+      showAlert(
+        "Validation Error",
+        err.response?.data?.message ||
+        err.message ||
+        "Check the IUC number and try again."
+      );
     } finally {
       setValidating(false);
     }
   };
 
-  // Wannan zai bincika ko komai ya cika kafin buɗe PIN Modal
   const handleInitiatePayment = () => {
-    if (!smartCard || !selectedPackage) {
-      return Alert.alert("Error", "Please enter IUC number and select a package.");
+    if (!smartCard.trim() || !selectedPackage) {
+      return showAlert("Error", "Please enter IUC number and select a package.");
     }
     if (!customerName) {
-      return Alert.alert("Error", "Please validate the Smartcard/IUC number first.");
+      return showAlert("Error", "Please validate the Smartcard/IUC number first.");
     }
     setPinModalVisible(true);
   };
 
   const handlePayment = async () => {
     if (!pin || pin.length < 4) {
-      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
+      return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -149,29 +186,39 @@ const CableScreen = ({ navigation }) => {
         `${BASE_URL}/vtu/pay-cable`,
         {
           provider,
-          smartCard,
+          smartCard: smartCard.trim(),
           packageId: selectedPackage.id,
           amount: totalAmount,
-          transactionPin: pin,
+          transactionPin: pin.trim(),
+          pin: pin.trim(),
         },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 25000 
+        },
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        Alert.alert("Success!", `${selectedPackage.name} subscription successfully activated for ${smartCard}`, [
-          { text: "Done", onPress: () => navigation.goBack() }
-        ]);
+        showAlert(
+          "Success 🎉",
+          `${selectedPackage.name} subscription successfully activated for ${smartCard}`,
+          () => navigation.goBack()
+        );
       } else {
         throw new Error(result.message || "Transaction Error");
       }
     } catch (err) {
-      Alert.alert(
-        "Transaction Failed",
-        err.response?.data?.message || err.message || "Internal Server Error",
-      );
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Transaction Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -188,7 +235,6 @@ const CableScreen = ({ navigation }) => {
         <Text style={styles.header}>Cable TV Subscription</Text>
       </View>
 
-      {/* Admin Price Control */}
       {isAdmin && (
         <View style={styles.adminSection}>
           <Text style={styles.adminLabel}>
@@ -284,7 +330,12 @@ const CableScreen = ({ navigation }) => {
               >
                 {pkg.name}
               </Text>
-              <Text style={[styles.pkgCaption, selectedPackage?.id === pkg.id && { color: "#cbd5e1" }]}>
+              <Text
+                style={[
+                  styles.pkgCaption,
+                  selectedPackage?.id === pkg.id && { color: "#cbd5e1" },
+                ]}
+              >
                 1 Month Validity (+₦{serviceCharge} fee)
               </Text>
             </View>
@@ -315,7 +366,9 @@ const CableScreen = ({ navigation }) => {
               <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this cable subscription</Text>
+            <Text style={styles.modalSubtitle}>
+              Please input your 4-digit PIN to authorize this cable subscription
+            </Text>
 
             <TextInput
               style={styles.pinInput}

@@ -12,6 +12,7 @@ import {
   Dimensions,
   StatusBar,
   Modal,
+  Platform,
 } from "react-native";
 import {
   MaterialCommunityIcons,
@@ -28,7 +29,7 @@ const NIMCScreen = ({ navigation }) => {
   const [view, setView] = useState("main");
   const [searchType, setSearchType] = useState(null);
   const [formData, setFormData] = useState({ searchValue: "" });
-  
+
   // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
@@ -38,10 +39,26 @@ const NIMCScreen = ({ navigation }) => {
   const [prices, setPrices] = useState({});
   const [fetchingPrices, setFetchingPrices] = useState(true);
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   useEffect(() => {
     const fetchPrices = async () => {
       try {
-        const res = await axios.get(`${BASE_URL}/nimc/prices`);
+        const res = await axios.get(`${BASE_URL}/nimc/prices`, { timeout: 15000 });
         if (res.data.success || res.data.status === "success") {
           setPrices(res.data.prices || res.data.data || {});
         }
@@ -55,35 +72,43 @@ const NIMCScreen = ({ navigation }) => {
   }, []);
 
   const handleInitiateVerification = () => {
-    if (!formData.searchValue) {
-      Alert.alert("Required", "Please enter ID number/value.");
-      return;
+    if (!formData.searchValue.trim()) {
+      return showAlert("Required", "Please enter ID number/value.");
     }
     setPinModalVisible(true);
   };
 
   const handleVerification = async () => {
     if (!pin || pin.length < 4) {
-      return Alert.alert("Error", "Enter a valid 4-digit Transaction PIN.");
+      return showAlert("Error", "Enter a valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
       const res = await axios.post(
         `${BASE_URL}/nimc/verify-and-charge`,
         {
-          searchValue: formData.searchValue,
-          searchType: searchType.id,
-          pin: pin,
+          searchValue: formData.searchValue.trim(),
+          searchType: searchType?.id,
+          pin: pin.trim(),
+          transactionPin: pin.trim(),
         },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 25000,
+        },
       );
 
       const result = res.data;
@@ -96,10 +121,11 @@ const NIMCScreen = ({ navigation }) => {
         throw new Error(result.message || "Verification failed");
       }
     } catch (err) {
-      Alert.alert(
-        "Verification Failed",
-        err.response?.data?.message || err.message || "Internal Server Error",
-      );
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Verification Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -107,7 +133,7 @@ const NIMCScreen = ({ navigation }) => {
 
   const generatePDF = async () => {
     if (!userData) return;
-    Alert.alert("Success", "Generating your document for printing...");
+    showAlert("Success 🎉", "Generating your document for printing...");
   };
 
   if (view === "main" && !searchType) {
@@ -249,7 +275,9 @@ const NIMCScreen = ({ navigation }) => {
                 <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
               </View>
               <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-              <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this NIMC service fee</Text>
+              <Text style={styles.modalSubtitle}>
+                Please input your 4-digit PIN to authorize this NIMC service fee
+              </Text>
 
               <TextInput
                 style={styles.modalPinInput}
@@ -297,7 +325,13 @@ const NIMCScreen = ({ navigation }) => {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
         <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => { setView("main"); setSearchType(null); setFormData({ searchValue: "" }); }}>
+          <TouchableOpacity
+            onPress={() => {
+              setView("main");
+              setSearchType(null);
+              setFormData({ searchValue: "" });
+            }}
+          >
             <Ionicons name="close" size={26} color="#1e3a8a" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Verification Successful</Text>
@@ -311,12 +345,27 @@ const NIMCScreen = ({ navigation }) => {
               style={styles.userPhoto}
             />
           ) : (
-            <View style={[styles.userPhoto, { justifyContent: "center", alignItems: "center", backgroundColor: "#e2e8f0" }]}>
+            <View
+              style={[
+                styles.userPhoto,
+                {
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "#e2e8f0",
+                },
+              ]}
+            >
               <Ionicons name="person" size={50} color="#64748b" />
             </View>
           )}
           <View style={styles.infoBox}>
-            <InfoRow label="Full Name" value={userData?.fullName || `${userData?.firstName || ""} ${userData?.surname || ""}`} />
+            <InfoRow
+              label="Full Name"
+              value={
+                userData?.fullName ||
+                `${userData?.firstName || ""} ${userData?.surname || ""}`
+              }
+            />
             <InfoRow label="NIN Number" value={userData?.nin} />
             <InfoRow label="Tracking ID" value={userData?.trackingId} />
           </View>
@@ -522,7 +571,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 15,
   },
-  downloadText: { color: "#fff", fontWeight: "bold", fontSize: 14, marginLeft: 8 },
+  downloadText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
+    marginLeft: 8,
+  },
 
   // Modal Styles
   modalOverlay: {

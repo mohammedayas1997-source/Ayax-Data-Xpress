@@ -25,10 +25,26 @@ const NIMCModification = ({ navigation }) => {
   const [prices, setPrices] = useState({});
   const [selectedType, setSelectedType] = useState("name");
   const [formData, setFormData] = useState({});
-  
+
   // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
+
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
 
   useEffect(() => {
     fetchPrices();
@@ -39,12 +55,13 @@ const NIMCModification = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       const { data } = await axios.get(`${BASE_URL}/nimc/prices`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        timeout: 15000,
       });
       if (data.success || data.status === "success") {
         setPrices(data.prices || data.data || {});
       }
     } catch (err) {
-      console.log("Error fetching prices:", err);
+      console.log("Error fetching prices:", err.message);
     }
   };
 
@@ -53,15 +70,15 @@ const NIMCModification = ({ navigation }) => {
   };
 
   const handleInitiateSubmit = () => {
-    if (!formData.ninNumber) {
-      return Alert.alert(
+    if (!formData.ninNumber || !formData.ninNumber.trim()) {
+      return showAlert(
         "Required",
         "Please fill in your NIN number",
       );
     }
 
-    if (formData.ninNumber.length !== 11) {
-      return Alert.alert("Error", "NIN must be exactly 11 digits");
+    if (formData.ninNumber.trim().length !== 11) {
+      return showAlert("Error", "NIN must be exactly 11 digits");
     }
 
     setPinModalVisible(true);
@@ -69,15 +86,17 @@ const NIMCModification = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!pin || pin.length !== 4) {
-      return Alert.alert("Error", "Transaction PIN must be 4 digits");
+      return showAlert("Error", "Transaction PIN must be 4 digits");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -86,27 +105,37 @@ const NIMCModification = ({ navigation }) => {
         {
           serviceType: selectedType,
           formData: formData,
-          ninNumber: formData.ninNumber,
-          pin: pin,
+          ninNumber: formData.ninNumber.trim(),
+          pin: pin.trim(),
+          transactionPin: pin.trim(),
         },
-        { headers: { Authorization: `Bearer ${token}` } },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 25000,
+        },
       );
 
       const result = response.data;
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        Alert.alert("Success", "Modification request submitted successfully", [
-          { text: "OK", onPress: () => navigation.goBack() }
-        ]);
+        showAlert(
+          "Success 🎉",
+          "Modification request submitted successfully",
+          () => navigation.goBack()
+        );
       } else {
         throw new Error(result.message || "Submission failed");
       }
     } catch (err) {
-      Alert.alert(
-        "Error",
-        err.response?.data?.message || err.message || "Something went wrong",
-      );
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Error", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -335,7 +364,9 @@ const NIMCModification = ({ navigation }) => {
               <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this modification request</Text>
+            <Text style={styles.modalSubtitle}>
+              Please input your 4-digit PIN to authorize this modification request
+            </Text>
 
             <TextInput
               style={styles.modalPinInput}

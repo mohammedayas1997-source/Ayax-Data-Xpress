@@ -9,12 +9,13 @@ import {
   Alert,
   ActivityIndicator,
   StatusBar,
-  Clipboard,
   Modal,
+  Platform,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
@@ -38,7 +39,7 @@ const ElectricityScreen = ({ navigation }) => {
   const [amount, setAmount] = useState("");
   const [meterType, setMeterType] = useState("prepaid");
   const [customerName, setCustomerName] = useState("");
-  
+
   // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
@@ -49,12 +50,32 @@ const ElectricityScreen = ({ navigation }) => {
   const [fee, setFee] = useState(100);
   const [newFee, setNewFee] = useState("");
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   useEffect(() => {
     const checkRole = async () => {
       const user = await AsyncStorage.getItem("userData");
       if (user) {
-        const parsed = JSON.parse(user);
-        setIsAdmin(parsed.role === "admin");
+        try {
+          const parsed = JSON.parse(user);
+          setIsAdmin(parsed.role === "admin");
+        } catch (e) {
+          console.log("Error parsing user role");
+        }
       }
     };
     checkRole();
@@ -62,67 +83,87 @@ const ElectricityScreen = ({ navigation }) => {
 
   const handleAdminUpdate = () => {
     if (!isAdmin) {
-      return Alert.alert("Unauthorized", "Only administrators can update service fees.");
+      return showAlert("Unauthorized", "Only administrators can update service fees.");
     }
-    if (!newFee) return Alert.alert("Error", "Enter new fee amount");
+    if (!newFee || isNaN(parseInt(newFee))) {
+      return showAlert("Error", "Enter a valid new fee amount");
+    }
     setFee(parseInt(newFee));
     setNewFee("");
-    Alert.alert("Success", "Global service fee updated successfully.");
+    showAlert("Success", "Global service fee updated successfully.");
   };
 
   const verifyMeter = async () => {
-    if (!disco || !meterNo)
-      return Alert.alert("Required", "Select DISCO and enter Meter Number");
+    if (!disco || !meterNo.trim()) {
+      return showAlert("Required", "Select DISCO and enter Meter Number");
+    }
 
     setVerifying(true);
     setCustomerName("");
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
       const res = await axios.post(
         `${BASE_URL}/vtu/verify-meter`,
-        { disco, meterNumber: meterNo, meterType },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { disco, meterNumber: meterNo.trim(), meterType },
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 20000 
+        },
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
-        setCustomerName(result.name || result.customerName || result.data?.name || "Verified Customer");
+        setCustomerName(
+          result.name ||
+          result.customerName ||
+          result.data?.name ||
+          "Verified Customer"
+        );
       } else {
         throw new Error(result.message || "Verification failed");
       }
     } catch (e) {
-      Alert.alert("Verification Error", e.response?.data?.message || e.message || "Check the meter number and try again.");
+      showAlert(
+        "Verification Error",
+        e.response?.data?.message || e.message || "Check the meter number and try again."
+      );
     } finally {
       setVerifying(false);
     }
   };
 
-  // Wannan zai bincika ko komai ya cika kafin buɗe PIN Modal
   const handleInitiatePayment = () => {
-    if (!customerName)
-      return Alert.alert("Error", "Please verify meter details first");
-    if (!amount || parseInt(amount) < 500)
-      return Alert.alert("Error", "Minimum purchase amount is ₦500");
-    
+    if (!customerName) {
+      return showAlert("Error", "Please verify meter details first");
+    }
+    const numericAmount = parseInt(amount, 10);
+    if (!amount || isNaN(numericAmount) || numericAmount < 500) {
+      return showAlert("Error", "Minimum purchase amount is ₦500");
+    }
+
     setPinModalVisible(true);
   };
 
   const handlePayment = async () => {
-    if (!pin || pin.length < 4)
-      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN");
+    if (!pin || pin.length < 4) {
+      return showAlert("Error", "Enter your valid 4-digit Transaction PIN");
+    }
 
     setPaying(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -130,13 +171,20 @@ const ElectricityScreen = ({ navigation }) => {
         `${BASE_URL}/vtu/electricity`,
         {
           disco,
-          meterNumber: meterNo,
-          amount: amount,
+          meterNumber: meterNo.trim(),
+          amount: amount.trim(),
           fee: fee,
           meterType,
-          transactionPin: pin,
+          transactionPin: pin.trim(),
+          pin: pin.trim(),
         },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 25000 
+        },
       );
 
       const result = res.data;
@@ -146,22 +194,44 @@ const ElectricityScreen = ({ navigation }) => {
         const tokenVal = result.token || result.data?.token || "N/A";
         const unitsVal = result.units || result.data?.units || "N/A";
 
-        Alert.alert(
-          "Purchase Successful!",
-          `Token: ${tokenVal}\nUnits: ${unitsVal}\n\nAmount: ₦${amount}\nCharge: ₦${fee}`,
-          [
-            {
-              text: "Copy Token",
-              onPress: () => Clipboard.setString(tokenVal),
-            },
-            { text: "Done", onPress: () => navigation.goBack() },
-          ],
-        );
+        if (Platform.OS === "web") {
+          window.alert(
+            `Purchase Successful! 🎉\nToken: ${tokenVal}\nUnits: ${unitsVal}\n\nAmount: ₦${amount}\nCharge: ₦${fee}`
+          );
+          if (tokenVal !== "N/A") {
+            try {
+              await Clipboard.setStringAsync(tokenVal);
+            } catch (clipErr) {
+              console.log("Clipboard error:", clipErr);
+            }
+          }
+          navigation.goBack();
+        } else {
+          Alert.alert(
+            "Purchase Successful! 🎉",
+            `Token: ${tokenVal}\nUnits: ${unitsVal}\n\nAmount: ₦${amount}\nCharge: ₦${fee}`,
+            [
+              {
+                text: "Copy Token",
+                onPress: async () => {
+                  if (tokenVal !== "N/A") {
+                    await Clipboard.setStringAsync(tokenVal);
+                  }
+                },
+              },
+              { text: "Done", onPress: () => navigation.goBack() },
+            ]
+          );
+        }
       } else {
         throw new Error(result.message || "Transaction Error");
       }
     } catch (e) {
-      Alert.alert("Transaction Failed", e.response?.data?.message || e.message || "Internal Server Error");
+      const errorMsg =
+        e.response?.data?.message ||
+        e.message ||
+        "Server communication failure. Please check your connection.";
+      showAlert("Transaction Failed", errorMsg);
     } finally {
       setPaying(false);
     }
@@ -180,7 +250,6 @@ const ElectricityScreen = ({ navigation }) => {
 
       <Text style={styles.header}>Utility Payments (Electricity)</Text>
 
-      {/* Admin Fee Control */}
       {isAdmin && (
         <View style={styles.adminPane}>
           <Text style={styles.adminLabel}>
@@ -318,7 +387,7 @@ const ElectricityScreen = ({ navigation }) => {
         onPress={handleInitiatePayment}
       >
         <Text style={styles.whiteText}>
-          CONFIRM & PAY ₦{(parseInt(amount || 0) + fee).toLocaleString()}
+          CONFIRM & PAY ₦{(parseInt(amount || 0, 10) + fee).toLocaleString()}
         </Text>
       </TouchableOpacity>
 
@@ -330,7 +399,9 @@ const ElectricityScreen = ({ navigation }) => {
               <Ionicons name="shield-checkmark" size={32} color="#38bdf8" />
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this electricity token purchase</Text>
+            <Text style={styles.modalSubtitle}>
+              Please input your 4-digit PIN to authorize this electricity token purchase
+            </Text>
 
             <TextInput
               style={styles.modalPinInput}

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   StatusBar,
   Modal,
+  Platform,
 } from "react-native";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import axios from "axios";
@@ -76,12 +77,32 @@ const VerificationScreen = ({ navigation }) => {
     },
   ];
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   useEffect(() => {
     const checkRole = async () => {
       const storedUser = await AsyncStorage.getItem("userData");
       if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        setIsAdmin(parsed.role === "admin");
+        try {
+          const parsed = JSON.parse(storedUser);
+          setIsAdmin(parsed.role === "admin");
+        } catch (e) {
+          console.log("Error parsing user role");
+        }
       }
     };
     checkRole();
@@ -89,34 +110,38 @@ const VerificationScreen = ({ navigation }) => {
 
   const handleUpdatePrice = async (serviceId) => {
     if (!isAdmin) {
-      return Alert.alert("Unauthorized", "Only admins can modify service fees.");
+      return showAlert("Unauthorized", "Only admins can modify service fees.");
     }
-    if (!newPrice) return Alert.alert("Error", "Enter a valid new price");
+    if (!newPrice || isNaN(parseInt(newPrice))) {
+      return showAlert("Error", "Enter a valid new price");
+    }
     
     setPrices({ ...prices, [serviceId]: parseInt(newPrice) });
     setNewPrice("");
-    Alert.alert("Success", "Service fee updated successfully.");
+    showAlert("Success", "Service fee updated successfully.");
   };
 
-  // Wannan zai bincika ko an cika lambar bincike kafin buɗe PIN Modal
+  // Bincika bayanan farko kafin a bude PIN Modal
   const handleInitiateVerification = () => {
-    if (!formData.searchValue) {
-      return Alert.alert("Error", `Please enter ${selectedTask?.inputLabel || "search value"}.`);
+    if (!formData.searchValue.trim()) {
+      return showAlert("Error", `Please enter ${selectedTask?.inputLabel || "search value"}.`);
     }
     setPinModalVisible(true);
   };
 
   const handleVerify = async () => {
     if (!pin || pin.length < 4) {
-      return Alert.alert("Error", "Enter your valid 4-digit Transaction PIN.");
+      return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
         return;
       }
 
@@ -124,11 +149,18 @@ const VerificationScreen = ({ navigation }) => {
         `${BASE_URL}/verify`,
         {
           type: selectedTask.id,
-          value: formData.searchValue,
-          transactionPin: pin,
+          value: formData.searchValue.trim(),
+          transactionPin: pin.trim(),
+          pin: pin.trim(),
           charge: prices[selectedTask.id],
         },
-        { headers: { Authorization: `Bearer ${token}` } },
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 25000,
+        },
       );
 
       const result = res.data;
@@ -141,10 +173,11 @@ const VerificationScreen = ({ navigation }) => {
         throw new Error(result.message || "Verification failed");
       }
     } catch (err) {
-      Alert.alert(
-        "Verification Failed",
-        err.response?.data?.message || err.message || "An error occurred during verification.",
-      );
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "An error occurred during verification.";
+      showAlert("Verification Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -163,7 +196,7 @@ const VerificationScreen = ({ navigation }) => {
             <table style="width: 100%; margin-bottom: 30px; font-size: 15px;">
               <tr>
                 <td style="padding: 8px 0; color: #64748b;">Service Type:</td>
-                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${selectedTask.title}</td>
+                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${selectedTask?.title || "Verification"}</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0; color: #64748b;">Target Search ID:</td>
@@ -192,7 +225,7 @@ const VerificationScreen = ({ navigation }) => {
       const { uri } = await Print.printToFileAsync({ html });
       await Sharing.shareAsync(uri);
     } catch (error) {
-      Alert.alert("Error", "Unable to generate or share verification PDF slip.");
+      showAlert("Error", "Unable to generate or share verification PDF slip.");
     }
   };
 
