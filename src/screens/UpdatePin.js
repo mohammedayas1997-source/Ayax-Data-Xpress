@@ -9,6 +9,7 @@ import {
   Alert,
   StatusBar,
   ScrollView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,22 +25,42 @@ const UpdatePinScreen = ({ navigation, route }) => {
 
   const isUpdating = Boolean(route?.params?.isUpdating);
 
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [
+        {
+          text: "OK",
+          onPress: () => {
+            if (onPressCallback) onPressCallback();
+          },
+        },
+      ]);
+    }
+  };
+
   const handleSavePin = async () => {
     console.log("[PIN Debug] Save button pressed");
-    console.log("[PIN Debug] State values:", { isUpdating, pinLength: newPin.length, confirmLength: confirmPin.length });
+    console.log("[PIN Debug] State values:", {
+      isUpdating,
+      pinLength: newPin.length,
+      confirmLength: confirmPin.length,
+    });
 
     if (isUpdating && !password.trim()) {
-      Alert.alert("Password Required", "Please enter your account password to update your PIN.");
+      showAlert("Password Required", "Please enter your account password to update your PIN.");
       return;
     }
 
     if (!newPin || newPin.length !== 4) {
-      Alert.alert("Invalid PIN", "Please enter a valid 4-digit PIN.");
+      showAlert("Invalid PIN", "Please enter a valid 4-digit PIN.");
       return;
     }
 
     if (newPin !== confirmPin) {
-      Alert.alert("Mismatch", "The new PIN and confirmation PIN do not match.");
+      showAlert("Mismatch", "The new PIN and confirmation PIN do not match.");
       return;
     }
 
@@ -51,18 +72,18 @@ const UpdatePinScreen = ({ navigation, route }) => {
 
       if (!token) {
         setLoading(false);
-        Alert.alert("Session Expired", "Authentication token missing. Please log in again.", [
-          { text: "OK", onPress: () => navigation.replace("Login") },
-        ]);
+        showAlert("Session Expired", "Authentication token missing. Please log in again.", () => {
+          navigation.replace("Login");
+        });
         return;
       }
 
-      const endpoint = isUpdating 
-        ? `${BASE_URL}/auth/update-pin` 
+      const endpoint = isUpdating
+        ? `${BASE_URL}/auth/update-pin`
         : `${BASE_URL}/auth/create-pin`;
 
-      const payload = isUpdating 
-        ? { password: password.trim(), newPin: newPin.trim(), pin: newPin.trim() } 
+      const payload = isUpdating
+        ? { password: password.trim(), newPin: newPin.trim(), pin: newPin.trim() }
         : { newPin: newPin.trim(), pin: newPin.trim() };
 
       console.log(`[PIN Debug] Dispatching request to: ${endpoint}`);
@@ -94,30 +115,29 @@ const UpdatePinScreen = ({ navigation, route }) => {
           }
         }
 
-        Alert.alert(
-          "Success 🎉",
-          response.data.message || "Transaction PIN successfully configured.",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
+        const successMsg =
+          response.data.message || "Transaction PIN successfully configured.";
+
+        showAlert("Success 🎉", successMsg, () => {
+          navigation.goBack();
+        });
       } else {
-        Alert.alert("Failed", response.data?.message || "Could not save PIN.");
+        showAlert("Failed", response.data?.message || "Could not save PIN.");
       }
     } catch (error) {
       console.error("[PIN Debug] Full Error:", error);
 
       if (error.code === "ECONNABORTED") {
-        Alert.alert("Timeout", "Server took too long to respond. Please check your internet connection.");
+        showAlert("Timeout", "Server took too long to respond. Please check your network connection.");
       } else if (error.response) {
-        console.log("[PIN Debug] Error Status:", error.response.status);
-        console.log("[PIN Debug] Error Data:", error.response.data);
-        Alert.alert(
+        showAlert(
           "Request Failed",
           error.response.data?.message || `Server error: ${error.response.status}`
         );
       } else if (error.request) {
-        Alert.alert("Network Error", "Unable to connect to server. Please check your network.");
+        showAlert("Network Error", "Unable to connect to server. Please check your network.");
       } else {
-        Alert.alert("Error", error.message || "An unexpected error occurred.");
+        showAlert("Error", error.message || "An unexpected error occurred.");
       }
     } finally {
       setLoading(false);
