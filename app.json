@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Ayax Data Xpress",
-    "slug": "Ayax-Data-Xpress",
+    "slug": "ayax-data-xpress-ag6zw01xsu8xmxj0rasxl",
     "version": "1.0.0",
     "jsEngine": "hermes",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -24,7 +24,9 @@
       },
       "package": "com.ayas8724.AyaxDataXpress",
       "edgeToEdgeEnabled": true,
-      "permissions": ["INTERNET"],
+      "permissions": [
+        "INTERNET"
+      ],
       "usesCleartextTraffic": true
     },
     "web": {
@@ -32,10 +34,10 @@
     },
     "extra": {
       "eas": {
-        "projectId": "84b7adc6-0b27-4dd2-abbd-d119de52bc66"
+        "projectId": "bbc3eba5-0702-4e86-8a7e-e943bcd92598"
       }
     },
-    "owner": "ayas8724",
+    "owner": "ayas87244",
     "plugins": []
   }
 }
