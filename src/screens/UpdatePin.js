@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -21,68 +22,103 @@ const UpdatePinScreen = ({ navigation, route }) => {
   const [confirmPin, setConfirmPin] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const isUpdating = route?.params?.isUpdating || false;
+  const isUpdating = Boolean(route?.params?.isUpdating);
 
   const handleSavePin = async () => {
-    if (isUpdating && !password) {
-      Alert.alert("Error", "Please enter your account password to proceed.");
+    console.log("[PIN Debug] Save button pressed");
+    console.log("[PIN Debug] State values:", { isUpdating, pinLength: newPin.length, confirmLength: confirmPin.length });
+
+    if (isUpdating && !password.trim()) {
+      Alert.alert("Password Required", "Please enter your account password to update your PIN.");
       return;
     }
 
     if (!newPin || newPin.length !== 4) {
-      Alert.alert("Error", "Please enter a valid 4-digit PIN.");
+      Alert.alert("Invalid PIN", "Please enter a valid 4-digit PIN.");
       return;
     }
 
     if (newPin !== confirmPin) {
-      Alert.alert("Error", "The new PINs do not match.");
+      Alert.alert("Mismatch", "The new PIN and confirmation PIN do not match.");
       return;
     }
 
+    setLoading(true);
+
     try {
-      setLoading(true);
       const token = await AsyncStorage.getItem("userToken");
+      console.log("[PIN Debug] Retrieved token:", token ? "Token Found" : "Token Missing");
+
       if (!token) {
-        Alert.alert("Session Expired", "Please log in again.");
-        navigation.replace("Login");
+        setLoading(false);
+        Alert.alert("Session Expired", "Authentication token missing. Please log in again.", [
+          { text: "OK", onPress: () => navigation.replace("Login") },
+        ]);
         return;
       }
 
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      const endpoint = isUpdating ? `${BASE_URL}/auth/update-pin` : `${BASE_URL}/auth/create-pin`;
-      
-      // AN NAN ZAKA SANYA SHI:
+      const endpoint = isUpdating 
+        ? `${BASE_URL}/auth/update-pin` 
+        : `${BASE_URL}/auth/create-pin`;
+
       const payload = isUpdating 
-        ? { password, newPin, pin: newPin } 
-        : { newPin, pin: newPin };
+        ? { password: password.trim(), newPin: newPin.trim(), pin: newPin.trim() } 
+        : { newPin: newPin.trim(), pin: newPin.trim() };
 
-      const response = await axios.post(endpoint, payload, config);
+      console.log(`[PIN Debug] Dispatching request to: ${endpoint}`);
 
-      if (response.data.success) {
+      const response = await axios({
+        method: "POST",
+        url: endpoint,
+        data: payload,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        timeout: 15000,
+      });
+
+      console.log("[PIN Debug] Response received:", response.data);
+
+      if (response.data && response.data.success) {
         const cachedUser = await AsyncStorage.getItem("userData");
         if (cachedUser) {
-          const parsedUser = JSON.parse(cachedUser);
-          parsedUser.has_transaction_pin = true;
-          parsedUser.hasPin = true;
-          await AsyncStorage.setItem("userData", JSON.stringify(parsedUser));
+          try {
+            const parsedUser = JSON.parse(cachedUser);
+            parsedUser.has_transaction_pin = true;
+            parsedUser.hasPin = true;
+            await AsyncStorage.setItem("userData", JSON.stringify(parsedUser));
+          } catch (e) {
+            console.log("[PIN Debug] User cache parse error:", e.message);
+          }
         }
 
         Alert.alert(
           "Success 🎉",
           response.data.message || "Transaction PIN successfully configured.",
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.goBack(),
-            },
-          ]
+          [{ text: "OK", onPress: () => navigation.goBack() }]
         );
+      } else {
+        Alert.alert("Failed", response.data?.message || "Could not save PIN.");
       }
     } catch (error) {
-      console.error("PIN Error:", error.response?.data || error.message);
-      const errorMsg = error.response?.data?.message || "Failed to process PIN request. Please try again.";
-      Alert.alert("Error", errorMsg);
+      console.error("[PIN Debug] Full Error:", error);
+
+      if (error.code === "ECONNABORTED") {
+        Alert.alert("Timeout", "Server took too long to respond. Please check your internet connection.");
+      } else if (error.response) {
+        console.log("[PIN Debug] Error Status:", error.response.status);
+        console.log("[PIN Debug] Error Data:", error.response.data);
+        Alert.alert(
+          "Request Failed",
+          error.response.data?.message || `Server error: ${error.response.status}`
+        );
+      } else if (error.request) {
+        Alert.alert("Network Error", "Unable to connect to server. Please check your network.");
+      } else {
+        Alert.alert("Error", error.message || "An unexpected error occurred.");
+      }
     } finally {
       setLoading(false);
     }
@@ -97,11 +133,13 @@ const UpdatePinScreen = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{isUpdating ? "Change Transaction PIN" : "Setup Transaction PIN"}</Text>
+        <Text style={styles.headerTitle}>
+          {isUpdating ? "Change Transaction PIN" : "Setup Transaction PIN"}
+        </Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.iconContainer}>
           <Ionicons name="key-outline" size={40} color="#1e3a8a" />
         </View>
@@ -130,7 +168,7 @@ const UpdatePinScreen = ({ navigation, route }) => {
             style={styles.pinInput}
             placeholder="****"
             placeholderTextColor="#94a3b8"
-            keyboardType="numeric"
+            keyboardType="number-pad"
             maxLength={4}
             secureTextEntry
             value={newPin}
@@ -144,7 +182,7 @@ const UpdatePinScreen = ({ navigation, route }) => {
             style={styles.pinInput}
             placeholder="****"
             placeholderTextColor="#94a3b8"
-            keyboardType="numeric"
+            keyboardType="number-pad"
             maxLength={4}
             secureTextEntry
             value={confirmPin}
@@ -153,17 +191,17 @@ const UpdatePinScreen = ({ navigation, route }) => {
         </View>
 
         <TouchableOpacity
-          style={styles.saveBtn}
+          style={[styles.saveBtn, loading && styles.disabledBtn]}
           onPress={handleSavePin}
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.saveBtnText}>SAVE TRANSACTION PIN</Text>
           )}
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </View>
   );
 };
@@ -181,7 +219,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 5 },
   headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  content: { padding: 20, marginTop: 10 },
+  content: { padding: 20, paddingTop: 30 },
   iconContainer: {
     width: 70,
     height: 70,
@@ -226,6 +264,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     elevation: 2,
   },
+  disabledBtn: { opacity: 0.7 },
   saveBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
 });
 
