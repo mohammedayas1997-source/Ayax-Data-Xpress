@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -24,44 +25,74 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { useFocusEffect } from "@react-navigation/native";
 import { ThemeContext } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+const DVA_CACHE_KEY = "@ayax_user_dva_account";
 
 const HomeScreen = ({ navigation }) => {
   const { isDarkMode } = useContext(ThemeContext);
   const [userData, setUserData] = useState(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // States na Virtual Account (Tsarin asali ba a taba ba)
+  // States na Virtual Account
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
-
-  const fetchUserData = async () => {
+  // 1. Dauko Profile da Virtual Account
+  const fetchUserData = useCallback(async (isSilent = false) => {
     try {
+      if (!isSilent) {
+        const cachedDva = await AsyncStorage.getItem(DVA_CACHE_KEY);
+        if (cachedDva) {
+          setVirtualAccount(JSON.parse(cachedDva));
+        }
+      }
+
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
         return;
       }
 
-      const response = await axios.get(`${BASE_URL}/user/profile`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      };
 
-      if (response.data && response.data.success) {
-        const user = response.data.user || response.data.data;
+      // Gwada /user/profile ko /auth/profile
+      let response;
+      try {
+        response = await axios.get(`${BASE_URL}/user/profile`, { headers });
+      } catch (err) {
+        response = await axios.get(`${BASE_URL}/auth/profile`, { headers });
+      }
+
+      if (response.data && (response.data.success || response.status === 200)) {
+        const user = response.data.user || response.data.data || response.data;
         setUserData(user);
-        if (user.virtualAccount && user.virtualAccount.accountNumber) {
-          setVirtualAccount(user.virtualAccount);
+
+        const accNumber =
+          user.virtualAccount?.accountNumber ||
+          user.accountNumber ||
+          user.virtualAccountNumber;
+
+        if (accNumber) {
+          const accObj = {
+            bankName:
+              user.virtualAccount?.bankName || user.bankName || "Wema Bank",
+            accountNumber: accNumber,
+            accountName:
+              user.virtualAccount?.accountName ||
+              user.accountName ||
+              user.name ||
+              `${user.firstName || ""} ${user.surname || ""}`.trim(),
+          };
+          setVirtualAccount(accObj);
+          await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(accObj));
         }
       }
     } catch (err) {
@@ -69,53 +100,102 @@ const HomeScreen = ({ navigation }) => {
         await AsyncStorage.clear();
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       } else {
-        console.error("Profile Synchronization Failure:", err.message);
+        if (!isSilent) {
+          console.log("Profile sync:", err.message);
+        }
       }
     }
+  }, [navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData(false);
+      const intervalId = setInterval(() => {
+        fetchUserData(true);
+      }, 10000);
+      return () => clearInterval(intervalId);
+    }, [fetchUserData])
+  );
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserData(false);
+    setRefreshing(false);
   };
 
-  // Aikin fetch ko kirkirar Virtual Account (Tsarin asali ba a taba ba)
+  // 2. Aikin Samar da Virtual Account (Tare da Fallback Routes)
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      };
 
-      const response = await axios.post(
-        `${BASE_URL}/virtual-account/create`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
+      let response;
+      let lastError = null;
 
-      if (response.data && response.data.success) {
-        setVirtualAccount(response.data.data);
-        if (Platform.OS === "android") {
-          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
-        } else {
-          Alert.alert("Success", "Virtual account generated successfully!");
+      // Gwaji 1: Route na /wallet/generate-virtual-account
+      try {
+        response = await axios.post(
+          `${BASE_URL}/wallet/generate-virtual-account`,
+          {},
+          { headers }
+        );
+      } catch (err1) {
+        lastError = err1;
+        // Gwaji 2: Route na /virtual-account/create
+        try {
+          response = await axios.post(
+            `${BASE_URL}/virtual-account/create`,
+            {},
+            { headers }
+          );
+        } catch (err2) {
+          lastError = err2;
         }
       }
+
+      if (response && response.data && (response.data.success || response.status === 200)) {
+        const acc =
+          response.data.virtualAccount ||
+          response.data.data ||
+          response.data.account;
+
+        if (acc && acc.accountNumber) {
+          setVirtualAccount(acc);
+          await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(acc));
+          await fetchUserData(false);
+
+          if (Platform.OS === "android") {
+            ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+          } else {
+            Alert.alert("Success", "Virtual account generated successfully!");
+          }
+          return;
+        }
+      }
+
+      const errorMsg =
+        lastError?.response?.data?.message ||
+        "Could not generate virtual account from gateway. Please try again.";
+      Alert.alert("Provisioning Notice", errorMsg);
     } catch (error) {
-      console.error(
-        "Virtual Account Error:",
-        error.response?.data || error.message
-      );
+      console.error("Virtual Account Error:", error.response?.data || error.message);
       Alert.alert(
         "Error",
-        "Could not fetch or create virtual account. Try again later."
+        error.response?.data?.message || "Could not fetch or create virtual account."
       );
     } finally {
       setLoadingAccount(false);
     }
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = async (text) => {
     if (!text) return;
-    Clipboard.setStringAsync(text);
+    await Clipboard.setStringAsync(text);
     if (Platform.OS === "android") {
       ToastAndroid.show("Copied to clipboard", ToastAndroid.SHORT);
     } else {
@@ -154,9 +234,7 @@ const HomeScreen = ({ navigation }) => {
     <View
       style={[
         styles.mainContainer,
-        {
-          backgroundColor: isDarkMode ? "#080c14" : "#f4f7fb",
-        },
+        { backgroundColor: isDarkMode ? "#080c14" : "#f4f7fb" },
       ]}
     >
       <StatusBar
@@ -246,6 +324,14 @@ const HomeScreen = ({ navigation }) => {
           style={styles.content}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 30 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#0284c7", "#38bdf8"]}
+              tintColor="#38bdf8"
+            />
+          }
         >
           {/* 1. Global Holographic Smart Wallet Card */}
           <LinearGradient
@@ -254,7 +340,6 @@ const HomeScreen = ({ navigation }) => {
             end={{ x: 1, y: 1 }}
             style={styles.walletHologramCard}
           >
-            {/* Card Glass Layer Ambient Accent */}
             <View style={styles.walletCardBackdropShine} />
 
             <View style={styles.walletHeaderRow}>
@@ -325,7 +410,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </LinearGradient>
 
-          {/* 2. Automated Dedicated Virtual Account Card Section */}
+          {/* 2. Automated Dedicated Virtual Account Card */}
           <View style={styles.sectionHeaderRow}>
             <Text
               style={[
@@ -351,7 +436,7 @@ const HomeScreen = ({ navigation }) => {
               },
             ]}
           >
-            {virtualAccount ? (
+            {virtualAccount && virtualAccount.accountNumber ? (
               <View>
                 <View style={styles.dvaMetaRow}>
                   <View style={{ flex: 1 }}>
@@ -433,7 +518,7 @@ const HomeScreen = ({ navigation }) => {
                     { color: isDarkMode ? "#94a3b8" : "#64748b" },
                   ]}
                 >
-                  You don't have an automated account assigned yet. Generate one now to enable effortless bank-to-wallet transfers.
+                  Click below to generate a permanent dedicated bank account number for instant funding.
                 </Text>
                 <TouchableOpacity
                   style={styles.provisionActionBtn}
@@ -499,7 +584,7 @@ const HomeScreen = ({ navigation }) => {
             />
           </ScrollView>
 
-          {/* 4. Enterprise Services Hub Matrix */}
+          {/* 4. Services Hub */}
           <Text
             style={[
               styles.modernSectionTitle,
@@ -593,7 +678,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* 5. Trust Infrastructure & Certification */}
+          {/* 5. Trust Infrastructure */}
           <View style={styles.trustInfrastructure}>
             <Text style={styles.trustHeadline}>Why Choose Ayax Xpress?</Text>
             <View style={styles.trustCardsRow}>
@@ -986,10 +1071,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
   },
   dvaMetaRow: {
     flexDirection: "row",
@@ -1089,10 +1170,6 @@ const styles = StyleSheet.create({
     marginRight: 12,
     borderWidth: 1,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
   },
   fundingCardLeft: {
     flexDirection: "row",
@@ -1121,10 +1198,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
   },
   gridMatrix: {
     flexDirection: "row",
