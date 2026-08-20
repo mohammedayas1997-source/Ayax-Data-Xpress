@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   Alert,
   Platform,
   ToastAndroid,
-  RefreshControl,
   Dimensions,
   Linking,
   StatusBar,
@@ -24,216 +23,97 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { useFocusEffect } from "@react-navigation/native";
 import { ThemeContext } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
-const DVA_CACHE_KEY = "@ayax_permanent_virtual_account";
 
 const FundWalletScreen = ({ navigation }) => {
   const { isDarkMode } = useContext(ThemeContext);
 
-  const [walletBalance, setWalletBalance] = useState(0);
+  const [userData, setUserData] = useState(null);
   const [virtualAccount, setVirtualAccount] = useState(null);
-  const [userName, setUserName] = useState("");
-  const [amount, setAmount] = useState("");
   const [loadingAccount, setLoadingAccount] = useState(false);
+  const [amount, setAmount] = useState("");
   const [loadingInit, setLoadingInit] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [fetchingData, setFetchingData] = useState(true);
 
-  // 1. Dauko tsohon asusu da aka riga aka ajiye a waya nan take
-  const loadCachedAccount = async () => {
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  // 1. Dauko bayanan Profile da Virtual Account daidai da HomeScreen
+  const fetchUserData = async () => {
     try {
-      const savedAcc = await AsyncStorage.getItem(DVA_CACHE_KEY);
-      if (savedAcc) {
-        setVirtualAccount(JSON.parse(savedAcc));
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
       }
-      const savedUser = await AsyncStorage.getItem("userData");
-      if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        setUserName(parsed?.name || `${parsed?.firstName || ""} ${parsed?.surname || ""}`.trim());
+
+      const response = await axios.get(`${BASE_URL}/user/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (response.data && response.data.success) {
+        const user = response.data.user || response.data.data;
+        setUserData(user);
+        if (user.virtualAccount && user.virtualAccount.accountNumber) {
+          setVirtualAccount(user.virtualAccount);
+        }
       }
-    } catch (e) {
-      console.log("Cache load error:", e.message);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.error("Profile Synchronization Failure:", err.message);
+      }
     }
   };
 
-  // 2. Dauko sabbin bayanai daga Server
-  const fetchWalletData = useCallback(
-    async (isSilent = false) => {
-      try {
-        const token = await AsyncStorage.getItem("userToken");
-        if (!token) {
-          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-          return;
-        }
-
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        };
-
-        const [profileRes, balanceRes] = await Promise.allSettled([
-          axios.get(`${BASE_URL}/user/profile`, { headers }).catch(() =>
-            axios.get(`${BASE_URL}/auth/profile`, { headers })
-          ),
-          axios.get(`${BASE_URL}/wallet/balance`, { headers }),
-        ]);
-
-        if (profileRes.status === "fulfilled" && profileRes.value?.data?.success) {
-          const user = profileRes.value.data.user || profileRes.value.data.data;
-          setUserName(
-            user?.name || `${user?.firstName || ""} ${user?.surname || ""}`.trim()
-          );
-
-          const liveBal = Number(user.walletBalance ?? user.balance ?? 0);
-          setWalletBalance(liveBal);
-
-          const accNum =
-            user.virtualAccount?.accountNumber ||
-            user.accountNumber ||
-            user.virtualAccountNumber;
-
-          if (accNum) {
-            const acc = {
-              bankName:
-                user.virtualAccount?.bankName || user.bankName || "Wema Bank",
-              accountNumber: accNum,
-              accountName:
-                user.virtualAccount?.accountName ||
-                user.accountName ||
-                user.name ||
-                `${user.firstName || ""} ${user.surname || ""}`.trim(),
-            };
-            setVirtualAccount(acc);
-            await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(acc));
-          }
-        }
-
-        if (balanceRes.status === "fulfilled" && balanceRes.value?.data?.success) {
-          const bal = Number(
-            balanceRes.value.data.balance ??
-              balanceRes.value.data.walletBalance ??
-              0
-          );
-          setWalletBalance(bal);
-        }
-      } catch (err) {
-        if (!isSilent) {
-          console.log("Wallet fetch error:", err.message);
-        }
-      } finally {
-        if (!isSilent) setFetchingData(false);
-      }
-    },
-    [navigation]
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      loadCachedAccount();
-      fetchWalletData(false);
-
-      const intervalId = setInterval(() => {
-        fetchWalletData(true);
-      }, 10000);
-
-      return () => clearInterval(intervalId);
-    }, [fetchWalletData])
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchWalletData(false);
-    setRefreshing(false);
-  };
-
-  // 3. Samar da Virtual Account tare da Ajiye shi Dindindin
-  const handleGenerateVirtualAccount = async () => {
+  // 2. Aikin Kirkirar Virtual Account daidai da HomeScreen
+  const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      };
 
-      let response;
-      let lastError = null;
+      const response = await axios.post(
+        `${BASE_URL}/virtual-account/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
-      // Gwada hanyoyi biyu kamar na HomeScreen
-      try {
-        response = await axios.post(
-          `${BASE_URL}/wallet/generate-virtual-account`,
-          {},
-          { headers }
-        );
-      } catch (e1) {
-        lastError = e1;
-        try {
-          response = await axios.post(
-            `${BASE_URL}/virtual-account/create`,
-            {},
-            { headers }
-          );
-        } catch (e2) {
-          lastError = e2;
+      if (response.data && response.data.success) {
+        setVirtualAccount(response.data.data);
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
         }
       }
-
-      if (response && response.data && (response.data.success || response.status === 200)) {
-        const acc =
-          response.data.virtualAccount ||
-          response.data.data ||
-          response.data.account;
-
-        const accNum =
-          acc?.accountNumber ||
-          acc?.virtualAccountNumber ||
-          response.data?.accountNumber;
-
-        if (accNum) {
-          const finalAcc = {
-            bankName: acc?.bankName || "Wema Bank",
-            accountNumber: accNum,
-            accountName:
-              acc?.accountName ||
-              userName ||
-              "Ayax User",
-          };
-
-          setVirtualAccount(finalAcc);
-          await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(finalAcc));
-          await fetchWalletData(true);
-
-          if (Platform.OS === "android") {
-            ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
-          } else {
-            Alert.alert("Success", "Virtual account generated successfully!");
-          }
-          return;
-        }
-      }
-
-      const errorMsg =
-        lastError?.response?.data?.message ||
-        "Could not generate virtual account. Please try again.";
-      Alert.alert("Notice", errorMsg);
     } catch (error) {
-      console.error("DVA Generation Error:", error.response?.data || error.message);
+      console.error(
+        "Virtual Account Error:",
+        error.response?.data || error.message
+      );
       Alert.alert(
-        "Provisioning Failed",
-        error.response?.data?.message || "Could not generate virtual account."
+        "Error",
+        "Could not fetch or create virtual account. Try again later."
       );
     } finally {
       setLoadingAccount(false);
     }
   };
 
-  // 4. Online Card / USSD Payment Gateway
+  // 3. Online Card / USSD Payment Gateway
   const handleOnlinePayment = async () => {
     const numAmount = Number(amount);
     if (!amount || isNaN(numAmount) || numAmount < 100) {
@@ -273,15 +153,23 @@ const FundWalletScreen = ({ navigation }) => {
     }
   };
 
-  const copyToClipboard = async (text) => {
+  const copyToClipboard = (text) => {
     if (!text) return;
-    await Clipboard.setStringAsync(text);
+    Clipboard.setStringAsync(text);
     if (Platform.OS === "android") {
-      ToastAndroid.show("Account Number Copied", ToastAndroid.SHORT);
+      ToastAndroid.show("Copied to clipboard", ToastAndroid.SHORT);
     } else {
       Alert.alert("Copied", text);
     }
   };
+
+  const walletBalance = Number(
+    userData?.walletBalance !== undefined
+      ? userData.walletBalance
+      : userData?.balance !== undefined
+      ? userData.balance
+      : 0
+  );
 
   return (
     <View
@@ -300,21 +188,11 @@ const FundWalletScreen = ({ navigation }) => {
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#0284c7", "#38bdf8"]}
-            tintColor="#38bdf8"
-          />
-        }
       >
         {/* Tier-1 Executive Hero Header */}
         <LinearGradient
           colors={
-            isDarkMode
-              ? ["#0c1322", "#080c14"]
-              : ["#0284c7", "#0369a1"]
+            isDarkMode ? ["#0c1322", "#080c14"] : ["#0284c7", "#0369a1"]
           }
           style={styles.headerHero}
         >
@@ -332,7 +210,7 @@ const FundWalletScreen = ({ navigation }) => {
                 size={14}
                 color="#10b981"
               />
-              <Text style={styles.secureText}>256-BIT ENCRYPTED</Text>
+              <Text style={styles.secureText}>256-BIT ENCRYPTION</Text>
             </View>
           </View>
 
@@ -369,17 +247,10 @@ const FundWalletScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {fetchingData && !virtualAccount ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#0284c7" />
-              <Text style={styles.loadingText}>Fetching payment channels...</Text>
-            </View>
-          ) : virtualAccount && virtualAccount.accountNumber ? (
+          {virtualAccount ? (
             <LinearGradient
               colors={
-                isDarkMode
-                  ? ["#111927", "#0d131f"]
-                  : ["#ffffff", "#f8fafc"]
+                isDarkMode ? ["#111927", "#0d131f"] : ["#ffffff", "#f8fafc"]
               }
               style={[
                 styles.dvaCardSurface,
@@ -393,7 +264,7 @@ const FundWalletScreen = ({ navigation }) => {
               <View style={styles.dvaMetaRow}>
                 <View>
                   <Text style={styles.dvaBankHeading}>
-                    {virtualAccount.bankName?.toUpperCase() || "WEMA BANK PLC"}
+                    {virtualAccount.bankName}
                   </Text>
                   <Text
                     style={[
@@ -401,7 +272,7 @@ const FundWalletScreen = ({ navigation }) => {
                       { color: isDarkMode ? "#94a3b8" : "#64748b" },
                     ]}
                   >
-                    {virtualAccount.accountName || userName || "Ayax User"}
+                    {virtualAccount.accountName}
                   </Text>
                 </View>
                 <MaterialCommunityIcons
@@ -418,8 +289,7 @@ const FundWalletScreen = ({ navigation }) => {
                     { color: isDarkMode ? "#ffffff" : "#0f172a" },
                   ]}
                 >
-                  {virtualAccount.accountNumber.match(/.{1,4}/g)?.join(" ") ||
-                    virtualAccount.accountNumber}
+                  {virtualAccount.accountNumber}
                 </Text>
 
                 <TouchableOpacity
@@ -440,7 +310,7 @@ const FundWalletScreen = ({ navigation }) => {
                     { color: isDarkMode ? "#94a3b8" : "#64748b" },
                   ]}
                 >
-                  Transfer any amount from your bank app to this account number. Your wallet will be credited automatically within seconds.
+                  Transfer any amount to this account for instant wallet funding.
                 </Text>
               </View>
             </LinearGradient>
@@ -468,11 +338,11 @@ const FundWalletScreen = ({ navigation }) => {
                 No Virtual Account Assigned
               </Text>
               <Text style={styles.emptySub}>
-                Click below to generate a permanent dedicated bank account number for instant auto-funding.
+                You don't have an automated account assigned yet.
               </Text>
               <TouchableOpacity
                 style={styles.provisionBtn}
-                onPress={handleGenerateVirtualAccount}
+                onPress={handleGetVirtualAccount}
                 disabled={loadingAccount}
                 activeOpacity={0.85}
               >
@@ -480,9 +350,9 @@ const FundWalletScreen = ({ navigation }) => {
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <>
-                    <Ionicons name="sparkles" size={16} color="#ffffff" />
+                    <Ionicons name="card-outline" size={16} color="#ffffff" />
                     <Text style={styles.provisionBtnText}>
-                      GENERATE DEDICATED ACCOUNT
+                      Get Virtual Account
                     </Text>
                   </>
                 )}
@@ -701,17 +571,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeRecommendedText: { color: "#10b981", fontSize: 9, fontWeight: "900" },
-  loadingBox: {
-    paddingVertical: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: "#64748b",
-    fontSize: 12,
-    marginTop: 8,
-    fontWeight: "600",
-  },
   dvaCardSurface: {
     borderRadius: 20,
     padding: 18,

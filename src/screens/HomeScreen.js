@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,6 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
-  RefreshControl,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -24,42 +23,26 @@ import {
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 import { ThemeContext } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
-const DVA_CACHE_KEY = "@ayax_permanent_virtual_account";
 
 const HomeScreen = ({ navigation }) => {
   const { isDarkMode } = useContext(ThemeContext);
   const [userData, setUserData] = useState(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
   // States na Virtual Account
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
 
-  // 1. Karanta tsohon Account Number da aka ajiye a waya nan take ba tare da bata lokaci ba
-  const loadCachedAccount = async () => {
-    try {
-      const savedAcc = await AsyncStorage.getItem(DVA_CACHE_KEY);
-      if (savedAcc) {
-        setVirtualAccount(JSON.parse(savedAcc));
-      }
-      const savedUser = await AsyncStorage.getItem("userData");
-      if (savedUser) {
-        setUserData(JSON.parse(savedUser));
-      }
-    } catch (e) {
-      console.log("Error loading cached account:", e.message);
-    }
-  };
+  useEffect(() => {
+    fetchUserData();
+  }, []);
 
-  // 2. Fetch User Profile daga Server tare da gano Account Number ta kowane fanni
-  const fetchUserData = useCallback(async (isSilent = false) => {
+  const fetchUserData = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
@@ -67,44 +50,18 @@ const HomeScreen = ({ navigation }) => {
         return;
       }
 
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      };
+      const response = await axios.get(`${BASE_URL}/user/profile`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
+      });
 
-      let response;
-      try {
-        response = await axios.get(`${BASE_URL}/user/profile`, { headers });
-      } catch (err) {
-        response = await axios.get(`${BASE_URL}/auth/profile`, { headers });
-      }
-
-      if (response && response.data && (response.data.success || response.status === 200)) {
-        const user = response.data.user || response.data.data || response.data;
+      if (response.data && response.data.success) {
+        const user = response.data.user || response.data.data;
         setUserData(user);
-        await AsyncStorage.setItem("userData", JSON.stringify(user));
-
-        // Gano account number ta kowacce hanya da backend zai iya turawa
-        const accNum =
-          user.virtualAccount?.accountNumber ||
-          user.accountNumber ||
-          user.virtualAccountNumber;
-
-        if (accNum) {
-          const formattedAcc = {
-            bankName:
-              user.virtualAccount?.bankName || user.bankName || "Wema Bank",
-            accountNumber: accNum,
-            accountName:
-              user.virtualAccount?.accountName ||
-              user.accountName ||
-              user.name ||
-              `${user.firstName || ""} ${user.surname || ""}`.trim(),
-          };
-
-          setVirtualAccount(formattedAcc);
-          // Ajiye shi dindindin a wayar
-          await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(formattedAcc));
+        if (user.virtualAccount && user.virtualAccount.accountNumber) {
+          setVirtualAccount(user.virtualAccount);
         }
       }
     } catch (err) {
@@ -112,105 +69,39 @@ const HomeScreen = ({ navigation }) => {
         await AsyncStorage.clear();
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       } else {
-        if (!isSilent) {
-          console.log("Profile Sync Notice:", err.message);
-        }
+        console.error("Profile Synchronization Failure:", err.message);
       }
     }
-  }, [navigation]);
-
-  // Sabunta bayanai a duk lokacin da aka dawo kan shafin
-  useFocusEffect(
-    useCallback(() => {
-      loadCachedAccount();
-      fetchUserData(false);
-    }, [fetchUserData])
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchUserData(false);
-    setRefreshing(false);
   };
 
-  // 3. Aikin Kirkirar Virtual Account tare da Ajiye shi Dindindin
+  // Aikin fetch ko kirkirar Virtual Account
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      };
+      
+      const response = await axios.post(
+        `${BASE_URL}/virtual-account/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
+      );
 
-      let response;
-      let lastErr = null;
-
-      // Gwaji ta hanyar /wallet/generate-virtual-account
-      try {
-        response = await axios.post(
-          `${BASE_URL}/wallet/generate-virtual-account`,
-          {},
-          { headers }
-        );
-      } catch (e1) {
-        lastErr = e1;
-        // Gwaji ta hanyar /virtual-account/create
-        try {
-          response = await axios.post(
-            `${BASE_URL}/virtual-account/create`,
-            {},
-            { headers }
-          );
-        } catch (e2) {
-          lastErr = e2;
+      if (response.data && response.data.success) {
+        setVirtualAccount(response.data.data);
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
         }
       }
-
-      if (response && response.data && (response.data.success || response.status === 200)) {
-        const acc =
-          response.data.virtualAccount ||
-          response.data.data ||
-          response.data.account;
-
-        const accNum =
-          acc?.accountNumber ||
-          acc?.virtualAccountNumber ||
-          response.data?.accountNumber;
-
-        if (accNum) {
-          const finalAcc = {
-            bankName: acc?.bankName || "Wema Bank",
-            accountNumber: accNum,
-            accountName:
-              acc?.accountName ||
-              userData?.name ||
-              `${userData?.firstName || ""} ${userData?.surname || ""}`.trim() ||
-              "Ayax User",
-          };
-
-          setVirtualAccount(finalAcc);
-          // Ajiye shi nan take a Local Storage
-          await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(finalAcc));
-          await fetchUserData(true);
-
-          if (Platform.OS === "android") {
-            ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
-          } else {
-            Alert.alert("Success", "Virtual account generated successfully!");
-          }
-          return;
-        }
-      }
-
-      const msg =
-        lastErr?.response?.data?.message ||
-        "Could not generate virtual account. Please try again.";
-      Alert.alert("Error", msg);
     } catch (error) {
       console.error("Virtual Account Error:", error.response?.data || error.message);
-      Alert.alert("Error", error.response?.data?.message || "Could not fetch or create virtual account.");
+      Alert.alert("Error", "Could not fetch or create virtual account. Try again later.");
     } finally {
       setLoadingAccount(false);
     }
@@ -231,21 +122,9 @@ const HomeScreen = ({ navigation }) => {
     const message = `Hello Ayax Xpress Support, I need assistance with my account.`;
     const url = `whatsapp://send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`;
     Linking.openURL(url).catch(() =>
-      Linking.openURL(`https://wa.me/${phoneNumber.replace("+", "")}`)
+      Linking.openURL(`https://wa.me/${phoneNumber.replace("+", "")}`),
     );
   };
-
-  const rawBalance =
-    userData?.walletBalance !== undefined
-      ? userData.walletBalance
-      : userData?.balance !== undefined
-      ? userData.balance
-      : 0;
-
-  const formattedBalance = Number(rawBalance || 0).toLocaleString("en-NG", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
   return (
     <View
@@ -313,18 +192,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        <ScrollView
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={["#0284c7", "#38bdf8"]}
-              tintColor="#38bdf8"
-            />
-          }
-        >
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* 1. Wallet Card */}
           <LinearGradient
             colors={["#1e40af", "#1e3a8a"]}
@@ -346,7 +214,7 @@ const HomeScreen = ({ navigation }) => {
             <View style={styles.balanceContainer}>
               <Text style={styles.currency}>₦</Text>
               <Text style={styles.balanceText}>
-                {isBalanceVisible ? formattedBalance : "••••••••"}
+                {isBalanceVisible ? userData?.walletBalance || userData?.balance || "0.00" : "****"}
               </Text>
               <TouchableOpacity
                 onPress={() => setIsBalanceVisible(!isBalanceVisible)}
@@ -389,7 +257,7 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </LinearGradient>
 
-          {/* 2. Dedicated Virtual Account Card Section (Tsayayye Ba Ya Daukewa) */}
+          {/* 2. Dedicated Virtual Account Card Section */}
           <Text
             style={[
               styles.sectionLabel,
@@ -405,15 +273,15 @@ const HomeScreen = ({ navigation }) => {
               { backgroundColor: isDarkMode ? "#0f172a" : "#fff" },
             ]}
           >
-            {virtualAccount && virtualAccount.accountNumber ? (
+            {virtualAccount ? (
               <View>
                 <View style={styles.dvaTopRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.bankNameText, { color: isDarkMode ? "#38bdf8" : "#1e40af" }]}>
-                      {virtualAccount.bankName?.toUpperCase() || "WEMA BANK"}
+                      {virtualAccount.bankName}
                     </Text>
                     <Text style={[styles.accountNameText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
-                      {virtualAccount.accountName || userData?.name || "Ayax User"}
+                      {virtualAccount.accountName}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -534,7 +402,7 @@ const HomeScreen = ({ navigation }) => {
               <ServiceItem
                 icon="id-card"
                 color="#f43f5e"
-                label="NIMC Verify"
+                label="NIMC Varify"
                 isDarkMode={isDarkMode}
                 onPress={() => navigation.navigate("NIMC")}
               />
