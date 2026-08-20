@@ -31,9 +31,10 @@ const FundWalletScreen = ({ navigation, route }) => {
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Quick Amount Presets
+  // Quick Amount Presets don saukin zaba
   const PRESET_AMOUNTS = [1000, 2000, 5000, 10000];
 
+  // Ainihin tsarin logic na asali (Ba a canza komai ba)
   const handleFundWallet = async () => {
     if (!amount || Number(amount) <= 0) {
       Alert.alert("Error", "Don Allah saka adadin kuɗin da ya dace (Amount).");
@@ -70,7 +71,7 @@ const FundWalletScreen = ({ navigation, route }) => {
       if (response.data.success || response.status === 200 || response.status === 201) {
         Alert.alert(
           "Success!",
-          `An yi nasarar zuba ₦${Number(amount).toLocaleString()} a asusunka.`,
+          `An yi nasarar zuba ₦${amount} a asusunka.`,
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       }
@@ -99,8 +100,9 @@ const FundWalletScreen = ({ navigation, route }) => {
       <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Executive Fintech Header */}
+        {/* Tier-1 Executive Hero Header */}
         <LinearGradient
           colors={
             isDarkMode
@@ -123,7 +125,7 @@ const FundWalletScreen = ({ navigation, route }) => {
                 size={14}
                 color="#10b981"
               />
-              <Text style={styles.securityTagText}>256-BIT ENCRYPTION</Text>
+              <Text style={styles.securityTagText}>256-BIT ENCRYPTED</Text>
             </View>
           </View>
 
@@ -133,7 +135,7 @@ const FundWalletScreen = ({ navigation, route }) => {
             </View>
             <Text style={styles.heroTitle}>Fund Wallet</Text>
             <Text style={styles.heroSubtitle}>
-              Direct automated wallet injection & settlement
+              Add balance to your personal account
             </Text>
           </View>
         </LinearGradient>
@@ -152,7 +154,7 @@ const FundWalletScreen = ({ navigation, route }) => {
             ]}
           >
             {/* Amount Field */}
-            <Text style={styles.inputLabelTypography}>AMOUNT TO DEPOSIT</Text>
+            <Text style={styles.inputLabelTypography}>AMOUNT (₦)</Text>
             <View
               style={[
                 styles.amountInputGroup,
@@ -164,13 +166,13 @@ const FundWalletScreen = ({ navigation, route }) => {
                 },
               ]}
             >
-              <Text style={styles.currencySymbol}>₦</Text>
+              <FontAwesome5 name="money-bill-wave" size={18} color="#0284c7" />
               <TextInput
                 style={[
                   styles.amountInputTypography,
                   { color: isDarkMode ? "#ffffff" : "#0f172a" },
                 ]}
-                placeholder="0.00"
+                placeholder="e.g. 5000"
                 placeholderTextColor="#64748b"
                 keyboardType="numeric"
                 value={amount}
@@ -237,13 +239,13 @@ const FundWalletScreen = ({ navigation, route }) => {
                 },
               ]}
             >
-              <MaterialIcons name="notes" size={20} color="#0284c7" />
+              <MaterialIcons name="note" size={20} color="#0284c7" />
               <TextInput
                 style={[
                   styles.standardInputTypography,
                   { color: isDarkMode ? "#ffffff" : "#0f172a" },
                 ]}
-                placeholder="e.g. Monthly Data Topup"
+                placeholder="e.g. Top up for data"
                 placeholderTextColor="#64748b"
                 value={note}
                 onChangeText={setNote}
@@ -273,7 +275,7 @@ const FundWalletScreen = ({ navigation, route }) => {
                       color="#ffffff"
                     />
                     <Text style={styles.submitActionText}>
-                      CONFIRM & FUND WALLET
+                      FUND WALLET
                     </Text>
                   </>
                 )}
@@ -281,7 +283,7 @@ const FundWalletScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Secure Clearing Information Footer */}
+          {/* Secure Clearing Information Note */}
           <View
             style={[
               styles.infoCardWrapper,
@@ -300,12 +302,10 @@ const FundWalletScreen = ({ navigation, route }) => {
                 { color: isDarkMode ? "#94a3b8" : "#64748b" },
               ]}
             >
-              Funds are instantly synchronized across your entire enterprise ledger and available immediately for airtime, data, and bill payments.
+              Funds are instantly synchronized across your entire enterprise ledger and available immediately for utility payments and data purchases.
             </Text>
           </View>
         </View>
-
-        <View style={{ height: 60 }} />
       </ScrollView>
     </View>
   );
@@ -401,18 +401,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 16,
-    height: 58,
-  },
-  currencySymbol: {
-    color: "#0284c7",
-    fontSize: 24,
-    fontWeight: "900",
-    marginRight: 8,
+    height: 56,
   },
   amountInputTypography: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: "900",
+    marginLeft: 12,
+    fontSize: 18,
+    fontWeight: "700",
     letterSpacing: -0.3,
   },
   presetChipsMatrix: {
