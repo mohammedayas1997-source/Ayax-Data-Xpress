@@ -15,16 +15,12 @@ import axios from "axios";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const FundSupervisorScreen = ({ navigation, route }) => {
-  // Idan an wuce da bayanan supervisor daga shafin da ya gabata (misali: id da name)
-  const supervisorId = route?.params?.supervisorId || "65e4a1b2c3d4e5f6a7b8c9d1";
-  const supervisorName = route?.params?.supervisorName || "Sir Idris Bapetel";
-
+const FundWalletScreen = ({ navigation, route }) => {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleFundAccount = async () => {
+  const handleFundWallet = async () => {
     if (!amount || Number(amount) <= 0) {
       Alert.alert("Error", "Don Allah saka adadin kuɗin da ya dace (Amount).");
       return;
@@ -47,13 +43,12 @@ const FundSupervisorScreen = ({ navigation, route }) => {
       };
 
       const payload = {
-        supervisorId,
         amount: Number(amount),
-        note: note || "Admin Wallet Funding",
+        note: note || "User Wallet Funding",
       };
 
       const response = await axios.post(
-        `${BASE_URL}/leader/fund-supervisor`,
+        `${BASE_URL}/wallet/fund-wallet`,
         payload,
         config
       );
@@ -61,13 +56,13 @@ const FundSupervisorScreen = ({ navigation, route }) => {
       if (response.data.success || response.status === 200 || response.status === 201) {
         Alert.alert(
           "Success!",
-          `An yi nasarar tura ₦${amount} zuwa asusun ${supervisorName}.`,
+          `An yi nasarar zuba ₦${amount} a asusunka.`,
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       }
     } catch (error) {
-      console.error("Fund Supervisor Error:", error);
-      const errorMsg = error.response?.data?.message || "An samu matsala wajen tura kuɗin.";
+      console.error("Fund Wallet Error:", error);
+      const errorMsg = error.response?.data?.message || "An samu matsala wajen saka kuɗin.";
       Alert.alert("Failed", errorMsg);
     } finally {
       setLoading(false);
@@ -78,25 +73,18 @@ const FundSupervisorScreen = ({ navigation, route }) => {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <FontAwesome5 name="wallet" size={40} color="#38bdf8" />
-        <Text style={styles.title}>Fund Supervisor Wallet</Text>
-        <Text style={styles.subtitle}>Add balance to supervisor account</Text>
+        <Text style={styles.title}>Fund Wallet</Text>
+        <Text style={styles.subtitle}>Add balance to your personal account</Text>
       </View>
 
       <View style={styles.form}>
-        {/* Supervisor Info (Read-Only) */}
-        <Text style={styles.label}>Target Supervisor</Text>
-        <View style={styles.readOnlyBox}>
-          <MaterialIcons name="person" size={20} color="#1e3a8a" />
-          <Text style={styles.readOnlyText}>{supervisorName}</Text>
-        </View>
-
         {/* Amount Input */}
         <Text style={styles.label}>Amount (₦)</Text>
         <View style={styles.inputGroup}>
           <FontAwesome5 name="money-bill-wave" size={20} color="#1e3a8a" />
           <TextInput
             style={styles.input}
-            placeholder="e.g. 50000"
+            placeholder="e.g. 5000"
             placeholderTextColor="#94a3b8"
             keyboardType="numeric"
             value={amount}
@@ -110,7 +98,7 @@ const FundSupervisorScreen = ({ navigation, route }) => {
           <MaterialIcons name="note" size={20} color="#1e3a8a" />
           <TextInput
             style={styles.input}
-            placeholder="e.g. Monthly data allocation"
+            placeholder="e.g. Top up for data"
             placeholderTextColor="#94a3b8"
             value={note}
             onChangeText={setNote}
@@ -119,7 +107,7 @@ const FundSupervisorScreen = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={[styles.submitBtn, loading && { backgroundColor: "#94a3b8" }]}
-          onPress={handleFundAccount}
+          onPress={handleFundWallet}
           disabled={loading}
         >
           {loading ? (
@@ -127,7 +115,7 @@ const FundSupervisorScreen = ({ navigation, route }) => {
           ) : (
             <>
               <MaterialIcons name="check-circle" size={20} color="white" />
-              <Text style={styles.submitBtnText}>FUND ACCOUNT</Text>
+              <Text style={styles.submitBtnText}>FUND WALLET</Text>
             </>
           )}
         </TouchableOpacity>
@@ -155,18 +143,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 4,
   },
-  readOnlyBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f1f5f9",
-    paddingHorizontal: 15,
-    borderRadius: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    height: 55,
-  },
-  readOnlyText: { marginLeft: 10, fontSize: 16, fontWeight: "bold", color: "#1e3a8a" },
   inputGroup: {
     flexDirection: "row",
     alignItems: "center",
@@ -197,4 +173,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default FundSupervisorScreen;
+export default FundWalletScreen;
