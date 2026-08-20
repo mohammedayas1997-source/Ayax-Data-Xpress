@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useContext } from "react";
 import {
   View,
   Text,
@@ -10,24 +10,34 @@ import {
   Switch,
   Alert,
   StatusBar,
+  Platform,
+  Dimensions,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Ionicons,
+  MaterialCommunityIcons,
+  FontAwesome5,
+} from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as LocalAuthentication from "expo-local-authentication";
 import axios from "axios";
+import { ThemeContext } from "../context/ThemeContext";
 
+const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const ProfileScreen = ({ navigation }) => {
+  const { isDarkMode } = useContext(ThemeContext);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // States don toggles na Biometrics
+  // States don toggles na Biometrics (Logic na asali)
   const [isFingerprintLoginEnabled, setIsFingerprintLoginEnabled] = useState(false);
   const [isFingerprintTxEnabled, setIsFingerprintTxEnabled] = useState(false);
 
-  // Amfani da useFocusEffect domin Refreshing automatic daga sabar
+  // Amfani da useFocusEffect domin Refreshing automatic daga server
   useFocusEffect(
     useCallback(() => {
       fetchUserProfile();
@@ -44,7 +54,7 @@ const ProfileScreen = ({ navigation }) => {
       }
 
       const config = { headers: { Authorization: `Bearer ${token}` } };
-      
+
       const response = await axios.get(`${BASE_URL}/auth/profile`, config);
       const user = response.data.user || response.data.data || response.data;
 
@@ -143,271 +153,551 @@ const ProfileScreen = ({ navigation }) => {
     Alert.alert("Success", value ? "Biometric Authorization Enabled" : "Biometric Authorization Disabled");
   };
 
+  const handleLogout = () => {
+    Alert.alert("Terminate Session", "Are you sure you want to log out from this device?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          await AsyncStorage.clear();
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        },
+      },
+    ]);
+  };
+
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
-        <ActivityIndicator size="large" color="#1e3a8a" />
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: isDarkMode ? "#080c14" : "#f4f7fb",
+            justifyContent: "center",
+            alignItems: "center",
+          },
+        ]}
+      >
+        <ActivityIndicator size="large" color="#0284c7" />
+        <Text style={{ color: "#64748b", marginTop: 12, fontSize: 13, fontWeight: "600" }}>
+          Synchronizing Security Keys...
+        </Text>
       </View>
     );
   }
 
+  const userInitial = userData?.firstName ? userData.firstName[0].toUpperCase() : "A";
+  const fullName = `${userData?.firstName || ""} ${userData?.surname || userData?.lastName || ""}`.trim() || userData?.name || "Enterprise User";
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: isDarkMode ? "#080c14" : "#f4f7fb" },
+      ]}
+    >
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        translucent
+        backgroundColor="transparent"
+      />
 
-      {/* Profile Header */}
-      <View style={styles.profileHeader}>
-        <View style={styles.avatar}>
-          {userData?.profileImage ? (
-            <Image
-              source={{ uri: userData.profileImage }}
-              style={styles.profileImg}
-            />
-          ) : (
-            <Text style={styles.avatarText}>
-              {userData?.firstName ? userData.firstName[0].toUpperCase() : "A"}
-            </Text>
-          )}
-        </View>
-        <Text style={styles.name}>
-          {userData?.firstName || ""} {userData?.surname || userData?.lastName || ""}
-        </Text>
-        <Text style={styles.email}>{userData?.email}</Text>
-      </View>
-
-      {/* Institutional Profile Data */}
-      <View style={styles.infoSection}>
-        <Text style={styles.sectionLabel}>Institutional Profile Data</Text>
-
-        <View style={styles.infoBox}>
-          <View style={styles.infoItem}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="call-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Primary Contact</Text>
-              <Text style={styles.infoValue}>
-                {userData?.phone || userData?.phoneNumber || "Not Configured"}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.infoItem}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="calendar-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Date of Birth</Text>
-              <Text style={styles.infoValue}>
-                {userData?.dob ? new Date(userData.dob).toLocaleDateString() : "Not Provided"}
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="location-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Registered Address</Text>
-              <Text style={styles.infoValue}>
-                {userData?.address || "Location data not synchronized"}
-              </Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      {/* Security & PIN Management Section */}
-      <View style={styles.infoSection}>
-        <Text style={styles.sectionLabel}>Security & Authentication</Text>
-
-        <View style={styles.infoBox}>
-          {/* Change Password */}
-          <TouchableOpacity 
-            style={styles.infoItem}
-            onPress={() => navigation.navigate("ChangePassword")}
-            activeOpacity={0.7}
-          >
-            <View style={styles.iconCircle}>
-              <Ionicons name="lock-closed-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Password Management</Text>
-              <Text style={styles.infoValue}>Change Account Password</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-          </TouchableOpacity>
-
-          {/* Set / Change Transaction PIN */}
-          <TouchableOpacity 
-            style={styles.infoItem}
-            onPress={() => {
-              const hasPinSet = userData?.hasPin || userData?.has_transaction_pin;
-              navigation.navigate("UpdatePin", { isUpdating: hasPinSet });
-            }}
-            activeOpacity={0.7}
-          >
-            <View style={styles.iconCircle}>
-              <Ionicons name="key-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Transaction PIN</Text>
-              <Text style={styles.infoValue}>
-                {userData?.hasPin || userData?.has_transaction_pin ? "Change / Reset PIN" : "Setup Transaction PIN"}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-          </TouchableOpacity>
-          
-          {/* Fingerprint Login Toggle */}
-          <View style={styles.infoItem}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="finger-print-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Biometric Login</Text>
-              <Text style={styles.infoValue}>Login with Fingerprint</Text>
-            </View>
-            <Switch
-              value={isFingerprintLoginEnabled}
-              onValueChange={toggleFingerprintLogin}
-              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-              thumbColor={isFingerprintLoginEnabled ? "#1e3a8a" : "#f4f3f4"}
-            />
-          </View>
-
-          {/* Fingerprint Transaction Toggle */}
-          <View style={[styles.infoItem, { borderBottomWidth: 0 }]}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="shield-checkmark-outline" size={18} color="#1e3a8a" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoTitle}>Biometric Transaction</Text>
-              <Text style={styles.infoValue}>Authorize transactions with Fingerprint</Text>
-            </View>
-            <Switch
-              value={isFingerprintTxEnabled}
-              onValueChange={toggleFingerprintTx}
-              trackColor={{ false: "#cbd5e1", true: "#93c5fd" }}
-              thumbColor={isFingerprintTxEnabled ? "#1e3a8a" : "#f4f3f4"}
-            />
-          </View>
-        </View>
-      </View>
-
-      {/* Edit Profile Button */}
-      <TouchableOpacity
-        style={styles.editBtn}
-        onPress={() => navigation.navigate("EditProfile")}
-        activeOpacity={0.9}
+      <ScrollView
+        style={styles.scrollArea}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 50 }}
       >
-        <View style={styles.btnContent}>
-          <Ionicons
-            name="create-outline"
-            size={20}
-            color="#fff"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.editBtnText}>MODIFY PROFILE CREDENTIALS</Text>
-        </View>
-      </TouchableOpacity>
+        {/* Tier-1 Executive Profile Header */}
+        <LinearGradient
+          colors={
+            isDarkMode
+              ? ["#0c1322", "#080c14"]
+              : ["#0284c7", "#0369a1"]
+          }
+          style={styles.heroHeader}
+        >
+          <View style={styles.topNavigation}>
+            <TouchableOpacity
+              style={styles.navActionBtn}
+              onPress={() => navigation?.goBack()}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-back" size={20} color="#ffffff" />
+            </TouchableOpacity>
+            <View style={styles.kycActiveBadge}>
+              <MaterialCommunityIcons name="shield-check" size={13} color="#10b981" />
+              <Text style={styles.kycActiveText}>VERIFIED IDENTITY</Text>
+            </View>
+          </View>
 
-      <View style={styles.footerNote}>
-        <Text style={styles.footerText}>Ayax Xpress Terminal v2.0</Text>
-      </View>
-    </ScrollView>
+          {/* Profile Identity Holographic Entity */}
+          <View style={styles.identityContainer}>
+            <View style={styles.avatarGlowContainer}>
+              <View style={styles.avatarSurface}>
+                {userData?.profileImage ? (
+                  <Image
+                    source={{ uri: userData.profileImage }}
+                    style={styles.profileImg}
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={["#38bdf8", "#0284c7"]}
+                    style={styles.avatarGradient}
+                  >
+                    <Text style={styles.avatarText}>{userInitial}</Text>
+                  </LinearGradient>
+                )}
+              </View>
+              <View style={styles.onlineBadgeDot} />
+            </View>
+
+            <Text style={styles.profileFullName} numberOfLines={1}>
+              {fullName}
+            </Text>
+            <Text style={styles.profileEmailTypography} numberOfLines={1}>
+              {userData?.email}
+            </Text>
+
+            <View style={styles.roleChip}>
+              <Text style={styles.roleChipText}>
+                {userData?.role?.toUpperCase() || "STANDARD ACCOUNT"}
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.bodyWrapper}>
+          {/* Institutional Profile Data Card */}
+          <Text style={styles.sectionHeaderLabel}>Institutional Profile Data</Text>
+
+          <View
+            style={[
+              styles.executiveCardSurface,
+              {
+                backgroundColor: isDarkMode ? "#111927" : "#ffffff",
+                borderColor: isDarkMode
+                  ? "rgba(255,255,255,0.06)"
+                  : "#e2e8f0",
+              },
+            ]}
+          >
+            <ProfileRow
+              icon="call-outline"
+              title="Primary Contact"
+              value={userData?.phone || userData?.phoneNumber || "Not Configured"}
+              isDarkMode={isDarkMode}
+            />
+
+            <ProfileRow
+              icon="calendar-outline"
+              title="Date of Birth"
+              value={userData?.dob ? new Date(userData.dob).toLocaleDateString() : "Not Provided"}
+              isDarkMode={isDarkMode}
+            />
+
+            <ProfileRow
+              icon="location-outline"
+              title="Registered Address"
+              value={userData?.address || "Location data not synchronized"}
+              isDarkMode={isDarkMode}
+              isLast
+            />
+          </View>
+
+          {/* Security & Cryptographic Controls */}
+          <Text style={[styles.sectionHeaderLabel, { marginTop: 24 }]}>
+            Security & Authentication
+          </Text>
+
+          <View
+            style={[
+              styles.executiveCardSurface,
+              {
+                backgroundColor: isDarkMode ? "#111927" : "#ffffff",
+                borderColor: isDarkMode
+                  ? "rgba(255,255,255,0.06)"
+                  : "#e2e8f0",
+              },
+            ]}
+          >
+            {/* Password Management */}
+            <TouchableOpacity
+              style={styles.clickableRowItem}
+              onPress={() => navigation.navigate("ChangePassword")}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.rowIconContainer, { backgroundColor: "rgba(2,132,199,0.1)" }]}>
+                <Ionicons name="lock-closed-outline" size={18} color="#0284c7" />
+              </View>
+              <View style={styles.rowTextContainer}>
+                <Text style={styles.rowTitleText}>Password Management</Text>
+                <Text
+                  style={[
+                    styles.rowSubText,
+                    { color: isDarkMode ? "#94a3b8" : "#64748b" },
+                  ]}
+                >
+                  Change Account Password
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#64748b" />
+            </TouchableOpacity>
+
+            {/* Set / Change Transaction PIN */}
+            <TouchableOpacity
+              style={styles.clickableRowItem}
+              onPress={() => {
+                const hasPinSet = userData?.hasPin || userData?.has_transaction_pin;
+                navigation.navigate("UpdatePin", { isUpdating: hasPinSet });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.rowIconContainer, { backgroundColor: "rgba(16,185,129,0.1)" }]}>
+                <Ionicons name="key-outline" size={18} color="#10b981" />
+              </View>
+              <View style={styles.rowTextContainer}>
+                <Text style={styles.rowTitleText}>Transaction PIN</Text>
+                <Text
+                  style={[
+                    styles.rowSubText,
+                    { color: isDarkMode ? "#94a3b8" : "#64748b" },
+                  ]}
+                >
+                  {userData?.hasPin || userData?.has_transaction_pin
+                    ? "Change / Reset PIN"
+                    : "Setup Transaction PIN"}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#64748b" />
+            </TouchableOpacity>
+
+            {/* Fingerprint Login Switch */}
+            <View style={styles.toggleRowItem}>
+              <View style={[styles.rowIconContainer, { backgroundColor: "rgba(245,158,11,0.1)" }]}>
+                <Ionicons name="finger-print-outline" size={18} color="#f59e0b" />
+              </View>
+              <View style={styles.rowTextContainer}>
+                <Text style={styles.rowTitleText}>Biometric Login</Text>
+                <Text
+                  style={[
+                    styles.rowSubText,
+                    { color: isDarkMode ? "#94a3b8" : "#64748b" },
+                  ]}
+                >
+                  Quick Unlock with Fingerprint
+                </Text>
+              </View>
+              <Switch
+                value={isFingerprintLoginEnabled}
+                onValueChange={toggleFingerprintLogin}
+                trackColor={{ false: "#cbd5e1", true: "#38bdf8" }}
+                thumbColor={isFingerprintLoginEnabled ? "#0284c7" : "#f4f3f4"}
+              />
+            </View>
+
+            {/* Fingerprint Transaction Switch */}
+            <View style={[styles.toggleRowItem, { borderBottomWidth: 0 }]}>
+              <View style={[styles.rowIconContainer, { backgroundColor: "rgba(139,92,246,0.1)" }]}>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#8b5cf6" />
+              </View>
+              <View style={styles.rowTextContainer}>
+                <Text style={styles.rowTitleText}>Biometric Transaction</Text>
+                <Text
+                  style={[
+                    styles.rowSubText,
+                    { color: isDarkMode ? "#94a3b8" : "#64748b" },
+                  ]}
+                >
+                  Authorize payments with Fingerprint
+                </Text>
+              </View>
+              <Switch
+                value={isFingerprintTxEnabled}
+                onValueChange={toggleFingerprintTx}
+                trackColor={{ false: "#cbd5e1", true: "#38bdf8" }}
+                thumbColor={isFingerprintTxEnabled ? "#0284c7" : "#f4f3f4"}
+              />
+            </View>
+          </View>
+
+          {/* Action Buttons Hub */}
+          <TouchableOpacity
+            style={styles.modifyProfileBtn}
+            onPress={() => navigation.navigate("EditProfile")}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={["#0284c7", "#0369a1"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.gradientBtnSurface}
+            >
+              <Ionicons name="create-outline" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+              <Text style={styles.modifyBtnText}>MODIFY PROFILE CREDENTIALS</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.logoutButton,
+              {
+                backgroundColor: isDarkMode ? "#131b2a" : "#ffffff",
+                borderColor: isDarkMode ? "rgba(239,68,68,0.2)" : "#fee2e2",
+              },
+            ]}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#ef4444" style={{ marginRight: 6 }} />
+            <Text style={styles.logoutButtonText}>TERMINATE ACTIVE SESSION</Text>
+          </TouchableOpacity>
+
+          <View style={styles.appVersionFooter}>
+            <Text style={styles.versionFooterText}>Ayax Xpress Terminal • Enterprise v2.4.0</Text>
+            <Text style={styles.encryptionNotice}>PCI-DSS & ISO-27001 Certified Vault</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 };
 
+const ProfileRow = ({ icon, title, value, isDarkMode, isLast }) => (
+  <View
+    style={[
+      styles.profileDataRow,
+      isLast && { borderBottomWidth: 0 },
+      { borderBottomColor: isDarkMode ? "rgba(255,255,255,0.05)" : "#f1f5f9" },
+    ]}
+  >
+    <View style={[styles.rowIconContainer, { backgroundColor: isDarkMode ? "#1a2436" : "#f1f5f9" }]}>
+      <Ionicons name={icon} size={18} color="#0284c7" />
+    </View>
+    <View style={styles.rowTextContainer}>
+      <Text style={styles.rowTitleText}>{title}</Text>
+      <Text
+        style={[
+          styles.rowValueText,
+          { color: isDarkMode ? "#f8fafc" : "#0f172a" },
+        ]}
+        numberOfLines={1}
+      >
+        {value}
+      </Text>
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  profileHeader: {
-    alignItems: "center",
-    paddingVertical: 35,
-    backgroundColor: "#1e3a8a",
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-    elevation: 4,
+  container: { flex: 1 },
+  scrollArea: { flex: 1 },
+  heroHeader: {
+    paddingTop: Platform.OS === "ios" ? 54 : 44,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
-  avatar: {
-    width: 95,
-    height: 95,
-    borderRadius: 47.5,
-    backgroundColor: "#3b82f6",
+  topNavigation: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  navActionBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     justifyContent: "center",
     alignItems: "center",
-    overflow: "hidden",
-    borderWidth: 3,
-    borderColor: "#ffffff",
   },
-  profileImg: { width: "100%", height: "100%" },
-  avatarText: { color: "#fff", fontSize: 38, fontWeight: "bold" },
-  name: { fontSize: 22, fontWeight: "800", marginTop: 12, color: "#ffffff" },
-  email: { color: "#93c5fd", fontSize: 13, fontWeight: "500", marginTop: 2 },
-  infoSection: { paddingHorizontal: 20, marginTop: 20 },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#64748b",
-    marginBottom: 10,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  infoBox: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    elevation: 1,
-  },
-  infoItem: {
+  kycActiveBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "#eff6ff",
+  kycActiveText: {
+    color: "#10b981",
+    fontSize: 9.5,
+    fontWeight: "800",
+    marginLeft: 4,
+    letterSpacing: 0.5,
+  },
+  identityContainer: { alignItems: "center", marginTop: 14 },
+  avatarGlowContainer: { position: "relative" },
+  avatarSurface: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 3.5,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  avatarGradient: {
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
   },
-  infoText: { marginLeft: 14, flex: 1 },
-  infoTitle: {
-    fontSize: 11,
-    color: "#94a3b8",
-    textTransform: "uppercase",
-    fontWeight: "bold",
+  avatarText: {
+    color: "#ffffff",
+    fontSize: 38,
+    fontWeight: "900",
   },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1e293b",
+  profileImg: { width: "100%", height: "100%" },
+  onlineBadgeDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#10b981",
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    borderWidth: 3,
+    borderColor: "#080c14",
+  },
+  profileFullName: {
+    color: "#ffffff",
+    fontSize: 21,
+    fontWeight: "900",
+    marginTop: 14,
+    letterSpacing: -0.3,
+  },
+  profileEmailTypography: {
+    color: "#94a3b8",
+    fontSize: 12.5,
+    fontWeight: "500",
     marginTop: 2,
   },
-  editBtn: {
-    marginHorizontal: 20,
-    marginVertical: 25,
-    backgroundColor: "#1e3a8a",
-    height: 55,
-    borderRadius: 15,
+  roleChip: {
+    backgroundColor: "rgba(2, 132, 199, 0.22)",
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.3)",
+  },
+  roleChipText: {
+    color: "#38bdf8",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+  },
+  bodyWrapper: { paddingHorizontal: 18, marginTop: 22 },
+  sectionHeaderLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#64748b",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 10,
+    marginLeft: 2,
+  },
+  executiveCardSurface: {
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+  },
+  profileDataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  clickableRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  toggleRowItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  rowIconContainer: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 3,
   },
-  btnContent: { flexDirection: "row", alignItems: "center" },
-  editBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
+  rowTextContainer: { marginLeft: 12, flex: 1 },
+  rowTitleText: {
+    fontSize: 10.5,
+    color: "#64748b",
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  footerNote: { alignItems: "center", marginBottom: 30 },
-  footerText: { color: "#64748b", fontSize: 12, fontWeight: "bold" },
+  rowValueText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  rowSubText: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 2,
+  },
+  modifyProfileBtn: {
+    marginTop: 24,
+    height: 52,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  gradientBtnSurface: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modifyBtnText: {
+    color: "#ffffff",
+    fontSize: 12.5,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  logoutButton: {
+    marginTop: 12,
+    height: 48,
+    borderRadius: 14,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  logoutButtonText: {
+    color: "#ef4444",
+    fontSize: 11.5,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  appVersionFooter: { alignItems: "center", marginTop: 28, marginBottom: 10 },
+  versionFooterText: { color: "#64748b", fontSize: 11, fontWeight: "700" },
+  encryptionNotice: { color: "#94a3b8", fontSize: 9.5, marginTop: 3, fontWeight: "500" },
 });
 
 export default ProfileScreen;
