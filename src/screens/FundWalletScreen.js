@@ -1,236 +1,93 @@
-import React, { useState, useEffect, useContext, useCallback } from "react";
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
-  ScrollView,
   TextInput,
+  TouchableOpacity,
   ActivityIndicator,
   Alert,
+  ScrollView,
   Platform,
-  ToastAndroid,
-  RefreshControl,
-  Dimensions,
-  Linking,
   StatusBar,
 } from "react-native";
 import {
+  MaterialIcons,
+  FontAwesome5,
   Ionicons,
   MaterialCommunityIcons,
-  FontAwesome5,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Clipboard from "expo-clipboard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { useFocusEffect } from "@react-navigation/native";
 import { ThemeContext } from "../context/ThemeContext";
 
-const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
-const DVA_CACHE_KEY = "@ayax_user_dva_account";
 
-const FundWalletScreen = ({ navigation }) => {
+const FundWalletScreen = ({ navigation, route }) => {
   const { isDarkMode } = useContext(ThemeContext);
 
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [virtualAccount, setVirtualAccount] = useState(null);
-  const [userName, setUserName] = useState("");
   const [amount, setAmount] = useState("");
-  const [loadingAccount, setLoadingAccount] = useState(false);
-  const [loadingInit, setLoadingInit] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [fetchingData, setFetchingData] = useState(true);
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // 1. Dauko bayanan asusu da sabon balance
-  const fetchWalletData = useCallback(
-    async (isSilent = false) => {
-      try {
-        if (!isSilent) {
-          const cachedDva = await AsyncStorage.getItem(DVA_CACHE_KEY);
-          if (cachedDva) {
-            setVirtualAccount(JSON.parse(cachedDva));
-          }
-        }
+  // Quick Amount Presets don saukin zaba
+  const PRESET_AMOUNTS = [1000, 2000, 5000, 10000];
 
-        const token = await AsyncStorage.getItem("userToken");
-        if (!token) {
-          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-          return;
-        }
-
-        const headers = {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        };
-
-        const [profileRes, balanceRes] = await Promise.allSettled([
-          axios.get(`${BASE_URL}/user/profile`, { headers }),
-          axios.get(`${BASE_URL}/wallet/balance`, { headers }),
-        ]);
-
-        if (profileRes.status === "fulfilled" && profileRes.value.data?.success) {
-          const user = profileRes.value.data.user || profileRes.value.data.data;
-          setUserName(
-            user?.name || `${user?.firstName || ""} ${user?.surname || ""}`.trim()
-          );
-
-          const liveBal = Number(user.walletBalance ?? user.balance ?? 0);
-          setWalletBalance(liveBal);
-
-          if (user.virtualAccount?.accountNumber || user.accountNumber) {
-            const acc = {
-              bankName:
-                user.virtualAccount?.bankName || user.bankName || "Wema Bank",
-              accountNumber:
-                user.virtualAccount?.accountNumber || user.accountNumber,
-              accountName:
-                user.virtualAccount?.accountName || user.accountName || user.name,
-            };
-            setVirtualAccount(acc);
-            await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(acc));
-          }
-        }
-
-        if (balanceRes.status === "fulfilled" && balanceRes.value.data?.success) {
-          const bal = Number(
-            balanceRes.value.data.balance ??
-              balanceRes.value.data.walletBalance ??
-              0
-          );
-          setWalletBalance(bal);
-        }
-      } catch (err) {
-        if (!isSilent) {
-          console.log("Wallet fetch error:", err.message);
-        }
-      } finally {
-        if (!isSilent) setFetchingData(false);
-      }
-    },
-    [navigation]
-  );
-
-  // Polling a asirce kowane dakika 10 yayin da allon ke bude
-  useFocusEffect(
-    useCallback(() => {
-      fetchWalletData(false);
-
-      const intervalId = setInterval(() => {
-        fetchWalletData(true);
-      }, 10000);
-
-      return () => clearInterval(intervalId);
-    }, [fetchWalletData])
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchWalletData(false);
-    setRefreshing(false);
-  };
-
-  // 2. Generate Dedicated Virtual Account (DVA)
-  const handleGenerateVirtualAccount = async () => {
-    try {
-      setLoadingAccount(true);
-      const token = await AsyncStorage.getItem("userToken");
-
-      const response = await axios.post(
-        `${BASE_URL}/wallet/generate-virtual-account`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (response.data?.success) {
-        const acc = response.data.virtualAccount || response.data.data;
-        setVirtualAccount(acc);
-        await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(acc));
-        await fetchWalletData(false);
-        showToast("Dedicated Virtual Account Assigned Successfully!");
-      }
-    } catch (error) {
-      console.error(
-        "DVA Generation Error:",
-        error.response?.data || error.message
-      );
-      Alert.alert(
-        "Provisioning Failed",
-        error.response?.data?.message ||
-          "Could not generate virtual account. Please try again."
-      );
-    } finally {
-      setLoadingAccount(false);
-    }
-  };
-
-  // 3. Online Card / Bank Payment via Gateway
-  const handleOnlinePayment = async () => {
-    const numAmount = Number(amount);
-    if (!amount || isNaN(numAmount) || numAmount < 100) {
-      Alert.alert("Invalid Amount", "Minimum funding amount is ₦100.");
+  // Ainihin tsarin logic na asali (Ba a canza komai ba)
+  const handleFundWallet = async () => {
+    if (!amount || Number(amount) <= 0) {
+      Alert.alert("Error", "Don Allah saka adadin kuɗin da ya dace (Amount).");
       return;
     }
 
+    setLoading(true);
     try {
-      setLoadingInit(true);
       const token = await AsyncStorage.getItem("userToken");
+      if (!token) {
+        setLoading(false);
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        return;
+      }
+
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      };
+
+      const payload = {
+        amount: Number(amount),
+        note: note || "User Wallet Funding",
+      };
 
       const response = await axios.post(
-        `${BASE_URL}/wallet/initialize`,
-        { amount: numAmount },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
+        `${BASE_URL}/wallet/fund-wallet`,
+        payload,
+        config
       );
 
-      if (response.data?.success && response.data?.data?.authorization_url) {
-        const authUrl = response.data.data.authorization_url;
-        await Linking.openURL(authUrl);
-      } else {
-        Alert.alert("Error", "Could not retrieve payment gateway link.");
+      if (response.data.success || response.status === 200 || response.status === 201) {
+        Alert.alert(
+          "Success!",
+          `An yi nasarar zuba ₦${amount} a asusunka.`,
+          [{ text: "OK", onPress: () => navigation.goBack() }]
+        );
       }
     } catch (error) {
-      console.error(
-        "Initialize error:",
-        error.response?.data || error.message
-      );
-      Alert.alert(
-        "Payment Failed",
-        error.response?.data?.message || "Failed to initialize online payment."
-      );
+      console.error("Fund Wallet Error:", error);
+      const errorMsg = error.response?.data?.message || "An samu matsala wajen saka kuɗin.";
+      Alert.alert("Failed", errorMsg);
     } finally {
-      setLoadingInit(false);
-    }
-  };
-
-  const copyToClipboard = async (text) => {
-    if (!text) return;
-    await Clipboard.setStringAsync(text);
-    showToast("Account Number Copied to Clipboard");
-  };
-
-  const showToast = (msg) => {
-    if (Platform.OS === "android") {
-      ToastAndroid.show(msg, ToastAndroid.SHORT);
-    } else {
-      Alert.alert("Notice", msg);
+      setLoading(false);
     }
   };
 
   return (
     <View
       style={[
-        styles.container,
+        styles.rootContainer,
         { backgroundColor: isDarkMode ? "#080c14" : "#f4f7fb" },
       ]}
     >
@@ -241,17 +98,9 @@ const FundWalletScreen = ({ navigation }) => {
       />
 
       <ScrollView
-        style={styles.scrollView}
+        style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={["#0284c7", "#38bdf8"]}
-            tintColor="#38bdf8"
-          />
-        }
       >
         {/* Tier-1 Executive Hero Header */}
         <LinearGradient
@@ -260,187 +109,42 @@ const FundWalletScreen = ({ navigation }) => {
               ? ["#0c1322", "#080c14"]
               : ["#0284c7", "#0369a1"]
           }
-          style={styles.headerHero}
+          style={styles.heroHeader}
         >
           <View style={styles.topNavigation}>
             <TouchableOpacity
-              style={styles.backButton}
+              style={styles.backNavBtn}
               onPress={() => navigation.goBack()}
               activeOpacity={0.7}
             >
               <Ionicons name="chevron-back" size={20} color="#ffffff" />
             </TouchableOpacity>
-            <View style={styles.secureBadge}>
+            <View style={styles.securityTag}>
               <MaterialCommunityIcons
                 name="shield-check"
                 size={14}
                 color="#10b981"
               />
-              <Text style={styles.secureText}>256-BIT ENCRYPTION</Text>
+              <Text style={styles.securityTagText}>256-BIT ENCRYPTED</Text>
             </View>
           </View>
 
-          <View style={styles.balanceDisplayCard}>
-            <Text style={styles.balanceLabel}>AVAILABLE WALLET BALANCE</Text>
-            <View style={styles.balanceRow}>
-              <Text style={styles.balanceSymbol}>₦</Text>
-              <Text style={styles.balanceValue}>
-                {walletBalance.toLocaleString("en-NG", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </Text>
+          <View style={styles.headerHeroBody}>
+            <View style={styles.walletIconCircle}>
+              <FontAwesome5 name="wallet" size={26} color="#38bdf8" />
             </View>
-            <Text style={styles.autoCreditNote}>
-              ⚡ Real-time automated balance sync active
+            <Text style={styles.heroTitle}>Fund Wallet</Text>
+            <Text style={styles.heroSubtitle}>
+              Add balance to your personal account
             </Text>
           </View>
         </LinearGradient>
 
-        <View style={styles.bodyContent}>
-          {/* Method 1: Dedicated Virtual Account (Bank Transfer) */}
-          <View style={styles.sectionHeader}>
-            <Text
-              style={[
-                styles.sectionTitle,
-                { color: isDarkMode ? "#ffffff" : "#0f172a" },
-              ]}
-            >
-              Instant Bank Transfer
-            </Text>
-            <View style={styles.badgeRecommended}>
-              <Text style={styles.badgeRecommendedText}>RECOMMENDED</Text>
-            </View>
-          </View>
-
-          {fetchingData ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="large" color="#0284c7" />
-              <Text style={styles.loadingText}>Fetching payment channels...</Text>
-            </View>
-          ) : virtualAccount?.accountNumber ? (
-            <LinearGradient
-              colors={
-                isDarkMode
-                  ? ["#111927", "#0d131f"]
-                  : ["#ffffff", "#f8fafc"]
-              }
-              style={[
-                styles.dvaCardSurface,
-                {
-                  borderColor: isDarkMode
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(2,132,199,0.18)",
-                },
-              ]}
-            >
-              <View style={styles.dvaMetaRow}>
-                <View>
-                  <Text style={styles.dvaBankHeading}>
-                    {virtualAccount.bankName?.toUpperCase() || "WEMA BANK PLC"}
-                  </Text>
-                  <Text style={styles.dvaBeneficiaryName}>
-                    {virtualAccount.accountName || userName || "Ayax User"}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons
-                  name="integrated-circuit-chip"
-                  size={38}
-                  color="#f59e0b"
-                />
-              </View>
-
-              <View style={styles.dvaNumberRow}>
-                <Text
-                  style={[
-                    styles.dvaNumberText,
-                    { color: isDarkMode ? "#ffffff" : "#0f172a" },
-                  ]}
-                >
-                  {virtualAccount.accountNumber.match(/.{1,4}/g)?.join(" ") ||
-                    virtualAccount.accountNumber}
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.dvaCopyBtn}
-                  onPress={() => copyToClipboard(virtualAccount.accountNumber)}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="copy-outline" size={14} color="#ffffff" />
-                  <Text style={styles.dvaCopyText}>COPY</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.dvaInstructionBox}>
-                <Ionicons name="information-circle" size={16} color="#0284c7" />
-                <Text style={styles.dvaInstructionText}>
-                  Transfer any amount from your banking app to this account number. Your wallet will be credited automatically within seconds.
-                </Text>
-              </View>
-            </LinearGradient>
-          ) : (
-            <View
-              style={[
-                styles.emptyProvisionCard,
-                {
-                  backgroundColor: isDarkMode ? "#111927" : "#ffffff",
-                  borderColor: isDarkMode
-                    ? "rgba(255,255,255,0.08)"
-                    : "#e2e8f0",
-                },
-              ]}
-            >
-              <View style={styles.emptyIconWrap}>
-                <Ionicons name="card-outline" size={32} color="#0284c7" />
-              </View>
-              <Text
-                style={[
-                  styles.emptyTitle,
-                  { color: isDarkMode ? "#ffffff" : "#0f172a" },
-                ]}
-              >
-                No Virtual Account Assigned
-              </Text>
-              <Text style={styles.emptySub}>
-                Click below to generate a permanent dedicated bank account number for instant auto-funding.
-              </Text>
-              <TouchableOpacity
-                style={styles.provisionBtn}
-                onPress={handleGenerateVirtualAccount}
-                disabled={loadingAccount}
-                activeOpacity={0.85}
-              >
-                {loadingAccount ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <>
-                    <Ionicons name="sparkles" size={16} color="#ffffff" />
-                    <Text style={styles.provisionBtnText}>
-                      GENERATE DEDICATED ACCOUNT
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Method 2: Online Card / USSD Payment */}
-          <Text
-            style={[
-              styles.sectionTitle,
-              {
-                color: isDarkMode ? "#ffffff" : "#0f172a",
-                marginTop: 26,
-                marginBottom: 12,
-              },
-            ]}
-          >
-            Debit Card / USSD Online Top-up
-          </Text>
-
+        <View style={styles.bodyWrapper}>
+          {/* Main Card Surface */}
           <View
             style={[
-              styles.cardPaymentBox,
+              styles.cardSurface,
               {
                 backgroundColor: isDarkMode ? "#111927" : "#ffffff",
                 borderColor: isDarkMode
@@ -449,10 +153,11 @@ const FundWalletScreen = ({ navigation }) => {
               },
             ]}
           >
-            <Text style={styles.inputLabel}>ENTER AMOUNT (₦)</Text>
+            {/* Amount Field */}
+            <Text style={styles.inputLabelTypography}>AMOUNT (₦)</Text>
             <View
               style={[
-                styles.inputRow,
+                styles.amountInputGroup,
                 {
                   backgroundColor: isDarkMode ? "#1a2436" : "#f8fafc",
                   borderColor: isDarkMode
@@ -461,13 +166,13 @@ const FundWalletScreen = ({ navigation }) => {
                 },
               ]}
             >
-              <Text style={styles.inputCurrencyPrefix}>₦</Text>
+              <FontAwesome5 name="money-bill-wave" size={18} color="#0284c7" />
               <TextInput
                 style={[
-                  styles.amountInput,
+                  styles.amountInputTypography,
                   { color: isDarkMode ? "#ffffff" : "#0f172a" },
                 ]}
-                placeholder="e.g. 2000"
+                placeholder="e.g. 5000"
                 placeholderTextColor="#64748b"
                 keyboardType="numeric"
                 value={amount}
@@ -475,13 +180,13 @@ const FundWalletScreen = ({ navigation }) => {
               />
             </View>
 
-            {/* Quick Amount Chips */}
-            <View style={styles.quickChipsRow}>
-              {[500, 1000, 2000, 5000].map((preset) => (
+            {/* Quick Amount Selector Chips */}
+            <View style={styles.presetChipsMatrix}>
+              {PRESET_AMOUNTS.map((preset) => (
                 <TouchableOpacity
                   key={preset}
                   style={[
-                    styles.presetChip,
+                    styles.chipTouch,
                     {
                       backgroundColor: isDarkMode ? "#131c2e" : "#f1f5f9",
                       borderColor:
@@ -497,7 +202,7 @@ const FundWalletScreen = ({ navigation }) => {
                 >
                   <Text
                     style={[
-                      styles.presetChipText,
+                      styles.chipText,
                       {
                         color:
                           amount === preset.toString()
@@ -514,30 +219,91 @@ const FundWalletScreen = ({ navigation }) => {
               ))}
             </View>
 
+            {/* Narration Field */}
+            <Text
+              style={[
+                styles.inputLabelTypography,
+                { marginTop: 18 },
+              ]}
+            >
+              NARRATION / NOTE (OPTIONAL)
+            </Text>
+            <View
+              style={[
+                styles.standardInputGroup,
+                {
+                  backgroundColor: isDarkMode ? "#1a2436" : "#f8fafc",
+                  borderColor: isDarkMode
+                    ? "rgba(255,255,255,0.08)"
+                    : "#cbd5e1",
+                },
+              ]}
+            >
+              <MaterialIcons name="note" size={20} color="#0284c7" />
+              <TextInput
+                style={[
+                  styles.standardInputTypography,
+                  { color: isDarkMode ? "#ffffff" : "#0f172a" },
+                ]}
+                placeholder="e.g. Top up for data"
+                placeholderTextColor="#64748b"
+                value={note}
+                onChangeText={setNote}
+              />
+            </View>
+
+            {/* Submit Action Button */}
             <TouchableOpacity
-              style={styles.payOnlineBtn}
-              onPress={handleOnlinePayment}
-              disabled={loadingInit}
+              style={styles.submitActionButton}
+              onPress={handleFundWallet}
+              disabled={loading}
               activeOpacity={0.85}
             >
               <LinearGradient
                 colors={["#0284c7", "#0369a1"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.payOnlineGradient}
+                style={styles.submitButtonGradient}
               >
-                {loadingInit ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                {loading ? (
+                  <ActivityIndicator color="#ffffff" size="small" />
                 ) : (
                   <>
-                    <Ionicons name="lock-closed" size={16} color="#ffffff" />
-                    <Text style={styles.payOnlineBtnText}>
-                      PROCEED TO SECURE CHECKOUT
+                    <MaterialIcons
+                      name="check-circle"
+                      size={20}
+                      color="#ffffff"
+                    />
+                    <Text style={styles.submitActionText}>
+                      FUND WALLET
                     </Text>
                   </>
                 )}
               </LinearGradient>
             </TouchableOpacity>
+          </View>
+
+          {/* Secure Clearing Information Note */}
+          <View
+            style={[
+              styles.infoCardWrapper,
+              {
+                backgroundColor: isDarkMode ? "#111927" : "#ffffff",
+                borderColor: isDarkMode
+                  ? "rgba(255,255,255,0.06)"
+                  : "#e2e8f0",
+              },
+            ]}
+          >
+            <Ionicons name="flash-outline" size={20} color="#0284c7" />
+            <Text
+              style={[
+                styles.infoCardText,
+                { color: isDarkMode ? "#94a3b8" : "#64748b" },
+              ]}
+            >
+              Funds are instantly synchronized across your entire enterprise ledger and available immediately for utility payments and data purchases.
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -546,12 +312,12 @@ const FundWalletScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollView: { flex: 1 },
-  headerHero: {
+  rootContainer: { flex: 1 },
+  scrollContainer: { flex: 1 },
+  heroHeader: {
     paddingTop: Platform.OS === "ios" ? 54 : 44,
     paddingHorizontal: 20,
-    paddingBottom: 26,
+    paddingBottom: 28,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
   },
@@ -559,9 +325,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 16,
   },
-  backButton: {
+  backNavBtn: {
     width: 38,
     height: 38,
     borderRadius: 12,
@@ -569,247 +335,141 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  secureBadge: {
+  securityTag: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(16, 185, 129, 0.15)",
-    paddingVertical: 4,
+    paddingVertical: 5,
     paddingHorizontal: 10,
-    borderRadius: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
   },
-  secureText: {
+  securityTagText: {
     color: "#10b981",
     fontSize: 9.5,
     fontWeight: "800",
     marginLeft: 4,
     letterSpacing: 0.5,
   },
-  balanceDisplayCard: {
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-  },
-  balanceLabel: {
-    color: "#cbd5e1",
-    fontSize: 10.5,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-  },
-  balanceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  balanceSymbol: {
-    color: "#38bdf8",
-    fontSize: 24,
-    fontWeight: "900",
-    marginRight: 4,
-  },
-  balanceValue: {
-    color: "#ffffff",
-    fontSize: 30,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-  },
-  autoCreditNote: {
-    color: "#94a3b8",
-    fontSize: 11,
-    marginTop: 2,
-  },
-  bodyContent: { paddingHorizontal: 18, marginTop: 22 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  headerHeroBody: { alignItems: "center", marginTop: 4 },
+  walletIconCircle: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    justifyContent: "center",
     alignItems: "center",
     marginBottom: 12,
-  },
-  sectionTitle: { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
-  badgeRecommended: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  badgeRecommendedText: { color: "#10b981", fontSize: 9, fontWeight: "900" },
-  loadingBox: {
-    paddingVertical: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    color: "#64748b",
-    fontSize: 12,
-    marginTop: 8,
-    fontWeight: "600",
-  },
-  dvaCardSurface: {
-    borderRadius: 20,
-    padding: 18,
     borderWidth: 1,
-    elevation: 3,
+    borderColor: "rgba(255, 255, 255, 0.18)",
   },
-  dvaMetaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  dvaBankHeading: {
-    color: "#0284c7",
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 0.8,
-  },
-  dvaBeneficiaryName: {
-    color: "#64748b",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  dvaNumberRow: {
-    marginVertical: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  dvaNumberText: {
+  heroTitle: {
+    color: "#ffffff",
     fontSize: 22,
     fontWeight: "900",
-    letterSpacing: 1.5,
+    letterSpacing: -0.3,
   },
-  dvaCopyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0284c7",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  dvaCopyText: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "900",
-    marginLeft: 4,
-  },
-  dvaInstructionBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "rgba(2, 132, 199, 0.08)",
-    padding: 10,
-    borderRadius: 10,
+  heroSubtitle: {
+    color: "#cbd5e1",
+    fontSize: 12.5,
     marginTop: 4,
+    fontWeight: "500",
   },
-  dvaInstructionText: {
-    color: "#64748b",
-    fontSize: 11,
-    lineHeight: 16,
-    marginLeft: 6,
-    flex: 1,
-  },
-  emptyProvisionCard: {
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
+  bodyWrapper: { paddingHorizontal: 18, marginTop: 22 },
+  cardSurface: {
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
-  emptyIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(2, 132, 199, 0.12)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  emptyTitle: { fontSize: 16, fontWeight: "800" },
-  emptySub: {
-    color: "#64748b",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 4,
-    marginBottom: 18,
-    lineHeight: 18,
-  },
-  provisionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#0284c7",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-  },
-  provisionBtnText: {
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 0.5,
-    marginLeft: 6,
-  },
-  cardPaymentBox: {
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1,
-    elevation: 2,
-  },
-  inputLabel: {
-    color: "#64748b",
-    fontSize: 10,
+  inputLabelTypography: {
+    fontSize: 10.5,
     fontWeight: "800",
-    letterSpacing: 0.5,
+    color: "#64748b",
+    letterSpacing: 0.6,
     marginBottom: 8,
+    marginLeft: 2,
   },
-  inputRow: {
+  amountInputGroup: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    height: 50,
+    paddingHorizontal: 16,
+    height: 56,
   },
-  inputCurrencyPrefix: {
-    color: "#0284c7",
-    fontSize: 18,
-    fontWeight: "900",
-    marginRight: 8,
-  },
-  amountInput: {
+  amountInputTypography: {
     flex: 1,
-    fontSize: 16,
+    marginLeft: 12,
+    fontSize: 18,
     fontWeight: "700",
+    letterSpacing: -0.3,
   },
-  quickChipsRow: {
+  presetChipsMatrix: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginVertical: 14,
+    marginTop: 12,
+    marginBottom: 6,
   },
-  presetChip: {
+  chipTouch: {
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
   },
-  presetChipText: { fontSize: 11, fontWeight: "700" },
-  payOnlineBtn: {
-    height: 50,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginTop: 4,
+  chipText: { fontSize: 11, fontWeight: "700" },
+  standardInputGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    height: 52,
+    marginBottom: 22,
   },
-  payOnlineGradient: {
+  standardInputTypography: {
+    flex: 1,
+    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  submitActionButton: {
+    height: 52,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  submitButtonGradient: {
     flex: 1,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
   },
-  payOnlineBtnText: {
+  submitActionText: {
     color: "#ffffff",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "900",
-    marginLeft: 6,
+    marginLeft: 8,
     letterSpacing: 0.5,
+  },
+  infoCardWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 16,
+  },
+  infoCardText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    marginLeft: 10,
+    fontWeight: "500",
   },
 });
 
