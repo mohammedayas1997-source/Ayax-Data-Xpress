@@ -34,13 +34,59 @@ const LoginScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
-  const [isSupervisor, setIsSupervisor] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     checkLoginStatus();
     checkBiometricStatus();
   }, []);
+
+  // Helper na tura kowa zuwa ainihin Dashboard dinsa
+  const routeUserByRole = (role) => {
+    const normalizedRole = (role || "").trim().toLowerCase();
+
+    if (normalizedRole === "superadmin") {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "SuperAdminDashboard" }],
+        }),
+      );
+    } else if (normalizedRole === "admin") {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "AdminDashboard" }],
+        }),
+      );
+    } else if (normalizedRole === "supervisor") {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "SupervisorDashboard" }],
+        }),
+      );
+    } else if (normalizedRole === "agent") {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: "Main",
+              state: { routes: [{ name: "AgentDashboard" }] },
+            },
+          ],
+        }),
+      );
+    } else {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Main" }],
+        }),
+      );
+    }
+  };
 
   const checkLoginStatus = async () => {
     try {
@@ -49,7 +95,6 @@ const LoginScreen = ({ navigation }) => {
 
       if (token && storedUserData) {
         const user = JSON.parse(storedUserData);
-
         const detectedRole = (
           user?.role ||
           user?.user?.role ||
@@ -60,31 +105,8 @@ const LoginScreen = ({ navigation }) => {
           .trim()
           .toLowerCase();
 
-        console.log("[Auto-Login] Detected Saved Role:", detectedRole);
-
-        if (detectedRole === "superadmin" || detectedRole === "supervisor") {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "SupervisorDashboard" }],
-          });
-          return;
-        } else if (detectedRole === "agent") {
-          navigation.reset({
-            index: 0,
-            routes: [
-              {
-                name: "Main",
-                state: { routes: [{ name: "AgentDashboard" }] },
-              },
-            ],
-          });
-          return;
-        } else if (detectedRole) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Main" }],
-          });
-          return;
+        if (detectedRole) {
+          routeUserByRole(detectedRole);
         }
       }
     } catch (e) {
@@ -124,24 +146,20 @@ const LoginScreen = ({ navigation }) => {
     setErrorMessage("");
 
     if (!email.trim() || !password) {
-      setErrorMessage("Please enter both your email address and password.");
+      setErrorMessage("Please enter your email or phone number and password.");
       return;
     }
 
     setLoading(true);
 
     try {
-      console.log(
-        `🚀 Attempting Login for:`,
-        email.trim().toLowerCase(),
-      );
+      const identifier = email.trim().toLowerCase();
 
       const response = await axios.post(`${BASE_URL}/auth/login`, {
-        email: email.trim().toLowerCase(),
+        email: identifier,
+        phone: identifier,
         password: password,
       });
-
-      console.log("📥 Raw Server Response:", JSON.stringify(response.data));
 
       const token =
         response?.data?.token ||
@@ -158,8 +176,7 @@ const LoginScreen = ({ navigation }) => {
         userPayload?.role ||
         response?.data?.role ||
         response?.data?.data?.role ||
-        "";
-      const normalizedRole = finalRole.trim().toLowerCase();
+        "user";
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
@@ -167,50 +184,13 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // Idan an zaɓi login as supervisor amma ainihin role din bai zama superadmin/supervisor ba
-      if (isSupervisor && normalizedRole !== "superadmin" && normalizedRole !== "supervisor") {
-        setErrorMessage("This account does not have supervisor/superadmin privileges.");
-        setLoading(false);
-        return;
-      }
-
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
-      
-      // Adana bayanan shiga don biometric a gaba
-      await AsyncStorage.setItem("savedEmail", email.trim().toLowerCase());
+      await AsyncStorage.setItem("savedEmail", identifier);
       await AsyncStorage.setItem("savedPassword", password);
 
-      console.log("✅ Login Successful. Redirecting...");
-
       setTimeout(() => {
-        if (normalizedRole === "superadmin" || normalizedRole === "supervisor") {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: "SupervisorDashboard" }],
-            }),
-          );
-        } else if (normalizedRole === "agent") {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [
-                {
-                  name: "Main",
-                  state: { routes: [{ name: "AgentDashboard" }] },
-                },
-              ],
-            }),
-          );
-        } else {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: "Main" }],
-            }),
-          );
-        }
+        routeUserByRole(finalRole);
       }, 300);
     } catch (error) {
       console.log("❌ Login Error:", error?.response?.data || error.message);
@@ -220,7 +200,7 @@ const LoginScreen = ({ navigation }) => {
         const backendMessage =
           error.response.data?.message || "Invalid credentials.";
         setErrorMessage(
-          status === 401 ? "Invalid email or password." : backendMessage,
+          status === 401 ? "Invalid email/phone or password." : backendMessage,
         );
       } else {
         setErrorMessage("Network error. Please check your connection.");
@@ -251,6 +231,7 @@ const LoginScreen = ({ navigation }) => {
       setLoading(true);
       const response = await axios.post(`${BASE_URL}/auth/login`, {
         email: savedEmail,
+        phone: savedEmail,
         password: savedPassword,
       });
 
@@ -268,8 +249,7 @@ const LoginScreen = ({ navigation }) => {
         userPayload?.role ||
         response?.data?.role ||
         response?.data?.data?.role ||
-        "";
-      const normalizedRole = finalRole.trim().toLowerCase();
+        "user";
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
@@ -281,36 +261,7 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
 
       setTimeout(() => {
-        if (normalizedRole === "superadmin" || normalizedRole === "supervisor") {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: "SupervisorDashboard" }],
-            }),
-          );
-        } else if (normalizedRole === "agent") {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [
-                {
-                  name: "Main",
-                  state: {
-                    index: 0,
-                    routes: [{ name: "AgentDashboard" }],
-                  },
-                },
-              ],
-            }),
-          );
-        } else {
-          navigation.dispatch(
-            CommonActions.reset({
-              index: 0,
-              routes: [{ name: "Main" }],
-            }),
-          );
-        }
+        routeUserByRole(finalRole);
       }, 300);
     } catch (error) {
       setErrorMessage("Biometric login failed. Please use password.");
@@ -352,17 +303,17 @@ const LoginScreen = ({ navigation }) => {
               </View>
             ) : null}
 
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>Email Address or Phone Number</Text>
             <View style={styles.inputContainer}>
               <Ionicons
-                name="mail-outline"
+                name="person-outline"
                 size={20}
                 color="#64748b"
                 style={styles.inputIcon}
               />
               <TextInput
                 style={styles.input}
-                placeholder="example@mail.com"
+                placeholder="Email or 08012345678"
                 placeholderTextColor="#94a3b8"
                 value={email}
                 onChangeText={(text) => {
@@ -402,31 +353,6 @@ const LoginScreen = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-              onPress={() => setIsSupervisor(!isSupervisor)}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name={isSupervisor ? "checkbox" : "square-outline"}
-                size={24}
-                color={isSupervisor ? "#0a1d37" : "#64748b"}
-              />
-              <Text
-                style={{
-                  marginLeft: 8,
-                  color: isSupervisor ? "#0a1d37" : "#64748b",
-                  fontWeight: "600",
-                }}
-              >
-                Login as Supervisor / SuperAdmin
-              </Text>
-            </TouchableOpacity>
-
             <View style={styles.actionRow}>
               {isBiometricEnabled && (
                 <TouchableOpacity
@@ -458,7 +384,7 @@ const LoginScreen = ({ navigation }) => {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.loginBtnText}>Login to Dashboard</Text>
+                <Text style={styles.loginBtnText}>Login to Account</Text>
               )}
             </TouchableOpacity>
 
