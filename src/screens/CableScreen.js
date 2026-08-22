@@ -14,9 +14,56 @@ import {
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
+const cableData = {
+  GOTV: [
+    { id: "gotv-smallie", name: "GOtv Smallie (Monthly)", price: 1575 },
+    { id: "gotv-smallie-quarterly", name: "GOtv Smallie (Quarterly)", price: 4175 },
+    { id: "gotv-smallie-annual", name: "GOtv Smallie (Annual)", price: 12300 },
+    { id: "gotv-jinja", name: "GOtv Jinja Package", price: 3300 },
+    { id: "gotv-jolli", name: "GOtv Jolli Package", price: 4850 },
+    { id: "gotv-max", name: "GOtv Max Package", price: 7200 },
+    { id: "gotv-supa", name: "GOtv Supa Package", price: 9600 },
+    { id: "gotv-supa-plus", name: "GOtv Supa Plus (EPL Package)", price: 15700 },
+  ],
+  DSTV: [
+    { id: "dstv-padi", name: "DStv Padi", price: 4400 },
+    { id: "dstv-yanga", name: "DStv Yanga", price: 6000 },
+    { id: "dstv-confam", name: "DStv Confam", price: 11000 },
+    { id: "dstv-compact", name: "DStv Compact", price: 19000 },
+    { id: "dstv-compact-plus", name: "DStv Compact Plus", price: 30000 },
+    { id: "dstv-premium", name: "DStv Premium", price: 44000 },
+    { id: "dstv-french-plus", name: "DStv French Plus", price: 47000 },
+    { id: "dstv-asia", name: "DStv Asia Bouquet", price: 12400 },
+  ],
+  STARTIMES: [
+    { id: "startimes-nova-daily", name: "Nova (Daily)", price: 500 },
+    { id: "startimes-nova-weekly", name: "Nova (Weekly)", price: 1400 },
+    { id: "startimes-nova-monthly", name: "Nova (Monthly)", price: 2100 },
+    { id: "startimes-basic-daily", name: "Basic (Daily)", price: 800 },
+    { id: "startimes-basic-weekly", name: "Basic (Weekly)", price: 2600 },
+    { id: "startimes-basic-monthly", name: "Basic (Monthly)", price: 4000 },
+    { id: "startimes-smart-daily", name: "Smart (Daily)", price: 1100 },
+    { id: "startimes-smart-weekly", name: "Smart (Weekly)", price: 3700 },
+    { id: "startimes-smart-monthly", name: "Smart (Monthly)", price: 5100 },
+    { id: "startimes-classic-daily", name: "Classic (Daily)", price: 1500 },
+    { id: "startimes-classic-weekly", name: "Classic (Weekly)", price: 4500 },
+    { id: "startimes-classic-monthly", name: "Classic (Monthly)", price: 6500 },
+    { id: "startimes-super-daily", name: "Super (Daily)", price: 2000 },
+    { id: "startimes-super-weekly", name: "Super (Weekly)", price: 6200 },
+    { id: "startimes-super-monthly", name: "Super (Monthly)", price: 9000 },
+  ],
+  SHOWMAX: [
+    { id: "showmax-entertainment", name: "Showmax Entertainment Mobile", price: 1600 },
+    { id: "showmax-entertainment-all", name: "Showmax Entertainment (All Devices)", price: 3200 },
+    { id: "showmax-premier-league", name: "Showmax Premier League Mobile", price: 3200 },
+    { id: "showmax-combo-mobile", name: "Showmax Entertainment + PL (Mobile)", price: 4000 },
+    { id: "showmax-combo-all", name: "Showmax Entertainment + PL (All Devices)", price: 6000 },
+  ],
+};
 
 const CableScreen = ({ navigation }) => {
   const [provider, setProvider] = useState("GOTV");
@@ -31,7 +78,7 @@ const CableScreen = ({ navigation }) => {
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
 
-  // Admin & Pricing State
+  // Surcharges & Admin Controls
   const [isAdmin, setIsAdmin] = useState(false);
   const [serviceCharge, setServiceCharge] = useState(50);
   const [newCharge, setNewCharge] = useState("");
@@ -52,39 +99,15 @@ const CableScreen = ({ navigation }) => {
     }
   };
 
-  const cableData = {
-    GOTV: [
-      { id: "gotv-lite", name: "GOtv Lite", price: 1500 },
-      { id: "gotv-value", name: "GOtv Value", price: 2100 },
-      { id: "gotv-plus", name: "GOtv Plus", price: 3300 },
-      { id: "gotv-max", name: "GOtv Max", price: 4850 },
-      { id: "gotv-supa", name: "GOtv Supa", price: 6400 },
-    ],
-    DSTV: [
-      { id: "dstv-padi", name: "DStv Padi", price: 2950 },
-      { id: "dstv-yanga", name: "DStv Yanga", price: 4200 },
-      { id: "dstv-confam", name: "DStv Confam", price: 7400 },
-      { id: "dstv-asia", name: "DStv Asia", price: 9900 },
-      { id: "dstv-compact", name: "DStv Compact", price: 12500 },
-    ],
-    STARTIMES: [
-      { id: "nova", name: "Nova Monthly", price: 1500 },
-      { id: "basic", name: "Basic Monthly", price: 2600 },
-      { id: "smart", name: "Smart Monthly", price: 3500 },
-      { id: "classic", name: "Classic Monthly", price: 5000 },
-      { id: "super", name: "Super Monthly", price: 7000 },
-    ],
-  };
-
   useEffect(() => {
     const checkAdmin = async () => {
       const user = await AsyncStorage.getItem("userData");
       if (user) {
         try {
           const parsed = JSON.parse(user);
-          setIsAdmin(parsed.role === "admin");
+          setIsAdmin(parsed.role === "admin" || parsed.role === "superadmin");
         } catch (e) {
-          console.log("Error parsing user cache");
+          console.log("Error parsing cache");
         }
       }
     };
@@ -96,19 +119,27 @@ const CableScreen = ({ navigation }) => {
 
   const updateGlobalCharge = async () => {
     if (!isAdmin) {
-      return showAlert("Unauthorized", "Only administrators can update service charges.");
+      return showAlert("Unauthorized", "Only administrators can adjust service fees.");
     }
     if (!newCharge || isNaN(parseInt(newCharge))) {
-      return showAlert("Error", "Enter a valid new charge amount");
+      return showAlert("Error", "Enter a valid numeric service fee.");
     }
     setServiceCharge(parseInt(newCharge));
     setNewCharge("");
-    showAlert("Success", "Service charge updated successfully.");
+    showAlert("Success", "Service fee updated successfully.");
   };
 
   const validateIUC = async () => {
+    if (provider === "SHOWMAX") {
+      if (!smartCard.includes("@") && smartCard.trim().length < 10) {
+        return showAlert("Error", "Enter a valid Email or Registered Phone Number for Showmax.");
+      }
+      setCustomerName("Showmax Account Verified");
+      return;
+    }
+
     if (!smartCard || smartCard.trim().length < 9) {
-      return showAlert("Error", "Enter a valid IUC/Smartcard Number.");
+      return showAlert("Error", "Enter a valid IUC or Smartcard Number (9-11 Digits).");
     }
 
     setValidating(true);
@@ -125,10 +156,10 @@ const CableScreen = ({ navigation }) => {
       const res = await axios.post(
         `${BASE_URL}/vtu/validate-cable`,
         { provider, smartCard: smartCard.trim() },
-        { 
+        {
           headers: { Authorization: `Bearer ${token}` },
-          timeout: 20000 
-        },
+          timeout: 20000,
+        }
       );
 
       const result = res.data;
@@ -145,9 +176,7 @@ const CableScreen = ({ navigation }) => {
     } catch (err) {
       showAlert(
         "Validation Error",
-        err.response?.data?.message ||
-        err.message ||
-        "Check the IUC number and try again."
+        err.response?.data?.message || err.message || "Could not verify Smartcard. Check number and retry."
       );
     } finally {
       setValidating(false);
@@ -156,10 +185,10 @@ const CableScreen = ({ navigation }) => {
 
   const handleInitiatePayment = () => {
     if (!smartCard.trim() || !selectedPackage) {
-      return showAlert("Error", "Please enter IUC number and select a package.");
+      return showAlert("Required", "Please provide Smartcard/Account Number and select a package.");
     }
     if (!customerName) {
-      return showAlert("Error", "Please validate the Smartcard/IUC number first.");
+      return showAlert("Verification Required", "Please verify the Smartcard/Account details first.");
     }
     setPinModalVisible(true);
   };
@@ -192,13 +221,13 @@ const CableScreen = ({ navigation }) => {
           transactionPin: pin.trim(),
           pin: pin.trim(),
         },
-        { 
-          headers: { 
+        {
+          headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
           },
-          timeout: 25000 
-        },
+          timeout: 25000,
+        }
       );
 
       const result = res.data;
@@ -206,19 +235,19 @@ const CableScreen = ({ navigation }) => {
         setPinModalVisible(false);
         setPin("");
         showAlert(
-          "Success 🎉",
-          `${selectedPackage.name} subscription successfully activated for ${smartCard}`,
+          "Subscription Active 🎉",
+          `${selectedPackage.name} activated successfully for ${smartCard}.`,
           () => navigation.goBack()
         );
       } else {
-        throw new Error(result.message || "Transaction Error");
+        throw new Error(result.message || "Subscription activation error.");
       }
     } catch (err) {
       const errorMsg =
         err.response?.data?.message ||
         err.message ||
-        "Server communication failure. Please check your connection.";
-      showAlert("Transaction Failed", errorMsg);
+        "Gateway timeout. Please check your transaction history.";
+      showAlert("Subscription Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -232,13 +261,13 @@ const CableScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={26} color="#0a1d37" />
         </TouchableOpacity>
-        <Text style={styles.header}>Cable TV Subscription</Text>
+        <Text style={styles.header}>Cable TV & Streaming</Text>
       </View>
 
       {isAdmin && (
         <View style={styles.adminSection}>
           <Text style={styles.adminLabel}>
-            👑 Admin Control: Adjust Service Charge (₦)
+            👑 SuperAdmin Control: Adjust Gateway Surcharge (₦)
           </Text>
           <View style={styles.adminRow}>
             <TextInput
@@ -259,30 +288,43 @@ const CableScreen = ({ navigation }) => {
         </View>
       )}
 
-      <Text style={styles.label}>Choose Provider</Text>
-      <View style={styles.providerRow}>
-        {["GOTV", "DSTV", "STARTIMES"].map((item) => (
+      {/* PROVIDER SELECTOR (ALL 4 NETWORKS) */}
+      <Text style={styles.label}>Select Cable / Streaming Provider</Text>
+      <View style={styles.providerGrid}>
+        {[
+          { id: "GOTV", name: "GOtv", icon: "tv" },
+          { id: "DSTV", name: "DStv", icon: "satellite-dish" },
+          { id: "STARTIMES", name: "StarTimes", icon: "broadcast-tower" },
+          { id: "SHOWMAX", name: "Showmax", icon: "play-circle" },
+        ].map((item) => (
           <TouchableOpacity
-            key={item}
-            style={[styles.chip, provider === item && styles.activeChip]}
-            onPress={() => setProvider(item)}
+            key={item.id}
+            style={[styles.providerCard, provider === item.id && styles.activeProviderCard]}
+            onPress={() => setProvider(item.id)}
+            activeOpacity={0.8}
           >
-            <Text
-              style={[styles.chipText, provider === item && styles.whiteText]}
-            >
-              {item}
+            <FontAwesome5
+              name={item.icon}
+              size={18}
+              color={provider === item.id ? "#fff" : "#0a1d37"}
+            />
+            <Text style={[styles.providerCardText, provider === item.id && styles.whiteText]}>
+              {item.name}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={styles.label}>IUC / Smartcard Number</Text>
+      {/* SMARTCARD / ACCOUNT INPUT */}
+      <Text style={styles.label}>
+        {provider === "SHOWMAX" ? "Showmax Phone / Email Account" : "IUC / Smartcard Number"}
+      </Text>
       <View style={styles.inputWrapper}>
         <TextInput
           style={styles.mainInput}
-          placeholder="e.g. 7012345678"
+          placeholder={provider === "SHOWMAX" ? "e.g. 08012345678 or user@gmail.com" : "e.g. 7012345678"}
           placeholderTextColor="#94a3b8"
-          keyboardType="numeric"
+          keyboardType={provider === "SHOWMAX" ? "default" : "numeric"}
           value={smartCard}
           onChangeText={(val) => {
             setSmartCard(val);
@@ -304,58 +346,46 @@ const CableScreen = ({ navigation }) => {
 
       {customerName ? (
         <View style={styles.customerBox}>
-          <Ionicons name="person-circle-outline" size={22} color="#0369a1" />
-          <Text style={styles.customerText}>Customer Name: {customerName}</Text>
+          <Ionicons name="checkmark-circle" size={20} color="#059669" />
+          <Text style={styles.customerText}>Verified: {customerName}</Text>
         </View>
       ) : null}
 
-      <Text style={styles.label}>Select Desired Package</Text>
+      {/* BOUQUETS / PACKAGES LIST */}
+      <Text style={styles.label}>Select Desired Bouquet / Plan ({packages.length} Available)</Text>
       <View style={styles.packageContainer}>
-        {packages.map((pkg) => (
-          <TouchableOpacity
-            key={pkg.id}
-            style={[
-              styles.pkgCard,
-              selectedPackage?.id === pkg.id && styles.activePkgCard,
-            ]}
-            onPress={() => setSelectedPackage(pkg)}
-            activeOpacity={0.8}
-          >
-            <View>
-              <Text
-                style={[
-                  styles.pkgTitle,
-                  selectedPackage?.id === pkg.id && styles.whiteText,
-                ]}
-              >
-                {pkg.name}
-              </Text>
-              <Text
-                style={[
-                  styles.pkgCaption,
-                  selectedPackage?.id === pkg.id && { color: "#cbd5e1" },
-                ]}
-              >
-                1 Month Validity (+₦{serviceCharge} fee)
-              </Text>
-            </View>
-            <Text
-              style={[
-                styles.pkgCost,
-                selectedPackage?.id === pkg.id && styles.whiteText,
-              ]}
+        {packages.map((pkg) => {
+          const isSelected = selectedPackage?.id === pkg.id;
+          return (
+            <TouchableOpacity
+              key={pkg.id}
+              style={[styles.pkgCard, isSelected && styles.activePkgCard]}
+              onPress={() => setSelectedPackage(pkg)}
+              activeOpacity={0.8}
             >
-              ₦{(pkg.price + serviceCharge).toLocaleString()}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={[styles.pkgTitle, isSelected && styles.whiteText]}>
+                  {pkg.name}
+                </Text>
+                <Text style={[styles.pkgCaption, isSelected && { color: "#cbd5e1" }]}>
+                  Includes instant renewal (+₦{serviceCharge} gateway fee)
+                </Text>
+              </View>
+              <Text style={[styles.pkgCost, isSelected && styles.whiteText]}>
+                ₦{(pkg.price + serviceCharge).toLocaleString()}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <TouchableOpacity
         style={styles.payBtn}
         onPress={handleInitiatePayment}
       >
-        <Text style={styles.payBtnText}>PROCEED & ACTIVATE SUBSCRIPTION</Text>
+        <Text style={styles.payBtnText}>
+          ACTIVATE SUBSCRIPTION (₦{selectedPackage ? (selectedPackage.price + serviceCharge).toLocaleString() : "0"})
+        </Text>
       </TouchableOpacity>
 
       {/* PIN Verification Modal */}
@@ -363,11 +393,11 @@ const CableScreen = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeaderIcon}>
-              <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
+              <Ionicons name="shield-checkmark" size={32} color="#0a1d37" />
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
             <Text style={styles.modalSubtitle}>
-              Please input your 4-digit PIN to authorize this cable subscription
+              Please enter your 4-digit PIN to authorize this subscription activation
             </Text>
 
             <TextInput
@@ -406,210 +436,87 @@ const CableScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      <View style={{ height: 50 }} />
+      <View style={{ height: 60 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 20 },
-  navBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 45,
-    marginBottom: 10,
-  },
-  header: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#0a1d37",
-    marginLeft: 15,
-  },
-  adminSection: {
-    backgroundColor: "#fef3c7",
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: "#f59e0b",
-  },
-  adminLabel: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#b45309",
-    marginBottom: 8,
-  },
+  navBar: { flexDirection: "row", alignItems: "center", marginTop: 45, marginBottom: 10 },
+  header: { fontSize: 22, fontWeight: "bold", color: "#0a1d37", marginLeft: 15 },
+  adminSection: { backgroundColor: "#fef3c7", padding: 14, borderRadius: 14, marginTop: 10, borderWidth: 1, borderColor: "#f59e0b" },
+  adminLabel: { fontSize: 11, fontWeight: "bold", color: "#b45309", marginBottom: 8 },
   adminRow: { flexDirection: "row" },
-  adminInput: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingHorizontal: 12,
-    height: 40,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    color: "#0f172a",
-    fontSize: 13,
-  },
-  adminBtn: {
-    backgroundColor: "#b45309",
-    paddingHorizontal: 16,
-    marginLeft: 10,
-    borderRadius: 8,
-    justifyContent: "center",
-  },
+  adminInput: { flex: 1, backgroundColor: "#fff", paddingHorizontal: 12, height: 38, borderRadius: 8, borderWidth: 1, borderColor: "#cbd5e1", color: "#0f172a", fontSize: 13 },
+  adminBtn: { backgroundColor: "#b45309", paddingHorizontal: 16, marginLeft: 10, borderRadius: 8, justifyContent: "center" },
   adminBtnText: { color: "#fff", fontWeight: "bold", fontSize: 12 },
-  label: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#475569",
-    marginBottom: 8,
-    marginTop: 18,
-  },
-  providerRow: { flexDirection: "row", justifyContent: "space-between" },
-  chip: {
+  label: { fontSize: 13, fontWeight: "700", color: "#475569", marginBottom: 8, marginTop: 18 },
+  providerGrid: { flexDirection: "row", justifyContent: "space-between" },
+  providerCard: {
+    width: "23%",
     paddingVertical: 12,
-    borderRadius: 12,
-    width: "31%",
     alignItems: "center",
     backgroundColor: "#f8fafc",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  activeChip: { backgroundColor: "#0a1d37", borderColor: "#0a1d37" },
-  chipText: { fontWeight: "bold", color: "#64748b", fontSize: 13 },
-  whiteText: { color: "#fff" },
+  activeProviderCard: { backgroundColor: "#0a1d37", borderColor: "#0a1d37" },
+  providerCardText: { fontWeight: "bold", color: "#0a1d37", fontSize: 11, marginTop: 4 },
+  whiteText: { color: "#ffffff" },
   inputWrapper: { flexDirection: "row", alignItems: "center" },
   mainInput: {
     flex: 1,
     backgroundColor: "#f8fafc",
-    padding: 15,
+    padding: 14,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    fontSize: 16,
+    fontSize: 15,
     color: "#0f172a",
   },
-  verifyBtn: {
-    backgroundColor: "#0ea5e9",
-    paddingHorizontal: 20,
-    height: 52,
-    justifyContent: "center",
-    borderRadius: 12,
-    marginLeft: 10,
-  },
-  verifyBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
+  verifyBtn: { backgroundColor: "#0284c7", paddingHorizontal: 18, height: 50, justifyContent: "center", borderRadius: 12, marginLeft: 10 },
+  verifyBtnText: { color: "#fff", fontWeight: "bold", fontSize: 13 },
   customerBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f0f9ff",
+    backgroundColor: "#ecfdf5",
     padding: 12,
     borderRadius: 12,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: "#bae6fd",
+    borderColor: "#a7f3d0",
   },
-  customerText: {
-    marginLeft: 8,
-    fontWeight: "bold",
-    color: "#0369a1",
-    fontSize: 14,
-  },
-  packageContainer: { marginTop: 5 },
+  customerText: { marginLeft: 8, fontWeight: "bold", color: "#065f46", fontSize: 13 },
+  packageContainer: { marginTop: 4 },
   pkgCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    padding: 14,
     backgroundColor: "#f8fafc",
-    borderRadius: 15,
-    marginBottom: 10,
+    borderRadius: 14,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
   activePkgCard: { backgroundColor: "#0a1d37", borderColor: "#0a1d37" },
-  pkgTitle: { fontSize: 15, fontWeight: "bold", color: "#1e293b" },
-  pkgCaption: { fontSize: 11, color: "#94a3b8", marginTop: 2 },
-  pkgCost: { fontSize: 16, fontWeight: "bold", color: "#0a1d37" },
-  payBtn: {
-    backgroundColor: "#0a1d37",
-    padding: 18,
-    borderRadius: 15,
-    alignItems: "center",
-    marginTop: 25,
-    elevation: 3,
-  },
-  payBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
-
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
-  modalContent: {
-    width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 24,
-    alignItems: "center",
-    elevation: 10,
-  },
-  modalHeaderIcon: {
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: "#64748b",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  pinInput: {
-    width: "100%",
-    height: 55,
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 14,
-    textAlign: "center",
-    fontSize: 24,
-    letterSpacing: 8,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 20,
-  },
-  verifyModalBtn: {
-    width: "100%",
-    height: 48,
-    backgroundColor: "#0a1d37",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  verifyModalBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  cancelModalBtn: {
-    paddingVertical: 8,
-  },
-  cancelModalBtnText: {
-    color: "#ef4444",
-    fontWeight: "600",
-    fontSize: 13,
-  },
+  pkgTitle: { fontSize: 14, fontWeight: "bold", color: "#1e293b" },
+  pkgCaption: { fontSize: 10, color: "#64748b", marginTop: 2 },
+  pkgCost: { fontSize: 15, fontWeight: "bold", color: "#0a1d37" },
+  payBtn: { backgroundColor: "#0a1d37", padding: 16, borderRadius: 14, alignItems: "center", marginTop: 20, elevation: 3 },
+  payBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.6)", justifyContent: "center", alignItems: "center", padding: 20 },
+  modalContent: { width: "100%", maxWidth: 340, backgroundColor: "#fff", borderRadius: 24, padding: 24, alignItems: "center", elevation: 10 },
+  modalHeaderIcon: { marginBottom: 10 },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#0f172a", marginBottom: 6, textAlign: "center" },
+  modalSubtitle: { fontSize: 12, color: "#64748b", textAlign: "center", marginBottom: 20 },
+  pinInput: { width: "100%", height: 55, backgroundColor: "#f8fafc", borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 14, textAlign: "center", fontSize: 24, letterSpacing: 8, fontWeight: "bold", color: "#0f172a", marginBottom: 20 },
+  verifyModalBtn: { width: "100%", height: 48, backgroundColor: "#0a1d37", borderRadius: 12, justifyContent: "center", alignItems: "center", marginBottom: 12 },
+  verifyModalBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14 },
+  cancelModalBtn: { paddingVertical: 8 },
+  cancelModalBtnText: { color: "#ef4444", fontWeight: "600", fontSize: 13 },
 });
 
 export default CableScreen;
