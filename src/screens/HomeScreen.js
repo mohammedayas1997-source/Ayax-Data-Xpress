@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Alert,
   Platform,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -24,6 +25,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { useFocusEffect } from "@react-navigation/native";
 import { ThemeContext } from "../context/ThemeContext";
 
 const { width } = Dimensions.get("window");
@@ -37,16 +39,35 @@ const HomeScreen = ({ navigation }) => {
   // States na Virtual Account
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
+  // 1. Karanta cached virtual account daga AsyncStorage da zarar app ya tashi
   useEffect(() => {
-    fetchUserData();
+    const loadCachedData = async () => {
+      try {
+        const cachedAcc = await AsyncStorage.getItem("userVirtualAccount");
+        if (cachedAcc) {
+          setVirtualAccount(JSON.parse(cachedAcc));
+        }
+        const cachedUser = await AsyncStorage.getItem("userData");
+        if (cachedUser) {
+          setUserData(JSON.parse(cachedUser));
+        }
+      } catch (e) {
+        console.log("Error loading cached storage:", e.message);
+      }
+    };
+    loadCachedData();
   }, []);
 
-  const fetchUserData = async () => {
+  // 2. Aikin Real-time Live Synchronization (Data & Virtual Account)
+  const fetchUserData = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        if (!isBackground) {
+          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        }
         return;
       }
 
@@ -55,13 +76,40 @@ const HomeScreen = ({ navigation }) => {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
+        timeout: 10000,
       });
 
       if (response.data && response.data.success) {
         const user = response.data.user || response.data.data;
         setUserData(user);
-        if (user.virtualAccount && user.virtualAccount.accountNumber) {
-          setVirtualAccount(user.virtualAccount);
+        await AsyncStorage.setItem("userData", JSON.stringify(user));
+
+        // Binciko Virtual Account ko da a wane suna yake a database
+        let activeAcc = null;
+        if (user.virtualAccount && (user.virtualAccount.accountNumber || user.virtualAccount.account_number)) {
+          activeAcc = {
+            bankName: user.virtualAccount.bankName || user.virtualAccount.bank_name || "Wema Bank",
+            accountName: user.virtualAccount.accountName || user.virtualAccount.account_name || user.name || "Ayax Customer",
+            accountNumber: user.virtualAccount.accountNumber || user.virtualAccount.account_number,
+          };
+        } else if (Array.isArray(user.virtualAccounts) && user.virtualAccounts.length > 0) {
+          const first = user.virtualAccounts[0];
+          activeAcc = {
+            bankName: first.bankName || first.bank_name || "Wema Bank",
+            accountName: first.accountName || first.account_name || user.name,
+            accountNumber: first.accountNumber || first.account_number,
+          };
+        } else if (user.dva && (user.dva.accountNumber || user.dva.account_number)) {
+          activeAcc = {
+            bankName: user.dva.bankName || user.dva.bank_name || "Wema Bank",
+            accountName: user.dva.accountName || user.dva.account_name || user.name,
+            accountNumber: user.dva.accountNumber || user.dva.account_number,
+          };
+        }
+
+        if (activeAcc && activeAcc.accountNumber) {
+          setVirtualAccount(activeAcc);
+          await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(activeAcc));
         }
       }
     } catch (err) {
@@ -69,9 +117,32 @@ const HomeScreen = ({ navigation }) => {
         await AsyncStorage.clear();
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       } else {
-        console.error("Profile Synchronization Failure:", err.message);
+        if (!isBackground) {
+          console.error("Profile Synchronization Failure:", err.message);
+        }
       }
+    } finally {
+      setRefreshing(false);
     }
+  }, [navigation]);
+
+  // 3. Live Polling (Real Live Auto-Refreshing kowane sakan 10 & Screen Focus)
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData();
+
+      // Real-time live background polling interval (10 seconds)
+      const interval = setInterval(() => {
+        fetchUserData(true);
+      }, 10000);
+
+      return () => clearInterval(interval);
+    }, [fetchUserData])
+  );
+
+  const onManualRefresh = () => {
+    setRefreshing(true);
+    fetchUserData();
   };
 
   // Aikin fetch ko kirkirar Virtual Account
@@ -79,7 +150,7 @@ const HomeScreen = ({ navigation }) => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
-      
+
       const response = await axios.post(
         `${BASE_URL}/virtual-account/create`,
         {},
@@ -92,12 +163,22 @@ const HomeScreen = ({ navigation }) => {
       );
 
       if (response.data && response.data.success) {
-        setVirtualAccount(response.data.data);
+        const accData = response.data.data || response.data.virtualAccount;
+        const formattedAcc = {
+          bankName: accData.bankName || accData.bank_name || "Wema Bank",
+          accountName: accData.accountName || accData.account_name || userData?.name || "Ayax Customer",
+          accountNumber: accData.accountNumber || accData.account_number,
+        };
+
+        setVirtualAccount(formattedAcc);
+        await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(formattedAcc));
+
         if (Platform.OS === "android") {
           ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
         } else {
           Alert.alert("Success", "Virtual account generated successfully!");
         }
+        fetchUserData();
       }
     } catch (error) {
       console.error("Virtual Account Error:", error.response?.data || error.message);
@@ -192,7 +273,18 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onManualRefresh}
+              colors={["#1e40af"]}
+              tintColor={isDarkMode ? "#38bdf8" : "#1e40af"}
+            />
+          }
+        >
           {/* 1. Wallet Card */}
           <LinearGradient
             colors={["#1e40af", "#1e3a8a"]}
