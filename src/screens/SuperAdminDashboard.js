@@ -30,6 +30,7 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
+  const [prices, setPrices] = useState({});
   const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,6 +40,7 @@ const SuperAdminDashboard = ({ navigation }) => {
   const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
   // Master Modals
+  const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [dispatchModalVisible, setDispatchModalVisible] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [refundModalVisible, setRefundModalVisible] = useState(false);
@@ -46,7 +48,11 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [suspendModalVisible, setSuspendModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Form States
+  // Service Price Adjustment State
+  const [selectedServiceKey, setSelectedServiceKey] = useState("nimc_nin");
+  const [newServicePrice, setNewServicePrice] = useState("");
+
+  // Other Form States
   const [dispatchNetwork, setDispatchNetwork] = useState("MTN");
   const [dispatchPlanType, setDispatchPlanType] = useState("SME");
   const [dispatchPlanCode, setDispatchPlanCode] = useState("1.0GB");
@@ -70,6 +76,31 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [pwdNew, setPwdNew] = useState("");
 
   const [suspendUserId, setSuspendUserId] = useState("");
+
+  const serviceCategories = [
+    { key: "nimc_nin", name: "NIMC: NIN Verification", category: "NIMC Services" },
+    { key: "nimc_phone", name: "NIMC: Phone Search", category: "NIMC Services" },
+    { key: "nimc_trackingId", name: "NIMC: Tracking ID Lookup", category: "NIMC Services" },
+    { key: "nimc_premiumCard", name: "NIMC: Premium Plastic Card", category: "NIMC Services" },
+    { key: "nimc_standardSlip", name: "NIMC: Standard Color Slip", category: "NIMC Services" },
+    { key: "nimc_basicSlip", name: "NIMC: Basic Black Slip", category: "NIMC Services" },
+
+    { key: "val_noRecord", name: "Validation: No Record Found", category: "NIN Validation" },
+    { key: "val_sim", name: "Validation: SIM Validation", category: "NIN Validation" },
+    { key: "val_vnin", name: "Validation: vNIN Validation", category: "NIN Validation" },
+    { key: "val_update", name: "Validation: Update Records", category: "NIN Validation" },
+    { key: "val_bank", name: "Validation: Bank Validation", category: "NIN Validation" },
+    { key: "val_mod", name: "Validation: Modification Validation", category: "NIN Validation" },
+    { key: "val_photoError", name: "Validation: Photographic Error", category: "NIN Validation" },
+
+    { key: "verify_phone", name: "Identity: Phone Database Lookup", category: "Identity & Verification" },
+    { key: "verify_bvn_basic", name: "Identity: BVN Basic Profile", category: "Identity & Verification" },
+    { key: "verify_bvn_full", name: "Identity: Full BVN Demographic", category: "Identity & Verification" },
+    { key: "verify_face_id", name: "Identity: Face ID Biometric Match", category: "Identity & Verification" },
+
+    { key: "fee_electricity", name: "Surcharge: Electricity Bill Fee", category: "Utilities Surcharges" },
+    { key: "fee_cable", name: "Surcharge: Cable TV Subscription Fee", category: "Utilities Surcharges" },
+  ];
 
   const showAlert = (title, message) => {
     if (Platform.OS === "web") {
@@ -109,9 +140,10 @@ const SuperAdminDashboard = ({ navigation }) => {
       });
 
       setStats(res.data?.stats || {});
+      setPrices(res.data?.prices || {});
       setRecentTx(res.data?.recentTransactions || []);
     } catch (err) {
-      console.log("Telemetry Sync Warning:", err.message);
+      console.log("Telemetry Warning:", err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -132,7 +164,35 @@ const SuperAdminDashboard = ({ navigation }) => {
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
 
-  // 1. Dispatch Data
+  // 1. Update Specific Service Price
+  const handleUpdateServicePrice = async () => {
+    if (!newServicePrice || isNaN(Number(newServicePrice))) {
+      return showAlert("Validation Error", "Please provide a valid numeric tariff amount.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.post(
+        `${BASE_URL}/superadmin/update-service-price`,
+        { serviceKey: selectedServiceKey, newPrice: Number(newServicePrice) },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.success) {
+        showAlert("Tariff Updated", res.data.message);
+        setPrices(res.data?.updatedPrices || {});
+        setNewServicePrice("");
+        setPricingModalVisible(false);
+      }
+    } catch (err) {
+      showAlert("Tariff Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 2. Dispatch Data
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice || !dispatchValidity) {
       return showAlert("Validation Error", "Plan Size, Price, and Validity Days are required.");
@@ -170,7 +230,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. SuperAdmin Exclusive Refund
+  // 3. SuperAdmin Exclusive Refund
   const handleExecuteRefund = async () => {
     if (!refundUserId.trim() || !refundAmount) {
       return showAlert("Validation Error", "Recipient phone/email and refund amount are required.");
@@ -206,7 +266,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. Direct Wallet Adjustment
+  // 4. Direct Wallet Adjustment
   const handleExecuteWalletAction = async () => {
     if (!walletUserId.trim() || !walletAmount) {
       return showAlert("Validation Error", "Target User Identifier and numeric amount are required.");
@@ -240,7 +300,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. Force Password Reset Override
+  // 5. Force Password Override
   const handleExecutePasswordOverride = async () => {
     if (!pwdUserId.trim() || !pwdNew || pwdNew.length < 6) {
       return showAlert("Validation Error", "Target user identifier and a 6+ character password are required.");
@@ -268,7 +328,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 5. Suspend / Activate Staff & Users
+  // 6. Suspend / Activate Account
   const handleExecuteSuspension = async (suspend) => {
     if (!suspendUserId.trim()) {
       return showAlert("Validation Error", "Target identifier is required.");
@@ -323,8 +383,8 @@ const SuperAdminDashboard = ({ navigation }) => {
           <Text style={styles.topBrandTitle}>AYAX CENTRAL CONSOLE</Text>
         </View>
 
-        <TouchableOpacity style={styles.avatarBtn} onPress={() => setRefundModalVisible(true)}>
-          <Ionicons name="refresh-circle" size={24} color="#38bdf8" />
+        <TouchableOpacity style={styles.avatarBtn} onPress={() => setPricingModalVisible(true)}>
+          <MaterialIcons name="tune" size={22} color="#38bdf8" />
         </TouchableOpacity>
       </View>
 
@@ -336,14 +396,14 @@ const SuperAdminDashboard = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
         }
       >
-        {/* FINANCIAL TELEMETRY CARDS (INFLOW & OUTFLOW) */}
+        {/* FINANCIAL TELEMETRY CARDS */}
         <View style={styles.telemetrySection}>
           <Text style={styles.sectionHeaderLabel}>REAL-TIME FINANCIAL INFLOW & OUTFLOW</Text>
 
           <View style={styles.metricGrid}>
             <View style={[styles.metricCard, { borderColor: "#059669" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Total Inflow (Fundings)</Text>
+                <Text style={styles.metricLabel}>Total Inflow (Deposits)</Text>
                 <Ionicons name="arrow-down-circle" size={18} color="#34d399" />
               </View>
               <Text style={[styles.metricValue, { color: "#34d399" }]}>
@@ -365,7 +425,7 @@ const SuperAdminDashboard = ({ navigation }) => {
 
             <View style={[styles.metricCard, { borderColor: "#0284c7" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Net Growth Ledger</Text>
+                <Text style={styles.metricLabel}>Net Growth Volume</Text>
                 <Ionicons name="wallet" size={18} color="#38bdf8" />
               </View>
               <Text style={styles.metricValue}>
@@ -389,7 +449,7 @@ const SuperAdminDashboard = ({ navigation }) => {
           </View>
         </View>
 
-        {/* RECENT LIVE INFLOW & FUNDING FEED */}
+        {/* LIVE INFLOW FEED */}
         <View style={styles.feedSection}>
           <Text style={styles.sectionHeaderLabel}>LIVE TRANSACTION & FUNDING STREAM</Text>
           {recentTx.length > 0 ? (
@@ -460,9 +520,29 @@ const SuperAdminDashboard = ({ navigation }) => {
 
         {/* SUPREME COMMAND CORES & OVERRIDES */}
         <View style={styles.actionsSection}>
-          <Text style={styles.sectionHeaderLabel}>SUPREME OVERRIDES & GLOBAL COMMANDS</Text>
+          <Text style={styles.sectionHeaderLabel}>SERVICE CONFIGURATIONS & MASTER OVERRIDES</Text>
 
-          {/* 1. Data Dispatcher */}
+          {/* 1. Global Service Price Configurator */}
+          <TouchableOpacity
+            style={[styles.commandTile, { borderColor: "#38bdf8" }]}
+            activeOpacity={0.8}
+            onPress={() => setPricingModalVisible(true)}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#0284c7" }]}>
+              <MaterialIcons name="tune" size={24} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={[styles.tileTitle, { color: "#38bdf8" }]}>
+                Global Services Tariff Switch (All Rates)
+              </Text>
+              <Text style={styles.tileDescription}>
+                Individually configure fees for NIMC printing, NIN validation, BVN search, and surcharges.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* 2. Data Dispatcher */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -472,7 +552,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="paper-plane" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Data Dispatcher & Tariff Pricing</Text>
+              <Text style={styles.tileTitle}>Data Dispatcher & Wholesale Margin</Text>
               <Text style={styles.tileDescription}>
                 Provision network bundles, retail margins, validity days, and target recipients.
               </Text>
@@ -480,7 +560,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 2. SuperAdmin Refund Exclusive */}
+          {/* 3. SuperAdmin Refund Exclusive */}
           <TouchableOpacity
             style={[styles.commandTile, { borderColor: "#ef4444" }]}
             activeOpacity={0.8}
@@ -498,7 +578,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 3. Direct Wallet Adjustment */}
+          {/* 4. Direct Wallet Adjustment */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -516,7 +596,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 4. Force Password Reset Override */}
+          {/* 5. Force Password Reset Override */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -528,13 +608,13 @@ const SuperAdminDashboard = ({ navigation }) => {
             <View style={styles.tileInfo}>
               <Text style={styles.tileTitle}>User & Staff Password Override</Text>
               <Text style={styles.tileDescription}>
-                Forcefully change the password of any account on the platform without email pins.
+                Forcefully change the password of any account on the platform without OTPs.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 5. Account Suspension & Reactivation */}
+          {/* 6. Account Suspension & Reactivation */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -546,13 +626,13 @@ const SuperAdminDashboard = ({ navigation }) => {
             <View style={styles.tileInfo}>
               <Text style={styles.tileTitle}>Suspend / Activate Staff & Users</Text>
               <Text style={styles.tileDescription}>
-                Instantly freeze access for any rogue Agent, Supervisor, Admin, or User.
+                Instantly freeze or reactivate access for any Agent, Supervisor, Admin, or User.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 6. Supervisors Hub */}
+          {/* 7. Supervisors Hub */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -570,7 +650,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 7. Field Agent Management */}
+          {/* 8. Field Agent Management */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -588,7 +668,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 8. Service Tracker & Investigation */}
+          {/* 9. Service Tracker & Investigation */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -606,7 +686,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 9. NIMC Verification Operations */}
+          {/* 10. NIMC Verification Operations */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -658,6 +738,17 @@ const SuperAdminDashboard = ({ navigation }) => {
               <TouchableOpacity style={styles.navItem} onPress={() => toggleSidebar(false)}>
                 <Feather name="grid" size={18} color="#38bdf8" />
                 <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Master Overview</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setPricingModalVisible(true);
+                }}
+              >
+                <MaterialIcons name="tune" size={18} color="#38bdf8" />
+                <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Set Service Prices</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -771,6 +862,83 @@ const SuperAdminDashboard = ({ navigation }) => {
           </Animated.View>
         </TouchableOpacity>
       )}
+
+      {/* ==========================================
+          MODAL 0: GLOBAL SERVICE PRICING SWITCH
+      ========================================== */}
+      <Modal visible={pricingModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Global Service Pricing Tariff</Text>
+                <Text style={styles.modalCardSubtitle}>Select service node to adjust fee structure</Text>
+              </View>
+              <TouchableOpacity onPress={() => setPricingModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
+              <Text style={styles.formFieldLabel}>SELECT SERVICE OPERATION</Text>
+              {serviceCategories.map((svc) => (
+                <TouchableOpacity
+                  key={svc.key}
+                  style={[
+                    styles.serviceSelectBtn,
+                    selectedServiceKey === svc.key && styles.activeServiceSelectBtn,
+                  ]}
+                  onPress={() => setSelectedServiceKey(svc.key)}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.serviceSelectTitle,
+                        selectedServiceKey === svc.key && { color: "#ffffff" },
+                      ]}
+                    >
+                      {svc.name}
+                    </Text>
+                    <Text style={styles.serviceSelectCategory}>{svc.category}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.serviceSelectPrice,
+                      selectedServiceKey === svc.key && { color: "#34d399" },
+                    ]}
+                  >
+                    ₦{Number(prices[svc.key] || 0).toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <Text style={[styles.formFieldLabel, { marginTop: 15 }]}>
+              NEW TARIFF PRICE FOR {selectedServiceKey.toUpperCase()} (₦)
+            </Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder={`Current: ₦${prices[selectedServiceKey] || 0}`}
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              value={newServicePrice}
+              onChangeText={setNewServicePrice}
+            />
+
+            <TouchableOpacity
+              style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+              onPress={handleUpdateServicePrice}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.primaryActionBtnText}>SAVE & DEPLOY SERVICE TARIFF</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ==========================================
           MODAL 1: DATA DISPATCHER
@@ -1308,6 +1476,36 @@ const styles = StyleSheet.create({
   activeToggleText: { color: "#ffffff" },
   primaryActionBtn: { backgroundColor: "#0284c7", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 18 },
   primaryActionBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
+  serviceSelectBtn: {
+    backgroundColor: "#172033",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  activeServiceSelectBtn: {
+    backgroundColor: "#0369a1",
+    borderColor: "#38bdf8",
+  },
+  serviceSelectTitle: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  serviceSelectCategory: {
+    color: "#64748b",
+    fontSize: 10,
+    marginTop: 2,
+  },
+  serviceSelectPrice: {
+    color: "#38bdf8",
+    fontSize: 13,
+    fontWeight: "900",
+  },
 });
 
 export default SuperAdminDashboard;
