@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,8 @@ import {
   ActivityIndicator,
   Modal,
   Platform,
+  FlatList,
+  RefreshControl,
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -19,32 +21,30 @@ import { Ionicons } from "@expo/vector-icons";
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const networks = [
-  { id: "01", name: "MTN", color: "#FFCC00" },
-  { id: "02", name: "GLO", color: "#2ecc71" },
-  { id: "04", name: "Airtel", color: "#e74c3c" },
-  { id: "03", name: "9Mobile", color: "#006600" },
+  { id: "01", name: "MTN", color: "#FFCC00", textColor: "#000" },
+  { id: "04", name: "Airtel", color: "#e74c3c", textColor: "#fff" },
+  { id: "02", name: "GLO", color: "#2ecc71", textColor: "#fff" },
+  { id: "03", name: "9Mobile", color: "#006600", textColor: "#fff" },
 ];
 
-const dataPlans = [
-  "1", "2", "3", "5", "10", "15", "20", "30", "50", "100"
-];
+const dataCategories = ["SME", "GIFTING", "CORPORATE"];
 
 const BuyDataScreen = ({ navigation }) => {
   const [selectedNet, setSelectedNet] = useState("01");
+  const [dataType, setDataType] = useState("SME");
   const [phone, setPhone] = useState("");
-  const [gbAmount, setGbAmount] = useState("");
-  const [totalPrice, setTotalPrice] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [userRole, setUserRole] = useState("user");
+  const [selectedPlan, setSelectedPlan] = useState(null);
 
-  // PIN Modal States
+  // Database Plans & Loading
+  const [plans, setPlans] = useState([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Modals
+  const [planModalVisible, setPlanModalVisible] = useState(false);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
-
-  // Admin dynamic rates
-  const [pricePerGb, setPricePerGb] = useState(280);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [newRate, setNewRate] = useState("");
 
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
@@ -62,308 +62,394 @@ const BuyDataScreen = ({ navigation }) => {
     }
   };
 
-  useEffect(() => {
-    const checkUserStatus = async () => {
-      const storedUser = await AsyncStorage.getItem("userData");
-      if (storedUser) {
-        try {
-          const parsed = JSON.parse(storedUser);
-          setUserRole(parsed.role || "user");
-          setIsAdmin(parsed.role === "admin");
-        } catch (e) {
-          console.log("Error parsing user cache");
-        }
-      }
-
-      try {
-        const response = await axios.get(`${BASE_URL}/admin/data-rate`);
-        if (response.data.rate) {
-          setPricePerGb(response.data.rate);
-        }
-      } catch (e) {
-        console.log("Using default rate");
-      }
-    };
-    checkUserStatus();
-  }, []);
-
-  useEffect(() => {
-    const amount = parseFloat(gbAmount) || 0;
-    setTotalPrice(amount * pricePerGb);
-  }, [gbAmount, pricePerGb]);
-
-  const handleUpdateRate = async () => {
-    if (!isAdmin) {
-      return showAlert("Unauthorized", "Only administrators can update data rates.");
-    }
-    if (!newRate) return showAlert("Error", "Enter new rate per GB");
+  // Ɗauko dukkan plans daga Database
+  const fetchPlans = useCallback(async () => {
+    setLoadingPlans(true);
+    const activeNetName =
+      networks.find((n) => n.id === selectedNet)?.name || "MTN";
     try {
-      const token = await AsyncStorage.getItem("userToken");
-      if (!token) {
-        showAlert("Session Expired", "Please login again.", () => {
-          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
-        });
-        return;
+      const response = await axios.get(`${BASE_URL}/plans/active`, {
+        params: { network: activeNetName, dataType },
+      });
+      if (response.data?.plans) {
+        setPlans(response.data.plans);
       }
-
-      await axios.post(
-        `${BASE_URL}/admin/update-rate`,
-        { rate: parseFloat(newRate) },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      setPricePerGb(parseFloat(newRate));
-      showAlert("Success", "Rate updated for all users");
-      setNewRate("");
     } catch (error) {
-      showAlert("Update Failed", error.response?.data?.message || "You do not have permission.");
+      console.log("Error fetching active plans from database.");
+    } finally {
+      setLoadingPlans(false);
+      setRefreshing(false);
     }
-  };
+  }, [selectedNet, dataType]);
 
-  // Bincika bayanan farko kafin a bude PIN Modal
+  useEffect(() => {
+    fetchPlans();
+    setSelectedPlan(null);
+  }, [fetchPlans]);
+
+  // Bincika bayanan mai amfani kafin buɗe PIN
   const handleInitiatePurchase = () => {
-    if (!phone.trim() || !gbAmount) {
-      return showAlert("Error", "Please fill in phone number and data quantity.");
+    if (!phone.trim()) {
+      return showAlert("Missing Details", "Enter the recipient phone number.");
     }
-
     if (phone.trim().length < 11) {
-      return showAlert("Error", "Enter a valid 11-digit phone number.");
+      return showAlert(
+        "Invalid Number",
+        "Enter a valid 11-digit phone number."
+      );
     }
-
-    const gbNum = parseFloat(gbAmount);
-    if (isNaN(gbNum) || gbNum < 1 || gbNum > 100) {
-      return showAlert("Error", "Data quantity must be between 1GB and 100GB.");
+    if (!selectedPlan) {
+      return showAlert(
+        "Plan Required",
+        "Please click 'Select Data Plan' to choose a bundle."
+      );
     }
-
     setPinModalVisible(true);
   };
 
-  // Tura bayanan ciniki da PIN zuwa Server
+  // Biyan Kuɗi
   const handlePurchase = async () => {
     if (!pin || pin.length < 4) {
-      return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
+      return showAlert("PIN Error", "Enter your 4-digit Transaction PIN.");
     }
 
-    setLoading(true);
+    setPurchasing(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      if (!token) {
-        setPinModalVisible(false);
-        showAlert("Session Expired", "Please login again.", () => {
-          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
-        });
-        return;
-      }
-
-      const gbNum = parseFloat(gbAmount);
+      const activeNetName =
+        networks.find((n) => n.id === selectedNet)?.name || "MTN";
 
       const response = await axios.post(
         `${BASE_URL}/vtu/buy-data-custom`,
         {
           networkId: selectedNet,
-          gbQuantity: gbNum,
+          network: activeNetName,
+          dataType,
+          planId: selectedPlan._id,
+          planSize: selectedPlan.sizeLabel,
+          amount: selectedPlan.price,
           phoneNumber: phone.trim(),
-          amount: totalPrice,
-          transactionPin: pin.trim(),
+          phone: phone.trim(),
           pin: pin.trim(),
         },
-        { 
-          headers: { 
+        {
+          headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
           },
-          timeout: 20000 
-        },
+          timeout: 25000,
+        }
       );
 
-      const result = response.data;
-      if (result.success || result.status === "success") {
+      if (response.data?.success || response.data?.status === "success") {
         setPinModalVisible(false);
-        const enteredPin = pin;
         setPin("");
-        showAlert("Success 🎉", `${gbNum}GB has been successfully sent to ${phone}`, () => {
-          setPhone("");
-          setGbAmount("");
-        });
+        showAlert(
+          "Transaction Successful 🎉",
+          `${dataType} ${selectedPlan.sizeLabel} has been sent to ${phone}.`,
+          () => {
+            setPhone("");
+            setSelectedPlan(null);
+          }
+        );
       } else {
-        throw new Error(result.message || "Transaction Error");
+        throw new Error(response.data?.message || "Transaction failed");
       }
     } catch (error) {
-      const errorMsg =
-        error.response?.data?.message ||
-        error.message ||
-        "Server communication failure. Please check your connection.";
-      showAlert("Transaction Failed", errorMsg);
+      showAlert(
+        "Failed",
+        error.response?.data?.message || error.message || "Network Error"
+      );
     } finally {
-      setLoading(false);
+      setPurchasing(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            fetchPlans();
+          }}
+        />
+      }
+    >
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
+      {/* Header */}
       <View style={styles.navBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation?.goBack()}>
           <Ionicons name="arrow-back" size={26} color="#0a1d37" />
         </TouchableOpacity>
-        <Text style={styles.headerText}>Data Purchase Portal</Text>
+        <Text style={styles.headerText}>Buy Data Bundle</Text>
       </View>
 
-      {/* Admin Panel */}
-      {isAdmin && (
-        <View style={styles.adminPanel}>
-          <Text style={styles.adminLabel}>👑 Admin Control: Set Price per GB (₦)</Text>
-          <View style={styles.adminRow}>
-            <TextInput
-              style={styles.adminInput}
-              placeholder="e.g. 250"
-              placeholderTextColor="#94a3b8"
-              keyboardType="numeric"
-              value={newRate}
-              onChangeText={setNewRate}
-            />
+      {/* 1. Network Selection */}
+      <Text style={styles.label}>Select Network</Text>
+      <View style={styles.netGrid}>
+        {networks.map((net) => {
+          const isSelected = selectedNet === net.id;
+          return (
             <TouchableOpacity
-              style={styles.updateBtn}
-              onPress={handleUpdateRate}
+              key={net.id}
+              style={[
+                styles.netBox,
+                {
+                  backgroundColor: isSelected ? net.color : "#f8fafc",
+                  borderColor: isSelected ? "#0a1d37" : "#e2e8f0",
+                },
+              ]}
+              onPress={() => setSelectedNet(net.id)}
             >
-              <Text style={styles.updateBtnText}>UPDATE</Text>
+              <Text
+                style={[
+                  styles.netText,
+                  { color: isSelected ? net.textColor : "#64748b" },
+                ]}
+              >
+                {net.name}
+              </Text>
             </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* 2. Data Type Selection */}
+      <Text style={styles.label}>Select Data Type</Text>
+      <View style={styles.typeContainer}>
+        {dataCategories.map((type) => {
+          const active = dataType === type;
+          return (
+            <TouchableOpacity
+              key={type}
+              style={[styles.typeTab, active && styles.activeTypeTab]}
+              onPress={() => setDataType(type)}
+            >
+              <Text
+                style={[
+                  styles.typeTabText,
+                  active && styles.activeTypeTabText,
+                ]}
+              >
+                {type}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* 3. Recipient Phone */}
+      <Text style={styles.label}>Recipient Phone Number</Text>
+      <View style={styles.inputWrapper}>
+        <Ionicons
+          name="call-outline"
+          size={20}
+          color="#64748b"
+          style={styles.inputIcon}
+        />
+        <TextInput
+          style={styles.inputWithIcon}
+          placeholder="08012345678"
+          placeholderTextColor="#94a3b8"
+          keyboardType="numeric"
+          value={phone}
+          onChangeText={setPhone}
+          maxLength={11}
+        />
+      </View>
+
+      {/* 4. Plan Selector */}
+      <Text style={styles.label}>Select Data Plan</Text>
+      <TouchableOpacity
+        style={styles.planSelector}
+        onPress={() => setPlanModalVisible(true)}
+      >
+        <View style={{ flex: 1 }}>
+          {selectedPlan ? (
+            <View>
+              <Text style={styles.selectedPlanTitle}>
+                {dataType} {selectedPlan.sizeLabel} - {selectedPlan.validity}
+              </Text>
+              <Text style={styles.selectedPlanCost}>
+                Price: ₦{Number(selectedPlan.price).toLocaleString()}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.placeholderText}>
+              {loadingPlans ? "Loading plans..." : "Tap to choose a plan..."}
+            </Text>
+          )}
+        </View>
+        <Ionicons name="chevron-down-circle" size={24} color="#0a1d37" />
+      </TouchableOpacity>
+
+      {/* 5. Summary Display */}
+      {selectedPlan && (
+        <View style={styles.summaryCard}>
+          <View>
+            <Text style={styles.summaryLabel}>Total Payable Amount:</Text>
+            <Text style={styles.summarySub}>
+              {dataType} {selectedPlan.sizeLabel} ({selectedPlan.validity})
+            </Text>
           </View>
+          <Text style={styles.summaryPrice}>
+            ₦{Number(selectedPlan.price).toLocaleString()}
+          </Text>
         </View>
       )}
 
-      <Text style={styles.label}>Select Network</Text>
-      <View style={styles.netGrid}>
-        {networks.map((net) => (
-          <TouchableOpacity
-            key={net.id}
-            style={[
-              styles.netBox,
-              {
-                backgroundColor: selectedNet === net.id ? net.color : "#f8fafc",
-                borderColor: selectedNet === net.id ? "#0a1d37" : "#e2e8f0",
-                borderWidth: selectedNet === net.id ? 2 : 1,
-              },
-            ]}
-            onPress={() => setSelectedNet(net.id)}
-          >
-            <Text
-              style={[
-                styles.netText,
-                { color: selectedNet === net.id ? "#000" : "#64748b" },
-              ]}
-            >
-              {net.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.label}>Recipient Phone Number</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="08012345678"
-        placeholderTextColor="#94a3b8"
-        keyboardType="numeric"
-        value={phone}
-        onChangeText={setPhone}
-        maxLength={11}
-      />
-
-      <Text style={styles.label}>Select or Enter Data Quantity (1GB - 100GB)</Text>
-      
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-        {dataPlans.map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[
-              styles.chip,
-              gbAmount === item && styles.selectedChip
-            ]}
-            onPress={() => setGbAmount(item)}
-          >
-            <Text style={[styles.chipText, gbAmount === item && styles.selectedChipText]}>
-              {item}GB
-            </Text>
-            <Text style={[styles.chipSubText, gbAmount === item && styles.selectedChipSubText]}>
-              ₦{item * pricePerGb}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Or type exact GB (e.g. 7)"
-        placeholderTextColor="#94a3b8"
-        keyboardType="numeric"
-        value={gbAmount}
-        onChangeText={setGbAmount}
-      />
-
-      {/* Dynamic Price Display */}
-      <View style={styles.priceContainer}>
-        <View>
-          <Text style={styles.priceLabel}>Total Cost ({gbAmount || 0}GB):</Text>
-          <Text style={styles.rateSubText}>Rate: ₦{pricePerGb}/GB</Text>
-        </View>
-        <Text style={styles.priceValue}>₦{totalPrice.toLocaleString()}</Text>
-      </View>
-
-      <TouchableOpacity
-        style={styles.buyBtn}
-        onPress={handleInitiatePurchase}
-      >
-        <Text style={styles.buyBtnText}>PROCEED & SEND DATA</Text>
+      {/* Submit Button */}
+      <TouchableOpacity style={styles.buyBtn} onPress={handleInitiatePurchase}>
+        <Text style={styles.buyBtnText}>PROCEED & PAY</Text>
       </TouchableOpacity>
 
-      {/* PIN Verification Modal */}
-      <Modal visible={pinModalVisible} transparent animationType="slide">
+      {/* Plan Selection Modal */}
+      <Modal visible={planModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeaderIcon}>
-              <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
+          <View style={styles.planModalContent}>
+            <View style={styles.planModalHeader}>
+              <Text style={styles.planModalTitle}>
+                {networks.find((n) => n.id === selectedNet)?.name} {dataType}{" "}
+                Plans
+              </Text>
+              <TouchableOpacity onPress={() => setPlanModalVisible(false)}>
+                <Ionicons name="close-circle" size={28} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
-            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this transaction</Text>
+
+            {loadingPlans ? (
+              <ActivityIndicator
+                size="large"
+                color="#0a1d37"
+                style={{ marginVertical: 30 }}
+              />
+            ) : plans.length === 0 ? (
+              <View style={{ padding: 30, alignItems: "center" }}>
+                <Text style={{ color: "#64748b", fontSize: 14 }}>
+                  No active plans found for this network and category.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={plans}
+                keyExtractor={(item) => item._id}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => {
+                  const isCurrent = selectedPlan?._id === item._id;
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        styles.planItemRow,
+                        isCurrent && styles.activePlanItemRow,
+                      ]}
+                      onPress={() => {
+                        setSelectedPlan(item);
+                        setPlanModalVisible(false);
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.planItemSize,
+                            isCurrent && styles.activePlanItemText,
+                          ]}
+                        >
+                          {dataType} {item.sizeLabel}
+                        </Text>
+                        <Text style={styles.planItemValidity}>
+                          Validity: {item.validity}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text style={styles.planItemPrice}>
+                          ₦{Number(item.price).toLocaleString()}
+                        </Text>
+                        <Ionicons
+                          name={
+                            isCurrent
+                              ? "checkmark-circle"
+                              : "chevron-forward-circle-outline"
+                          }
+                          size={20}
+                          color={isCurrent ? "#0a1d37" : "#94a3b8"}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction PIN Modal */}
+      <Modal visible={pinModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.pinModalBox}>
+            <Ionicons
+              name="shield-checkmark"
+              size={36}
+              color="#0a1d37"
+              style={{ marginBottom: 8 }}
+            />
+            <Text style={styles.pinModalTitle}>Authorize Payment</Text>
+            <Text style={styles.pinModalDesc}>
+              Enter your 4-digit PIN to pay{" "}
+              <Text style={{ fontWeight: "bold", color: "#0a1d37" }}>
+                ₦
+                {selectedPlan
+                  ? Number(selectedPlan.price).toLocaleString()
+                  : 0}
+              </Text>
+            </Text>
 
             <TextInput
-              style={styles.pinInput}
+              style={styles.pinInputBox}
               placeholder="••••"
               placeholderTextColor="#94a3b8"
               keyboardType="numeric"
               secureTextEntry
+              maxLength={4}
               value={pin}
               onChangeText={setPin}
-              maxLength={4}
+              autoFocus
             />
 
             <TouchableOpacity
-              style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
+              style={[
+                styles.confirmPinBtn,
+                { opacity: purchasing ? 0.7 : 1 },
+              ]}
               onPress={handlePurchase}
-              disabled={loading}
+              disabled={purchasing}
             >
-              {loading ? (
+              {purchasing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.verifyModalBtnText}>Confirm & Pay</Text>
+                <Text style={styles.confirmPinText}>CONFIRM & SEND</Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.cancelModalBtn}
+              style={styles.cancelBtn}
               onPress={() => {
                 setPinModalVisible(false);
                 setPin("");
               }}
             >
-              <Text style={styles.cancelModalBtnText}>Cancel</Text>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      <View style={{ height: 50 }} />
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 };
@@ -374,196 +460,204 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 45,
-    marginBottom: 10,
+    marginBottom: 15,
   },
   headerText: {
-    fontSize: 22,
-    fontWeight: "bold",
+    fontSize: 20,
+    fontWeight: "800",
     color: "#0a1d37",
     marginLeft: 15,
   },
-  adminPanel: {
-    backgroundColor: "#fef3c7",
-    padding: 15,
-    borderRadius: 15,
-    marginTop: 15,
-    borderWidth: 1,
-    borderColor: "#f59e0b",
-  },
-  adminLabel: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#b45309",
-    marginBottom: 8,
-  },
-  adminRow: { flexDirection: "row", justifyContent: "space-between" },
-  adminInput: {
-    flex: 1,
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    height: 40,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    color: "#0f172a",
-  },
-  updateBtn: {
-    backgroundColor: "#b45309",
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    justifyContent: "center",
-    marginLeft: 10,
-  },
-  updateBtnText: { color: "#fff", fontSize: 12, fontWeight: "bold" },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
-    marginBottom: 8,
-    marginTop: 18,
     color: "#475569",
+    marginTop: 15,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   netGrid: { flexDirection: "row", justifyContent: "space-between" },
   netBox: {
-    width: "22%",
-    height: 50,
+    width: "23%",
+    height: 48,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 2,
   },
-  netText: { fontWeight: "800", fontSize: 12 },
-  input: {
-    backgroundColor: "#f8fafc",
-    padding: 15,
-    borderRadius: 12,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    color: "#0f172a",
-  },
-  chipsScroll: {
-    marginBottom: 10,
-  },
-  chip: {
+  netText: { fontWeight: "800", fontSize: 13 },
+  typeContainer: {
+    flexDirection: "row",
     backgroundColor: "#f1f5f9",
+    borderRadius: 12,
+    padding: 4,
+  },
+  typeTab: {
+    flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginRight: 8,
+    alignItems: "center",
+    borderRadius: 9,
+  },
+  activeTypeTab: { backgroundColor: "#0a1d37" },
+  typeTabText: { fontSize: 13, fontWeight: "700", color: "#64748b" },
+  activeTypeTabText: { color: "#ffffff" },
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#cbd5e1",
+    paddingHorizontal: 12,
+  },
+  inputIcon: { marginRight: 8 },
+  inputWithIcon: {
+    flex: 1,
+    height: 48,
+    fontSize: 15,
+    color: "#0f172a",
+    fontWeight: "600",
+  },
+  planSelector: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    padding: 14,
   },
-  selectedChip: {
-    backgroundColor: "#0a1d37",
-    borderColor: "#0a1d37",
-  },
-  chipText: {
-    fontWeight: "bold",
-    color: "#334155",
-    fontSize: 14,
-  },
-  selectedChipText: {
-    color: "#ffffff",
-  },
-  chipSubText: {
-    fontSize: 10,
-    color: "#64748b",
+  placeholderText: { color: "#94a3b8", fontSize: 14, fontWeight: "600" },
+  selectedPlanTitle: { fontSize: 15, fontWeight: "800", color: "#0a1d37" },
+  selectedPlanCost: {
+    fontSize: 12,
+    color: "#16a34a",
+    fontWeight: "700",
     marginTop: 2,
   },
-  selectedChipSubText: {
-    color: "#cbd5e1",
-  },
-  priceContainer: {
+  summaryCard: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 15,
+    backgroundColor: "#f8fafc",
+    borderLeftWidth: 4,
+    borderLeftColor: "#0a1d37",
     padding: 16,
-    backgroundColor: "#0a1d37",
-    borderRadius: 15,
+    borderRadius: 12,
+    marginTop: 18,
   },
-  priceLabel: { color: "#fff", fontSize: 14, opacity: 0.8 },
-  rateSubText: { color: "#93c5fd", fontSize: 11, marginTop: 2 },
-  priceValue: { color: "#fff", fontSize: 20, fontWeight: "bold" },
+  summaryLabel: { fontSize: 13, color: "#64748b", fontWeight: "600" },
+  summarySub: {
+    fontSize: 12,
+    color: "#0a1d37",
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  summaryPrice: { fontSize: 20, fontWeight: "900", color: "#0a1d37" },
   buyBtn: {
     backgroundColor: "#0a1d37",
-    padding: 18,
-    borderRadius: 15,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 25,
-    elevation: 4,
+    marginTop: 22,
+    elevation: 3,
   },
-  buyBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  
-  // Modal Styles
+  buyBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    backgroundColor: "rgba(10, 29, 55, 0.65)",
+    justifyContent: "flex-end",
   },
-  modalContent: {
-    width: "100%",
-    maxWidth: 340,
+  planModalContent: {
     backgroundColor: "#fff",
-    borderRadius: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: "75%",
+  },
+  planModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  planModalTitle: { fontSize: 16, fontWeight: "800", color: "#0a1d37" },
+  planItemRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+    borderRadius: 10,
+  },
+  activePlanItemRow: { backgroundColor: "#f1f5f9" },
+  planItemSize: { fontSize: 15, fontWeight: "700", color: "#1e293b" },
+  planItemValidity: { fontSize: 11, color: "#64748b", marginTop: 2 },
+  planItemPrice: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#0a1d37",
+    marginRight: 8,
+  },
+  activePlanItemText: { color: "#0a1d37" },
+  pinModalBox: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
     padding: 24,
     alignItems: "center",
-    elevation: 10,
+    marginHorizontal: 20,
+    alignSelf: "center",
+    width: "88%",
   },
-  modalHeaderIcon: {
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#0f172a",
+  pinModalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#0a1d37",
     marginBottom: 6,
-    textAlign: "center",
   },
-  modalSubtitle: {
+  pinModalDesc: {
     fontSize: 12,
     color: "#64748b",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 18,
   },
-  pinInput: {
+  pinInputBox: {
     width: "100%",
-    height: 55,
+    height: 50,
     backgroundColor: "#f8fafc",
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: "#cbd5e1",
-    borderRadius: 14,
+    borderRadius: 12,
     textAlign: "center",
     fontSize: 24,
     letterSpacing: 8,
     fontWeight: "bold",
     color: "#0f172a",
-    marginBottom: 20,
+    marginBottom: 18,
   },
-  verifyModalBtn: {
+  confirmPinBtn: {
     width: "100%",
-    height: 48,
     backgroundColor: "#0a1d37",
+    paddingVertical: 14,
     borderRadius: 12,
-    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  verifyModalBtnText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  cancelModalBtn: {
-    paddingVertical: 8,
-  },
-  cancelModalBtnText: {
-    color: "#ef4444",
-    fontWeight: "600",
-    fontSize: 13,
-  },
+  confirmPinText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  cancelBtn: { paddingVertical: 6, alignItems: "center" },
+  cancelBtnText: { color: "#ef4444", fontWeight: "700", fontSize: 12 },
 });
 
 export default BuyDataScreen;
