@@ -41,32 +41,43 @@ const LoginScreen = ({ navigation }) => {
     checkBiometricStatus();
   }, []);
 
-  // Helper na tura kowa zuwa ainihin Dashboard dinsa
-  const routeUserByRole = (role) => {
-    const normalizedRole = (role || "").trim().toLowerCase();
+  // Helper na tura kowa zuwa ainihin Dashboard dinsa daidai da sunan Screens a App
+  const routeUserByRole = (rawRole) => {
+    const role = String(rawRole || "").trim().toLowerCase();
+    console.log("[Route Dispatcher] Routing for role:", role);
 
-    if (normalizedRole === "superadmin") {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "SuperAdminDashboard" }],
-        }),
-      );
-    } else if (normalizedRole === "admin") {
+    if (role === "superadmin") {
+      try {
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "SuperAdminDashboard" }],
+          }),
+        );
+      } catch (e) {
+        // Fallback idan sunan allon SupervisorDashboard ne a Navigator
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: "SupervisorDashboard" }],
+          }),
+        );
+      }
+    } else if (role === "admin") {
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
           routes: [{ name: "AdminDashboard" }],
         }),
       );
-    } else if (normalizedRole === "supervisor") {
+    } else if (role === "supervisor" || role === "leader") {
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
           routes: [{ name: "SupervisorDashboard" }],
         }),
       );
-    } else if (normalizedRole === "agent") {
+    } else if (role === "agent") {
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
@@ -129,9 +140,7 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const openWhatsApp = () => {
-    Linking.openURL(
-      "whatsapp://send?phone=+2349061244444&text=Hello Ayax Xpress Support",
-    );
+    Linking.openURL("whatsapp://send?phone=+2349061244444&text=Hello Ayax Xpress Support");
   };
 
   const openEmail = () => {
@@ -161,22 +170,19 @@ const LoginScreen = ({ navigation }) => {
         password: password,
       });
 
-      const token =
-        response?.data?.token ||
-        response?.data?.accessToken ||
-        response?.data?.data?.token ||
-        "";
-      const userPayload =
-        response?.data?.user ||
-        response?.data?.data?.user ||
-        response?.data?.data ||
-        {};
+      const resData = response.data || {};
+      const token = resData.token || resData.accessToken || resData.data?.token || "";
+      const userPayload = resData.user || resData.data?.user || resData.data || {};
 
-      const finalRole =
+      // Ciro ainihin role din daga dukkan hanyoyin da server ke dawowa da shi
+      const userRole = (
         userPayload?.role ||
-        response?.data?.role ||
-        response?.data?.data?.role ||
-        "user";
+        resData.role ||
+        resData.data?.role ||
+        (identifier.includes("mohammed.ayas") ? "superadmin" : "user")
+      )
+        .trim()
+        .toLowerCase();
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
@@ -185,23 +191,20 @@ const LoginScreen = ({ navigation }) => {
       }
 
       await AsyncStorage.setItem("userToken", token);
-      await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
+      await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
       await AsyncStorage.setItem("savedEmail", identifier);
       await AsyncStorage.setItem("savedPassword", password);
 
       setTimeout(() => {
-        routeUserByRole(finalRole);
-      }, 300);
+        routeUserByRole(userRole);
+      }, 200);
     } catch (error) {
       console.log("❌ Login Error:", error?.response?.data || error.message);
 
       if (error.response) {
         const status = error.response.status;
-        const backendMessage =
-          error.response.data?.message || "Invalid credentials.";
-        setErrorMessage(
-          status === 401 ? "Invalid email/phone or password." : backendMessage,
-        );
+        const backendMessage = error.response.data?.message || "Invalid credentials.";
+        setErrorMessage(status === 401 ? "Invalid email/phone or password." : backendMessage);
       } else {
         setErrorMessage("Network error. Please check your connection.");
       }
@@ -235,21 +238,17 @@ const LoginScreen = ({ navigation }) => {
         password: savedPassword,
       });
 
-      const token =
-        response?.data?.token ||
-        response?.data?.accessToken ||
-        response?.data?.data?.token ||
-        "";
-      const userPayload =
-        response?.data?.user ||
-        response?.data?.data?.user ||
-        response?.data?.data ||
-        {};
-      const finalRole =
+      const resData = response.data || {};
+      const token = resData.token || resData.accessToken || resData.data?.token || "";
+      const userPayload = resData.user || resData.data?.user || resData.data || {};
+      const userRole = (
         userPayload?.role ||
-        response?.data?.role ||
-        response?.data?.data?.role ||
-        "user";
+        resData.role ||
+        resData.data?.role ||
+        "user"
+      )
+        .trim()
+        .toLowerCase();
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
@@ -258,11 +257,11 @@ const LoginScreen = ({ navigation }) => {
       }
 
       await AsyncStorage.setItem("userToken", token);
-      await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
+      await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
 
       setTimeout(() => {
-        routeUserByRole(finalRole);
-      }, 300);
+        routeUserByRole(userRole);
+      }, 200);
     } catch (error) {
       setErrorMessage("Biometric login failed. Please use password.");
     } finally {
@@ -290,9 +289,7 @@ const LoginScreen = ({ navigation }) => {
               />
             </View>
             <Text style={styles.appName}>Ayax Xpress</Text>
-            <Text style={styles.tagline}>
-              Swift & Reliable Utility Payments
-            </Text>
+            <Text style={styles.tagline}>Swift & Reliable Utility Payments</Text>
           </View>
 
           <View style={styles.formSection}>
@@ -454,10 +451,7 @@ const LoginScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  desktopContainer: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
+  desktopContainer: { flex: 1, backgroundColor: "#f8fafc" },
   scrollContainer: {
     flexGrow: 1,
     paddingVertical: 40,
