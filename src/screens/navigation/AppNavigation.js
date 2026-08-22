@@ -1,13 +1,47 @@
-// A cikin AppNavigation.js ko StackNavigator.js
-import UserNIMCHistory from "./screens/User/NIMCHistory"; // Tabbatar path din dai-dai ne
+// --- 1. IMPORT SCREENS ---
+import SuperAdminDashboard from "../screens/SuperAdminDashboard";
+import AdminDashboard from "../screens/AdminDashboard";
+import SupervisorDashboard from "../screens/SupervisorDashboard";
+import UserNIMCHistory from "../screens/User/NIMCHistory";
 
-// A cikin Stack.Navigator
+// --- 2. INSIDE <Stack.Navigator> ---
+
+{/* SUPERADMIN DASHBOARD */}
+<Stack.Screen
+  name="SuperAdminDashboard"
+  component={SuperAdminDashboard}
+  options={{
+    headerShown: false,
+  }}
+/>
+
+{/* ADMIN DASHBOARD */}
+<Stack.Screen
+  name="AdminDashboard"
+  component={AdminDashboard}
+  options={{
+    headerShown: false,
+  }}
+/>
+
+{/* SUPERVISOR DASHBOARD */}
+<Stack.Screen
+  name="SupervisorDashboard"
+  component={SupervisorDashboard}
+  options={{
+    headerShown: false,
+  }}
+/>
+
+{/* NIMC HISTORY SCREEN */}
 <Stack.Screen
   name="UserNIMCHistory"
   component={UserNIMCHistory}
   options={{
-    title: "Tarihin Aiki",
+    headerShown: true,
+    title: "NIMC Verification History",
     headerStyle: { backgroundColor: "#0f172a" },
     headerTintColor: "#fff",
+    headerTitleStyle: { fontWeight: "bold" },
   }}
-/>;
+/>
