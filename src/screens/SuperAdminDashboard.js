@@ -33,7 +33,7 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Sidebar State
+  // Sidebar Drawer Animation State
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
@@ -108,7 +108,7 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       setStats(res.data?.stats || {});
     } catch (err) {
-      console.log("Telemetry Error:", err.message);
+      console.log("Telemetry Sync Warning:", err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -129,10 +129,10 @@ const SuperAdminDashboard = ({ navigation }) => {
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
 
-  // 1. Tura Data Bundles
+  // 1. Dispatch Data Bundles
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice || !dispatchValidity) {
-      return showAlert("Kuskure", "Dole ne ka cika Girman Data, Farashi, da Kwanakin Aiki (Validity).");
+      return showAlert("Validation Error", "Plan Size, Price, and Validity Days are required.");
     }
 
     setActionLoading(true);
@@ -154,23 +154,23 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("An Tura Nasara 🎉", res.data.message);
+        showAlert("Success", res.data.message);
         setDispatchModalVisible(false);
         setDispatchRecipients("");
         setSendToAll(false);
         fetchMasterStats();
       }
     } catch (err) {
-      showAlert("Matsalar Turawa", err.response?.data?.message || err.message);
+      showAlert("Dispatch Fault", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 2. Aiwatar da Refund (SuperAdmin Only)
+  // 2. Process Refund (SuperAdmin Only)
   const handleExecuteRefund = async () => {
     if (!refundUserId.trim() || !refundAmount) {
-      return showAlert("Kuskure", "Shigar da lambar waya/email na mai karbar refund da adadin kudi.");
+      return showAlert("Validation Error", "Recipient phone/email and refund amount are required.");
     }
 
     setActionLoading(true);
@@ -188,7 +188,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("An Tura Refund 🎉", res.data.message);
+        showAlert("Refund Completed", res.data.message);
         setRefundModalVisible(false);
         setRefundUserId("");
         setRefundAmount("");
@@ -197,16 +197,16 @@ const SuperAdminDashboard = ({ navigation }) => {
         fetchMasterStats();
       }
     } catch (err) {
-      showAlert("Matsalar Refund", err.response?.data?.message || err.message);
+      showAlert("Refund Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 3. Daidaita Kudi a Wallet
+  // 3. Direct Wallet Adjustment
   const handleExecuteWalletAction = async () => {
     if (!walletUserId.trim() || !walletAmount) {
-      return showAlert("Kuskure", "Shigar da Target User da adadin kudi.");
+      return showAlert("Validation Error", "Target User Identifier and numeric amount are required.");
     }
 
     setActionLoading(true);
@@ -224,23 +224,23 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("An Sabunta Wallet", res.data.message);
+        showAlert("Ledger Updated", res.data.message);
         setWalletModalVisible(false);
         setWalletUserId("");
         setWalletAmount("");
         fetchMasterStats();
       }
     } catch (err) {
-      showAlert("Matsala", err.response?.data?.message || err.message);
+      showAlert("Adjustment Failed", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 4. Kulle ko Bude Wallet
+  // 4. Toggle Wallet Restriction
   const handleExecuteLockAction = async (lock) => {
     if (!restrictUserId.trim()) {
-      return showAlert("Kuskure", "Shigar da Phone number ko Email na User.");
+      return showAlert("Validation Error", "Please provide a valid Phone Number or Email.");
     }
 
     setActionLoading(true);
@@ -256,12 +256,12 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("An Canza Matsayi", res.data.message);
+        showAlert("Status Changed", res.data.message);
         setRestrictModalVisible(false);
         setRestrictUserId("");
       }
     } catch (err) {
-      showAlert("Matsala", err.response?.data?.message || err.message);
+      showAlert("Restriction Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
@@ -271,7 +271,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#0284c7" />
-        <Text style={styles.loaderText}>Ana ɗauko bayanan Ayax Data Engine...</Text>
+        <Text style={styles.loaderText}>Syncing Ayax VTU Master Telemetry...</Text>
       </View>
     );
   }
@@ -323,7 +323,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Text style={styles.metricValue}>
                 ₦{Number(stats?.totalRevenue || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>Kudin da suka shigo baki daya</Text>
+              <Text style={styles.metricSub}>Gross processed volume</Text>
             </View>
 
             <View style={[styles.metricCard, { borderColor: "#065f46" }]}>
@@ -334,7 +334,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Text style={styles.metricValue}>
                 {Number(stats?.successfulTransactions || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>Nasaran Data & VTU</Text>
+              <Text style={styles.metricSub}>Successful automated sales</Text>
             </View>
 
             <View style={[styles.metricCard, { borderColor: "#581c87" }]}>
@@ -345,7 +345,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Text style={styles.metricValue}>
                 {Number(stats?.totalUsers || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>Masu amfani da manhaja</Text>
+              <Text style={styles.metricSub}>Registered customer profiles</Text>
             </View>
 
             <View style={[styles.metricCard, { borderColor: "#831843" }]}>
@@ -356,16 +356,16 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Text style={styles.metricValue}>
                 {(stats?.totalSupervisors || 0) + (stats?.totalAgents || 0)}
               </Text>
-              <Text style={styles.metricSub}>Ma'aikatan karkashin ka</Text>
+              <Text style={styles.metricSub}>Active field & network staff</Text>
             </View>
           </View>
         </View>
 
         {/* ACTIONS & OVERRIDES */}
         <View style={styles.actionsSection}>
-          <Text style={styles.sectionHeaderLabel}>AYYUKAN SUPERADMIN KADAI (FULL AUTHORITY)</Text>
+          <Text style={styles.sectionHeaderLabel}>SUPERADMIN EXCLUSIVE COMMAND ACTIONS</Text>
 
-          {/* 1. Tura Data Bundles */}
+          {/* 1. Data Dispatcher & Pricing */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -375,15 +375,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="paper-plane" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Tura Data & Canza Farashi (Data Dispatcher)</Text>
+              <Text style={styles.tileTitle}>Data Dispatcher & Pricing Setup</Text>
               <Text style={styles.tileDescription}>
-                Saita farashin MTN, Airtel, Glo, 9mobile, girman data da kwanakin karewa.
+                Configure network bundles, retail/cost prices, validity days, and target recipients.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 2. Tura Refund (SuperAdmin Only) */}
+          {/* 2. Process Refund (SuperAdmin Only) */}
           <TouchableOpacity
             style={[styles.commandTile, { borderColor: "#ef4444" }]}
             activeOpacity={0.8}
@@ -393,15 +393,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="refresh-circle" size={24} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={[styles.tileTitle, { color: "#f87171" }]}>Aiwatar da Refund (SuperAdmin Exclusive)</Text>
+              <Text style={[styles.tileTitle, { color: "#f87171" }]}>Process User Refund (SuperAdmin Only)</Text>
               <Text style={styles.tileDescription}>
-                Ikon tura refund kai tsaye zuwa asusun user ga cinikin da ya samu matsala.
+                Authorize direct automated wallet refunds for failed transactions.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 3. Saka / Cire Kudi (Credit/Debit) */}
+          {/* 3. Wallet Credit / Debit */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -411,15 +411,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="wallet" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Saka / Cire Kudi a Wallet (Credit / Debit)</Text>
+              <Text style={styles.tileTitle}>Direct Wallet Adjustment (Credit / Debit)</Text>
               <Text style={styles.tileDescription}>
-                Sarrafa balance na kowane User, Agent ko Supervisor tare da bayanin dalili.
+                Manually adjust wallet balances for Users, Agents, and Staff with audit remarks.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 4. Kulle ko Bude Wallet */}
+          {/* 4. Wallet Restriction Toggle */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -429,15 +429,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <MaterialIcons name="lock-person" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Kulle ko Bude Asusun User (Block / Unblock)</Text>
+              <Text style={styles.tileTitle}>Wallet Status & Account Restrictions (Block / Unblock)</Text>
               <Text style={styles.tileDescription}>
-                Dakatad da asusun da ake zargi ko bude shi don ci gaba da aiki.
+                Freeze suspicious wallets or unfreeze accounts to resume transactions.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 5. Gudanar da Supervisors */}
+          {/* 5. Supervisor Network Management */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -447,15 +447,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <FontAwesome5 name="user-tie" size={18} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Hukumcin Supervisors & Network Hub</Text>
+              <Text style={styles.tileTitle}>Supervisor Network & Authority Hub</Text>
               <Text style={styles.tileDescription}>
-                Sanya musu target, dakatar da supervisor, ko duba adadin agents din su.
+                Assign targets, suspend supervisors, or view team performance records.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 6. Gudanar da Agents */}
+          {/* 6. Agent Transfer & Management */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -465,15 +465,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <MaterialCommunityIcons name="account-group" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Sauya wa Agent Supervisor (Agent Re-assign)</Text>
+              <Text style={styles.tileTitle}>Field Agent Reassignment & Mapping</Text>
               <Text style={styles.tileDescription}>
-                Canza wa agent supervisor ko mayar da shi karkashin wani daban.
+                Transfer agents between supervisors and monitor daily field sales.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 7. Bibiyar Ciniki (Investigation / Trace) */}
+          {/* 7. Service & Transaction Investigation */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -483,15 +483,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="search" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Binciken Ciniki (Data / NIMC / VTU Tracker)</Text>
+              <Text style={styles.tileTitle}>Service Tracing (Data, NIMC & Bills)</Text>
               <Text style={styles.tileDescription}>
-                Gano kowane transaction da ya makale ta hanyar lambar waya ko reference.
+                Investigate and resolve pending transactions by phone number or reference.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 8. NIMC Modification & Requests Queue */}
+          {/* 8. NIMC & Modification Requests */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -501,9 +501,9 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="id-card" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Duba Ayyukan NIMC & Modification Requests</Text>
+              <Text style={styles.tileTitle}>NIMC Verification & Modification Queue</Text>
               <Text style={styles.tileDescription}>
-                Amincewa (Approve), sarrafawa (Process), ko kin amincewa (Reject).
+                Process, approve, or reject customer identity modification submissions.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
@@ -538,14 +538,14 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
 
             <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false}>
-              <Text style={styles.sidebarCategory}>BABBAN TSARI</Text>
+              <Text style={styles.sidebarCategory}>CORE NAVIGATION</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => toggleSidebar(false)}
               >
                 <Feather name="grid" size={18} color="#38bdf8" />
-                <Text style={[styles.navItemText, { color: "#38bdf8" }]}>SuperAdmin Overview</Text>
+                <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Master Overview</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -556,7 +556,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <FontAwesome5 name="user-tie" size={16} color="#94a3b8" />
-                <Text style={styles.navItemText}>Supervisors Network</Text>
+                <Text style={styles.navItemText}>Supervisor Network</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -567,7 +567,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <FontAwesome5 name="user-plus" size={16} color="#94a3b8" />
-                <Text style={styles.navItemText}>Yi wa Supervisor Rajista</Text>
+                <Text style={styles.navItemText}>Register Supervisor</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -578,10 +578,10 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <MaterialCommunityIcons name="account-group" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Sarrafa Field Agents</Text>
+                <Text style={styles.navItemText}>Manage Field Agents</Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>DATA & KUDI</Text>
+              <Text style={styles.sidebarCategory}>DATA & FINANCIALS</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -591,7 +591,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Feather name="send" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Tura Data (Dispatch)</Text>
+                <Text style={styles.navItemText}>Dispatch Data Bundles</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -602,7 +602,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="refresh-circle-outline" size={20} color="#f87171" />
-                <Text style={[styles.navItemText, { color: "#f87171" }]}>Tura Refund (SuperAdmin)</Text>
+                <Text style={[styles.navItemText, { color: "#f87171" }]}>Process Refund (Exclusive)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -613,7 +613,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="wallet-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Saka / Cire Kudi</Text>
+                <Text style={styles.navItemText}>Wallet Adjustment</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -624,10 +624,10 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <MaterialIcons name="lock-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Kulle / Bude Wallet</Text>
+                <Text style={styles.navItemText}>Wallet Restrictions</Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>SERVICE & INVESTIGATION</Text>
+              <Text style={styles.sidebarCategory}>INVESTIGATION & VERIFICATION</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -637,7 +637,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Feather name="search" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Binciken Ciniki (Trace)</Text>
+                <Text style={styles.navItemText}>Service Investigation</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -648,7 +648,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="id-card-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>NIMC Queue</Text>
+                <Text style={styles.navItemText}>NIMC Verification</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -659,28 +659,28 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Feather name="activity" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Audit History</Text>
+                <Text style={styles.navItemText}>System Audit Logs</Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
               <Feather name="log-out" size={18} color="#ef4444" />
-              <Text style={styles.logoutBtnText}>Fita (Logout)</Text>
+              <Text style={styles.logoutBtnText}>Logout Session</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
       )}
 
       {/* ==========================================
-          MODAL 1: TURA DATA (DISPATCHER)
+          MODAL 1: DATA DISPATCHER
       ========================================== */}
       <Modal visible={dispatchModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Tura Data & Farashi</Text>
-                <Text style={styles.modalCardSubtitle}>Saita network, farashi, da kwanaki</Text>
+                <Text style={styles.modalCardTitle}>Dispatch Data Bundle</Text>
+                <Text style={styles.modalCardSubtitle}>Set network, pricing margins, and validity</Text>
               </View>
               <TouchableOpacity onPress={() => setDispatchModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -688,7 +688,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
-              <Text style={styles.formFieldLabel}>NETWORK</Text>
+              <Text style={styles.formFieldLabel}>TELECOM NETWORK</Text>
               <View style={styles.pillGrid}>
                 {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
                   <TouchableOpacity
@@ -703,7 +703,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 ))}
               </View>
 
-              <Text style={styles.formFieldLabel}>NAU'IN DATA (PLAN TYPE)</Text>
+              <Text style={styles.formFieldLabel}>PLAN CATEGORY / TYPE</Text>
               <View style={styles.pillGrid}>
                 {["SME", "CORPORATE", "GIFTING", "SPECIAL"].map((type) => (
                   <TouchableOpacity
@@ -718,7 +718,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 ))}
               </View>
 
-              <Text style={styles.formFieldLabel}>GIRMAN DATA (e.g. 500MB, 1.0GB, 2.5GB, 5.0GB)</Text>
+              <Text style={styles.formFieldLabel}>DATA SIZE (e.g. 500MB, 1.0GB, 2.5GB, 5.0GB)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. 1.0GB"
@@ -729,7 +729,7 @@ const SuperAdminDashboard = ({ navigation }) => {
 
               <View style={styles.dualInputRow}>
                 <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.formFieldLabel}>FARASHIN SAYARWA (₦)</Text>
+                  <Text style={styles.formFieldLabel}>SELLING PRICE (₦)</Text>
                   <TextInput
                     style={styles.textInputStyle}
                     placeholder="280"
@@ -741,7 +741,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
 
                 <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.formFieldLabel}>ASALIN KUDI (₦)</Text>
+                  <Text style={styles.formFieldLabel}>COST/API PRICE (₦)</Text>
                   <TextInput
                     style={styles.textInputStyle}
                     placeholder="245"
@@ -753,7 +753,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
               </View>
 
-              <Text style={styles.formFieldLabel}>KWANAKIN KAREWA (VALIDITY DAYS)</Text>
+              <Text style={styles.formFieldLabel}>VALIDITY PERIOD (DAYS)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="30"
@@ -770,12 +770,12 @@ const SuperAdminDashboard = ({ navigation }) => {
                 >
                   {sendToAll && <Ionicons name="checkmark" size={16} color="#ffffff" />}
                 </TouchableOpacity>
-                <Text style={styles.checkboxLabel}>Tura wa DUKKAN masu amfani da manhaja</Text>
+                <Text style={styles.checkboxLabel}>Dispatch to ALL active app users</Text>
               </View>
 
               {!sendToAll && (
                 <>
-                  <Text style={styles.formFieldLabel}>LAMBOBIN WAYA (Raba da waƙafi , )</Text>
+                  <Text style={styles.formFieldLabel}>RECIPIENT NUMBERS (Comma-separated)</Text>
                   <TextInput
                     style={[styles.textInputStyle, { height: 75, textAlignVertical: "top" }]}
                     placeholder="09033738409, 08012345678"
@@ -796,7 +796,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               {actionLoading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>TURA DATA YANZU</Text>
+                <Text style={styles.primaryActionBtnText}>DISPATCH BUNDLE NOW</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -804,31 +804,31 @@ const SuperAdminDashboard = ({ navigation }) => {
       </Modal>
 
       {/* ==========================================
-          MODAL 2: TURA REFUND (SUPERADMIN ONLY)
+          MODAL 2: PROCESS REFUND (SUPERADMIN ONLY)
       ========================================== */}
       <Modal visible={refundModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { borderColor: "#ef4444" }]}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={[styles.modalCardTitle, { color: "#f87171" }]}>Tura Refund Ga User</Text>
-                <Text style={styles.modalCardSubtitle}>Ikon SuperAdmin kadai</Text>
+                <Text style={[styles.modalCardTitle, { color: "#f87171" }]}>Authorize Wallet Refund</Text>
+                <Text style={styles.modalCardSubtitle}>SuperAdmin exclusive refund authorization</Text>
               </View>
               <TouchableOpacity onPress={() => setRefundModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>LAMBAR WAYA KO EMAIL NA MAI KARBA</Text>
+            <Text style={styles.formFieldLabel}>RECIPIENT PHONE OR EMAIL</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. 09033738409 ko user@gmail.com"
+              placeholder="e.g. 09033738409 or user@gmail.com"
               placeholderTextColor="#64748b"
               value={refundUserId}
               onChangeText={setRefundUserId}
             />
 
-            <Text style={styles.formFieldLabel}>ADADIN KUDIN REFUND (₦)</Text>
+            <Text style={styles.formFieldLabel}>REFUND AMOUNT (₦)</Text>
             <TextInput
               style={styles.textInputStyle}
               placeholder="e.g. 1500"
@@ -838,16 +838,16 @@ const SuperAdminDashboard = ({ navigation }) => {
               onChangeText={setRefundAmount}
             />
 
-            <Text style={styles.formFieldLabel}>TRANSACTION REFERENCE (ID)</Text>
+            <Text style={styles.formFieldLabel}>TRANSACTION REFERENCE (OPTIONAL)</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="Zabin ne (Optional Reference ID)"
+              placeholder="e.g. TX_938472918"
               placeholderTextColor="#64748b"
               value={refundTxId}
               onChangeText={setRefundTxId}
             />
 
-            <Text style={styles.formFieldLabel}>DALILIN REFUND</Text>
+            <Text style={styles.formFieldLabel}>REFUND REASON</Text>
             <TextInput
               style={styles.textInputStyle}
               placeholder="e.g. Network delivery failure"
@@ -867,7 +867,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               {actionLoading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>TABBATAR DA TURA REFUND</Text>
+                <Text style={styles.primaryActionBtnText}>CONFIRM & DISBURSE REFUND</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -875,15 +875,15 @@ const SuperAdminDashboard = ({ navigation }) => {
       </Modal>
 
       {/* ==========================================
-          MODAL 3: SAKA / CIRE KUDI (CREDIT / DEBIT)
+          MODAL 3: DIRECT WALLET ADJUSTMENT
       ========================================== */}
       <Modal visible={walletModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Saka / Cire Kudi a Wallet</Text>
-                <Text style={styles.modalCardSubtitle}>Daidaita balance kai tsaye</Text>
+                <Text style={styles.modalCardTitle}>Direct Ledger Adjustment</Text>
+                <Text style={styles.modalCardSubtitle}>Instant credit or debit balance injection</Text>
               </View>
               <TouchableOpacity onPress={() => setWalletModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -896,7 +896,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 onPress={() => setWalletActionType("credit")}
               >
                 <Text style={[styles.toggleBtnText, walletActionType === "credit" && styles.activeToggleText]}>
-                  + Saka Kudi (Credit)
+                  + Credit Account
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -904,12 +904,12 @@ const SuperAdminDashboard = ({ navigation }) => {
                 onPress={() => setWalletActionType("debit")}
               >
                 <Text style={[styles.toggleBtnText, walletActionType === "debit" && styles.activeToggleText]}>
-                  - Cire Kudi (Debit)
+                  - Debit Account
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>LAMBAR WAYA / EMAIL / ID NA USER</Text>
+            <Text style={styles.formFieldLabel}>TARGET PHONE, EMAIL, OR USER ID</Text>
             <TextInput
               style={styles.textInputStyle}
               placeholder="e.g. 09033738409"
@@ -918,7 +918,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               onChangeText={setWalletUserId}
             />
 
-            <Text style={styles.formFieldLabel}>ADADIN KUDI (₦)</Text>
+            <Text style={styles.formFieldLabel}>AMOUNT (₦)</Text>
             <TextInput
               style={styles.textInputStyle}
               placeholder="e.g. 5000"
@@ -928,10 +928,10 @@ const SuperAdminDashboard = ({ navigation }) => {
               onChangeText={setWalletAmount}
             />
 
-            <Text style={styles.formFieldLabel}>DALILI (REASON)</Text>
+            <Text style={styles.formFieldLabel}>AUDIT REMARKS</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. Manual Adjustment"
+              placeholder="e.g. System compensation"
               placeholderTextColor="#64748b"
               value={walletReason}
               onChangeText={setWalletReason}
@@ -952,7 +952,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text style={styles.primaryActionBtnText}>
-                  TABBATAR DA {walletActionType.toUpperCase()}
+                  AUTHORIZE {walletActionType.toUpperCase()}
                 </Text>
               )}
             </TouchableOpacity>
@@ -961,25 +961,25 @@ const SuperAdminDashboard = ({ navigation }) => {
       </Modal>
 
       {/* ==========================================
-          MODAL 4: KULLE / BUDE WALLET
+          MODAL 4: WALLET RESTRICTIONS
       ========================================== */}
       <Modal visible={restrictModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Kulle ko Bude Asusun User</Text>
-                <Text style={styles.modalCardSubtitle}>Sarrafa Wallet Lock Status</Text>
+                <Text style={styles.modalCardTitle}>Wallet Access Restrictions</Text>
+                <Text style={styles.modalCardSubtitle}>Freeze or unfreeze customer wallet operations</Text>
               </View>
               <TouchableOpacity onPress={() => setRestrictModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>LAMBAR WAYA / EMAIL NA USER</Text>
+            <Text style={styles.formFieldLabel}>TARGET PHONE OR EMAIL</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="Enter Phone or Email"
+              placeholder="Enter Phone Number or Email"
               placeholderTextColor="#64748b"
               value={restrictUserId}
               onChangeText={setRestrictUserId}
@@ -991,7 +991,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 onPress={() => handleExecuteLockAction(true)}
                 disabled={actionLoading}
               >
-                <Text style={styles.primaryActionBtnText}>KULLE (LOCK)</Text>
+                <Text style={styles.primaryActionBtnText}>FREEZE WALLET</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -999,7 +999,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 onPress={() => handleExecuteLockAction(false)}
                 disabled={actionLoading}
               >
-                <Text style={styles.primaryActionBtnText}>BUDE (UNLOCK)</Text>
+                <Text style={styles.primaryActionBtnText}>UNFREEZE</Text>
               </TouchableOpacity>
             </View>
           </View>
