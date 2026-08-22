@@ -8,10 +8,12 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  StatusBar,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
@@ -23,8 +25,8 @@ const AdminDashboard = () => {
     users: 0,
     nimc: 0,
     bvn: 0,
-    reports: 0,
-    sales: 0,
+    pendingRefunds: 0,
+    totalRevenue: 0,
   });
 
   const fetchStats = async () => {
@@ -36,23 +38,29 @@ const AdminDashboard = () => {
         return;
       }
 
-      const config = { headers: { Authorization: `Bearer ${token}` } };
+      const config = { 
+        headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000 
+      };
 
-      const [usersRes, nimcRes, bvnRes, reportRes, salesRes] =
+      // Ɗauko bayanai daga Admin Endpoints
+      const [statsRes, usersRes, nimcRes, bvnRes, refundsRes] =
         await Promise.all([
+          axios.get(`${BASE_URL}/admin/stats`, config).catch(() => ({ data: { stats: {} } })),
           axios.get(`${BASE_URL}/admin/users`, config).catch(() => ({ data: { data: [] } })),
           axios.get(`${BASE_URL}/admin/nimc-requests`, config).catch(() => ({ data: { count: 0 } })),
           axios.get(`${BASE_URL}/admin/bvn-requests`, config).catch(() => ({ data: { count: 0 } })),
-          axios.get(`${BASE_URL}/admin/all-reports`, config).catch(() => ({ data: { requests: [] } })),
-          axios.get(`${BASE_URL}/admin/sales-stats`, config).catch(() => ({ data: { total: 0 } })),
+          axios.get(`${BASE_URL}/admin/pending-refunds`, config).catch(() => ({ data: { data: [] } })),
         ]);
 
+      const globalStats = statsRes.data?.stats || {};
+
       setStats({
-        users: usersRes.data?.data?.length || usersRes.data?.count || 0,
-        nimc: nimcRes.data?.count || 0,
-        bvn: bvnRes.data?.count || 0,
-        reports: reportRes.data?.requests?.length || 0,
-        sales: salesRes.data?.total || salesRes.data?.data?.total || 0,
+        users: usersRes.data?.data?.length || globalStats.totalUsers || 0,
+        nimc: nimcRes.data?.count || nimcRes.data?.data?.length || 0,
+        bvn: bvnRes.data?.count || bvnRes.data?.data?.length || 0,
+        pendingRefunds: refundsRes.data?.data?.length || globalStats.pendingRefunds || 0,
+        totalRevenue: globalStats.totalRevenue || 0,
       });
     } catch (err) {
       console.error("Admin Dashboard Error:", err);
@@ -76,17 +84,18 @@ const AdminDashboard = () => {
     fetchStats();
   };
 
-  const MenuCard = ({ title, count, icon, color, onPress }) => (
+  const MenuCard = ({ title, count, iconName, color, onPress }) => (
     <TouchableOpacity
       style={[styles.card, { borderLeftColor: color }]}
       onPress={onPress}
+      activeOpacity={0.8}
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.cardCount}>{count}</Text>
       </View>
       <View style={[styles.iconCircle, { backgroundColor: color }]}>
-        <Text style={{ color: "#fff", fontWeight: "bold" }}>{icon}</Text>
+        <Ionicons name={iconName} size={18} color="#fff" />
       </View>
     </TouchableOpacity>
   );
@@ -94,7 +103,8 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#1e3a8a" />
+        <ActivityIndicator size="large" color="#0a1d37" />
+        <Text style={styles.loadingText}>Loading Admin Console...</Text>
       </View>
     );
   }
@@ -102,53 +112,57 @@ const AdminDashboard = () => {
   return (
     <ScrollView
       style={styles.container}
+      showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#0a1d37"]} />
       }
     >
+      <StatusBar barStyle="light-content" backgroundColor="#0a1d37" />
+
+      {/* Header Banner */}
       <View style={styles.header}>
-        <Text style={styles.welcome}>Ayax Admin Panel</Text>
-        <Text style={styles.subText}>Management & Systems Control</Text>
+        <View>
+          <Text style={styles.welcome}>Ayax Admin Portal</Text>
+          <Text style={styles.subText}>Operations & Management Console</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.refreshIconBtn}
+          onPress={onRefresh}
+        >
+          <Ionicons name="refresh" size={20} color="#fff" />
+        </TouchableOpacity>
       </View>
 
+      {/* Grid Menu */}
       <View style={styles.grid}>
-        {/* --- CORE MANAGEMENT --- */}
         <MenuCard
           title="Total Users"
-          count={stats.users}
-          icon="U"
-          color="#1e3a8a"
+          count={Number(stats.users).toLocaleString()}
+          iconName="people"
+          color="#1e40af"
           onPress={() => navigation.navigate("AllUsers")}
         />
 
         <MenuCard
-          title="Total Sales"
-          count={`₦${stats.sales}`}
-          icon="₦"
+          title="Total Revenue"
+          count={`₦${Number(stats.totalRevenue).toLocaleString()}`}
+          iconName="wallet"
           color="#059669"
-          onPress={() => navigation.navigate("SalesLogs")}
+          onPress={() => navigation.navigate("TransactionsList")}
         />
 
         <MenuCard
-          title="Issue Resolution"
-          count={stats.reports}
-          icon="!"
+          title="Pending Refunds"
+          count={stats.pendingRefunds}
+          iconName="refresh-circle"
           color="#dc2626"
-          onPress={() => navigation.navigate("IssueResolution")}
-        />
-
-        <MenuCard
-          title="System Pricing"
-          count="Update"
-          icon="P"
-          color="#7c3aed"
-          onPress={() => navigation.navigate("PricingSettings")}
+          onPress={() => navigation.navigate("PendingRefunds")}
         />
 
         <MenuCard
           title="NIMC Requests"
           count={stats.nimc}
-          icon="N"
+          iconName="card"
           color="#2563eb"
           onPress={() => navigation.navigate("NimcRequests")}
         />
@@ -156,114 +170,144 @@ const AdminDashboard = () => {
         <MenuCard
           title="BVN Requests"
           count={stats.bvn}
-          icon="B"
+          iconName="finger-print"
           color="#d97706"
           onPress={() => navigation.navigate("BvnRequests")}
         />
+
+        <MenuCard
+          title="Supervisors"
+          count="View All"
+          iconName="shield-checkmark"
+          color="#7c3aed"
+          onPress={() => navigation.navigate("SupervisorsList")}
+        />
       </View>
 
+      {/* Action Links */}
       <View style={styles.actionSection}>
-        <Text style={styles.sectionTitle}>Service Configuration</Text>
+        <Text style={styles.sectionTitle}>Management & Services</Text>
 
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => navigation.navigate("DataPlans")}
         >
-          <Text style={styles.actionText}>Manage Data & Airtime Plans</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => navigation.navigate("CableTvPlans")}
-        >
-          <Text style={styles.actionText}>
-            Configure Cable TV & Utility Rates
-          </Text>
+          <Ionicons name="wifi" size={22} color="#0a1d37" style={styles.btnIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionText}>Manage Data Packages</Text>
+            <Text style={styles.actionSubText}>View active network bundles</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => navigation.navigate("AssignTargets")}
         >
-          <Text style={styles.actionText}>Assign Supervisor Targets</Text>
+          <Ionicons name="trophy-outline" size={22} color="#0a1d37" style={styles.btnIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionText}>Assign Supervisor Targets</Text>
+            <Text style={styles.actionSubText}>Set monthly goals for field agents</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => navigation.navigate("SupportActivities")}
         >
-          <Text style={styles.actionText}>Audit Support Logs</Text>
+          <Ionicons name="reader-outline" size={22} color="#0a1d37" style={styles.btnIcon} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionText}>Audit Activity Logs</Text>
+            <Text style={styles.actionSubText}>Review staff actions & history</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
         </TouchableOpacity>
       </View>
+
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f8fafc" },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff" },
+  loadingText: { marginTop: 10, color: "#64748b", fontSize: 13, fontWeight: "600" },
   header: {
-    padding: 25,
-    backgroundColor: "#1e3a8a",
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 25,
+    backgroundColor: "#0a1d37",
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  welcome: { fontSize: 24, fontWeight: "bold", color: "#fff" },
-  subText: { color: "#cbd5e1", marginTop: 5 },
+  welcome: { fontSize: 22, fontWeight: "800", color: "#fff" },
+  subText: { color: "#94a3b8", fontSize: 13, marginTop: 3 },
+  refreshIconBtn: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    padding: 10,
+    borderRadius: 12,
+  },
   grid: {
-    padding: 15,
+    padding: 16,
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
   card: {
     backgroundColor: "#fff",
-    width: "47%",
-    padding: 15,
-    borderRadius: 15,
-    marginBottom: 15,
+    width: "48%",
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderLeftWidth: 5,
-    elevation: 4,
-    shadowColor: "#000",
+    borderLeftWidth: 4,
+    elevation: 3,
+    shadowColor: "#0f172a",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
   },
-  cardTitle: { fontSize: 13, color: "#64748b", fontWeight: "600" },
+  cardTitle: { fontSize: 12, color: "#64748b", fontWeight: "700" },
   cardCount: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginTop: 5,
+    fontSize: 15,
+    fontWeight: "900",
+    color: "#0f172a",
+    marginTop: 4,
   },
   iconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: "center",
     alignItems: "center",
   },
-  actionSection: { padding: 20 },
+  actionSection: { paddingHorizontal: 16, marginTop: 5 },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#1e293b",
-    marginBottom: 15,
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0f172a",
+    marginBottom: 12,
   },
   actionBtn: {
     backgroundColor: "#fff",
-    padding: 18,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 14,
     marginBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  actionText: { fontSize: 15, color: "#334155", fontWeight: "500" },
+  btnIcon: { marginRight: 12 },
+  actionText: { fontSize: 14, color: "#0f172a", fontWeight: "700" },
+  actionSubText: { fontSize: 11, color: "#64748b", marginTop: 2 },
 });
 
 export default AdminDashboard;
