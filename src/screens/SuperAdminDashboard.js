@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,35 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
+const ALL_SERVICES_CATALOG = [
+  // NIMC Printing Services
+  { key: "nimc_nin", name: "NIN Verification Print", category: "NIMC Services", icon: "fingerprint", defaultFee: 1000 },
+  { key: "nimc_phone", name: "Phone Number NIN Search", category: "NIMC Services", icon: "phone-alt", defaultFee: 1000 },
+  { key: "nimc_trackingId", name: "Tracking ID Lookup", category: "NIMC Services", icon: "barcode", defaultFee: 1000 },
+  { key: "nimc_premiumCard", name: "Premium Plastic ID Card", category: "NIMC Services", icon: "id-card", defaultFee: 1500 },
+  { key: "nimc_standardSlip", name: "Standard Color Slip", category: "NIMC Services", icon: "file-alt", defaultFee: 500 },
+  { key: "nimc_basicSlip", name: "Basic Black Slip", category: "NIMC Services", icon: "print", defaultFee: 300 },
+
+  // NIN Validation Services
+  { key: "val_noRecord", name: "Validation: No Record Found", category: "NIN Validation", icon: "search-minus", defaultFee: 1300 },
+  { key: "val_sim", name: "Validation: SIM Validation", category: "NIN Validation", icon: "sim-card", defaultFee: 1300 },
+  { key: "val_vnin", name: "Validation: vNIN Validation", category: "NIN Validation", icon: "shield-alt", defaultFee: 1300 },
+  { key: "val_update", name: "Validation: Update Records", category: "NIN Validation", icon: "sync", defaultFee: 1300 },
+  { key: "val_bank", name: "Validation: Bank Records", category: "NIN Validation", icon: "university", defaultFee: 1300 },
+  { key: "val_mod", name: "Validation: Modification Validation", category: "NIN Validation", icon: "user-edit", defaultFee: 1700 },
+  { key: "val_photoError", name: "Validation: Photographic Error", category: "NIN Validation", icon: "camera", defaultFee: 1400 },
+
+  // Identity & Verification Gateway
+  { key: "verify_phone", name: "Phone Database Verification", category: "Identity & BVN", icon: "mobile-alt", defaultFee: 300 },
+  { key: "verify_bvn_basic", name: "BVN Basic Profile Match", category: "Identity & BVN", icon: "user-check", defaultFee: 200 },
+  { key: "verify_bvn_full", name: "Comprehensive BVN Demographics", category: "Identity & BVN", icon: "user-tie", defaultFee: 500 },
+  { key: "verify_face_id", name: "Biometric Face ID Match", category: "Identity & BVN", icon: "smile", defaultFee: 800 },
+
+  // Surcharges & Bill Fees
+  { key: "fee_electricity", name: "Electricity Token Surcharge", category: "Utilities & Bills", icon: "bolt", defaultFee: 100 },
+  { key: "fee_cable", name: "Cable TV Subscription Fee", category: "Utilities & Bills", icon: "tv", defaultFee: 50 },
+];
+
 const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [prices, setPrices] = useState({});
@@ -35,9 +64,13 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Sidebar Drawer Animation
+  // Filter & Active Categories for Pricing Matrix
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState("All");
+  const [priceSearchQuery, setPriceSearchQuery] = useState("");
+
+  // Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
+  const sidebarAnim = useRef(new Animated.Value(-width * 0.85)).current;
 
   // Master Modals
   const [pricingModalVisible, setPricingModalVisible] = useState(false);
@@ -48,11 +81,11 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [suspendModalVisible, setSuspendModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Service Price Adjustment State
-  const [selectedServiceKey, setSelectedServiceKey] = useState("nimc_nin");
+  // Pricing Form State
+  const [targetService, setTargetService] = useState(null);
   const [newServicePrice, setNewServicePrice] = useState("");
 
-  // Other Form States
+  // Data Dispatcher Form State
   const [dispatchNetwork, setDispatchNetwork] = useState("MTN");
   const [dispatchPlanType, setDispatchPlanType] = useState("SME");
   const [dispatchPlanCode, setDispatchPlanCode] = useState("1.0GB");
@@ -62,45 +95,24 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [dispatchRecipients, setDispatchRecipients] = useState("");
   const [sendToAll, setSendToAll] = useState(false);
 
+  // Direct Wallet Form State
   const [walletUserId, setWalletUserId] = useState("");
   const [walletAmount, setWalletAmount] = useState("");
   const [walletReason, setWalletReason] = useState("");
   const [walletActionType, setWalletActionType] = useState("credit");
 
+  // Refund Form State
   const [refundUserId, setRefundUserId] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [refundTxId, setRefundTxId] = useState("");
   const [refundReason, setRefundReason] = useState("");
 
+  // Password Override Form State
   const [pwdUserId, setPwdUserId] = useState("");
   const [pwdNew, setPwdNew] = useState("");
 
+  // Suspension Form State
   const [suspendUserId, setSuspendUserId] = useState("");
-
-  const serviceCategories = [
-    { key: "nimc_nin", name: "NIMC: NIN Verification", category: "NIMC Services" },
-    { key: "nimc_phone", name: "NIMC: Phone Search", category: "NIMC Services" },
-    { key: "nimc_trackingId", name: "NIMC: Tracking ID Lookup", category: "NIMC Services" },
-    { key: "nimc_premiumCard", name: "NIMC: Premium Plastic Card", category: "NIMC Services" },
-    { key: "nimc_standardSlip", name: "NIMC: Standard Color Slip", category: "NIMC Services" },
-    { key: "nimc_basicSlip", name: "NIMC: Basic Black Slip", category: "NIMC Services" },
-
-    { key: "val_noRecord", name: "Validation: No Record Found", category: "NIN Validation" },
-    { key: "val_sim", name: "Validation: SIM Validation", category: "NIN Validation" },
-    { key: "val_vnin", name: "Validation: vNIN Validation", category: "NIN Validation" },
-    { key: "val_update", name: "Validation: Update Records", category: "NIN Validation" },
-    { key: "val_bank", name: "Validation: Bank Validation", category: "NIN Validation" },
-    { key: "val_mod", name: "Validation: Modification Validation", category: "NIN Validation" },
-    { key: "val_photoError", name: "Validation: Photographic Error", category: "NIN Validation" },
-
-    { key: "verify_phone", name: "Identity: Phone Database Lookup", category: "Identity & Verification" },
-    { key: "verify_bvn_basic", name: "Identity: BVN Basic Profile", category: "Identity & Verification" },
-    { key: "verify_bvn_full", name: "Identity: Full BVN Demographic", category: "Identity & Verification" },
-    { key: "verify_face_id", name: "Identity: Face ID Biometric Match", category: "Identity & Verification" },
-
-    { key: "fee_electricity", name: "Surcharge: Electricity Bill Fee", category: "Utilities Surcharges" },
-    { key: "fee_cable", name: "Surcharge: Cable TV Subscription Fee", category: "Utilities Surcharges" },
-  ];
 
   const showAlert = (title, message) => {
     if (Platform.OS === "web") {
@@ -113,48 +125,60 @@ const SuperAdminDashboard = ({ navigation }) => {
   const toggleSidebar = (open) => {
     if (open) {
       setSidebarOpen(true);
-      Animated.timing(sidebarAnim, {
+      Animated.spring(sidebarAnim, {
         toValue: 0,
-        duration: 250,
         useNativeDriver: false,
+        friction: 8,
       }).start();
     } else {
       Animated.timing(sidebarAnim, {
-        toValue: -width * 0.8,
+        toValue: -width * 0.85,
         duration: 220,
         useNativeDriver: false,
       }).start(() => setSidebarOpen(false));
     }
   };
 
-  const fetchMasterTelemetry = async () => {
+  const fetchMasterTelemetry = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        if (!isBackground) {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        }
         return;
       }
 
       const res = await axios.get(`${BASE_URL}/superadmin/stats`, {
         headers: { Authorization: `Bearer ${token}` },
+        timeout: 12000,
       });
 
-      setStats(res.data?.stats || {});
-      setPrices(res.data?.prices || {});
-      setRecentTx(res.data?.recentTransactions || []);
+      if (res.data && (res.data.success || res.data.stats)) {
+        setStats(res.data.stats || {});
+        setPrices(res.data.prices || {});
+        setRecentTx(res.data.recentTransactions || []);
+      }
     } catch (err) {
-      console.log("Telemetry Warning:", err.message);
+      if (!isBackground) {
+        console.log("Telemetry Sync Warning:", err.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [navigation]);
 
+  // Live Auto-Refresh (Every 10 Seconds)
   useEffect(() => {
     fetchMasterTelemetry();
-  }, []);
+    const liveInterval = setInterval(() => {
+      fetchMasterTelemetry(true);
+    }, 10000);
+    return () => clearInterval(liveInterval);
+  }, [fetchMasterTelemetry]);
 
-  const onRefresh = () => {
+  const onManualRefresh = () => {
     setRefreshing(true);
     fetchMasterTelemetry();
   };
@@ -164,9 +188,9 @@ const SuperAdminDashboard = ({ navigation }) => {
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
 
-  // 1. Update Specific Service Price
+  // 1. Update Service Tariff
   const handleUpdateServicePrice = async () => {
-    if (!newServicePrice || isNaN(Number(newServicePrice))) {
+    if (!targetService || !newServicePrice || isNaN(Number(newServicePrice))) {
       return showAlert("Validation Error", "Please provide a valid numeric tariff amount.");
     }
 
@@ -175,24 +199,24 @@ const SuperAdminDashboard = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
         `${BASE_URL}/superadmin/update-service-price`,
-        { serviceKey: selectedServiceKey, newPrice: Number(newServicePrice) },
+        { serviceKey: targetService.key, newPrice: Number(newServicePrice) },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Tariff Updated", res.data.message);
-        setPrices(res.data?.updatedPrices || {});
+        showAlert("Tariff Deployed", res.data.message);
+        setPrices(res.data.updatedPrices || { ...prices, [targetService.key]: Number(newServicePrice) });
         setNewServicePrice("");
-        setPricingModalVisible(false);
+        setTargetService(null);
       }
     } catch (err) {
-      showAlert("Tariff Error", err.response?.data?.message || err.message);
+      showAlert("Tariff Update Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 2. Dispatch Data
+  // 2. Dispatch Data Bundles
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice || !dispatchValidity) {
       return showAlert("Validation Error", "Plan Size, Price, and Validity Days are required.");
@@ -217,14 +241,14 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Success", res.data.message);
+        showAlert("Batch Deployed", res.data.message);
         setDispatchModalVisible(false);
         setDispatchRecipients("");
         setSendToAll(false);
         fetchMasterTelemetry();
       }
     } catch (err) {
-      showAlert("Dispatch Fault", err.response?.data?.message || err.message);
+      showAlert("Dispatch Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
@@ -251,7 +275,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Refund Completed", res.data.message);
+        showAlert("Refund Executed", res.data.message);
         setRefundModalVisible(false);
         setRefundUserId("");
         setRefundAmount("");
@@ -266,7 +290,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. Direct Wallet Adjustment
+  // 4. Direct Ledger Adjustment
   const handleExecuteWalletAction = async () => {
     if (!walletUserId.trim() || !walletAmount) {
       return showAlert("Validation Error", "Target User Identifier and numeric amount are required.");
@@ -287,20 +311,20 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Ledger Updated", res.data.message);
+        showAlert("Ledger Injected", res.data.message);
         setWalletModalVisible(false);
         setWalletUserId("");
         setWalletAmount("");
         fetchMasterTelemetry();
       }
     } catch (err) {
-      showAlert("Adjustment Failed", err.response?.data?.message || err.message);
+      showAlert("Ledger Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 5. Force Password Override
+  // 5. Force Password Reset Override
   const handleExecutePasswordOverride = async () => {
     if (!pwdUserId.trim() || !pwdNew || pwdNew.length < 6) {
       return showAlert("Validation Error", "Target user identifier and a 6+ character password are required.");
@@ -322,13 +346,13 @@ const SuperAdminDashboard = ({ navigation }) => {
         setPwdNew("");
       }
     } catch (err) {
-      showAlert("Override Error", err.response?.data?.message || err.message);
+      showAlert("Override Fault", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 6. Suspend / Activate Account
+  // 6. Suspend / Reactivate Account
   const handleExecuteSuspension = async (suspend) => {
     if (!suspendUserId.trim()) {
       return showAlert("Validation Error", "Target identifier is required.");
@@ -344,47 +368,63 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Account Status Changed", res.data.message);
+        showAlert("Account Status Updated", res.data.message);
         setSuspendModalVisible(false);
         setSuspendUserId("");
         fetchMasterTelemetry();
       }
     } catch (err) {
-      showAlert("Operation Error", err.response?.data?.message || err.message);
+      showAlert("Suspension Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
+  // Filtered Services List
+  const filteredCatalog = ALL_SERVICES_CATALOG.filter((item) => {
+    const matchesCategory =
+      selectedCategoryTab === "All" || item.category === selectedCategoryTab;
+    const matchesSearch =
+      item.name.toLowerCase().includes(priceSearchQuery.toLowerCase()) ||
+      item.key.toLowerCase().includes(priceSearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#0284c7" />
-        <Text style={styles.loaderText}>Establishing Supreme Master Protocol...</Text>
+        <StatusBar barStyle="light-content" backgroundColor="#050811" />
+        <ActivityIndicator size="large" color="#00f0ff" />
+        <Text style={styles.loaderTitle}>AYAX SUPREME ROOT PROTOCOL</Text>
+        <Text style={styles.loaderText}>Synchronizing Real-time Master Telemetry...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.mainWrapper}>
-      <StatusBar barStyle="light-content" backgroundColor="#070c18" />
+      <StatusBar barStyle="light-content" backgroundColor="#050811" />
 
-      {/* TOP COMMAND BAR */}
+      {/* TOP SUPREME APP BAR */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)}>
+        <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)} activeOpacity={0.7}>
           <Feather name="menu" size={24} color="#f8fafc" />
         </TouchableOpacity>
 
         <View style={styles.topBrandGroup}>
           <View style={styles.enterpriseBadge}>
-            <MaterialCommunityIcons name="shield-crown" size={14} color="#f59e0b" />
-            <Text style={styles.enterpriseBadgeText}>SUPERADMIN SUPREME</Text>
+            <View style={styles.livePulseDot} />
+            <Text style={styles.enterpriseBadgeText}>ROOT MASTER ACTIVE</Text>
           </View>
-          <Text style={styles.topBrandTitle}>AYAX CENTRAL CONSOLE</Text>
+          <Text style={styles.topBrandTitle}>AYAX SUPREME CONSOLE</Text>
         </View>
 
-        <TouchableOpacity style={styles.avatarBtn} onPress={() => setPricingModalVisible(true)}>
-          <MaterialIcons name="tune" size={22} color="#38bdf8" />
+        <TouchableOpacity
+          style={styles.avatarBtn}
+          onPress={() => setPricingModalVisible(true)}
+          activeOpacity={0.7}
+        >
+          <MaterialIcons name="tune" size={20} color="#00f0ff" />
         </TouchableOpacity>
       </View>
 
@@ -393,26 +433,32 @@ const SuperAdminDashboard = ({ navigation }) => {
         contentContainerStyle={{ paddingBottom: 60 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
+          <RefreshControl refreshing={refreshing} onRefresh={onManualRefresh} tintColor="#00f0ff" />
         }
       >
-        {/* FINANCIAL TELEMETRY CARDS */}
+        {/* EXECUTIVE KPI OVERVIEW */}
         <View style={styles.telemetrySection}>
-          <Text style={styles.sectionHeaderLabel}>REAL-TIME FINANCIAL INFLOW & OUTFLOW</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionHeaderLabel}>REAL-TIME FINANCIAL TELEMETRY</Text>
+            <View style={styles.liveBadge}>
+              <View style={[styles.livePulseDot, { backgroundColor: "#10b981" }]} />
+              <Text style={styles.liveBadgeText}>LIVE STREAM</Text>
+            </View>
+          </View>
 
           <View style={styles.metricGrid}>
-            <View style={[styles.metricCard, { borderColor: "#059669" }]}>
+            <View style={[styles.metricCard, { borderColor: "rgba(16, 185, 129, 0.3)" }]}>
               <View style={styles.cardHeaderRow}>
                 <Text style={styles.metricLabel}>Total Inflow (Deposits)</Text>
-                <Ionicons name="arrow-down-circle" size={18} color="#34d399" />
+                <Ionicons name="arrow-down-circle" size={18} color="#10b981" />
               </View>
-              <Text style={[styles.metricValue, { color: "#34d399" }]}>
+              <Text style={[styles.metricValue, { color: "#10b981" }]}>
                 ₦{Number(stats?.totalInflow || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>{stats?.totalWalletFundingCount || 0} Inflow Events</Text>
+              <Text style={styles.metricSub}>{stats?.totalWalletFundingCount || 0} Inflow Events Processed</Text>
             </View>
 
-            <View style={[styles.metricCard, { borderColor: "#dc2626" }]}>
+            <View style={[styles.metricCard, { borderColor: "rgba(239, 68, 68, 0.3)" }]}>
               <View style={styles.cardHeaderRow}>
                 <Text style={styles.metricLabel}>Total Outflow (Sales)</Text>
                 <Ionicons name="arrow-up-circle" size={18} color="#f87171" />
@@ -423,23 +469,23 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Text style={styles.metricSub}>{stats?.successfulSalesCount || 0} Successful Dispatches</Text>
             </View>
 
-            <View style={[styles.metricCard, { borderColor: "#0284c7" }]}>
+            <View style={[styles.metricCard, { borderColor: "rgba(0, 240, 255, 0.3)" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Net Growth Volume</Text>
-                <Ionicons name="wallet" size={18} color="#38bdf8" />
+                <Text style={styles.metricLabel}>Net Capital Ledger</Text>
+                <Ionicons name="wallet" size={18} color="#00f0ff" />
               </View>
-              <Text style={styles.metricValue}>
+              <Text style={[styles.metricValue, { color: "#00f0ff" }]}>
                 ₦{Number(stats?.netRevenue || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>99.98% Gateway Health</Text>
+              <Text style={styles.metricSub}>99.99% Automated Delivery</Text>
             </View>
 
-            <View style={[styles.metricCard, { borderColor: "#7c3aed" }]}>
+            <View style={[styles.metricCard, { borderColor: "rgba(168, 85, 247, 0.3)" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Platform Entities</Text>
+                <Text style={styles.metricLabel}>Platform Nodes</Text>
                 <Ionicons name="people" size={18} color="#c084fc" />
               </View>
-              <Text style={styles.metricValue}>
+              <Text style={[styles.metricValue, { color: "#c084fc" }]}>
                 {(stats?.totalUsers || 0) + (stats?.totalAgents || 0) + (stats?.totalSupervisors || 0)}
               </Text>
               <Text style={styles.metricSub}>
@@ -449,82 +495,79 @@ const SuperAdminDashboard = ({ navigation }) => {
           </View>
         </View>
 
-        {/* LIVE INFLOW FEED */}
+        {/* LIVE STREAM FEED (WALLET FUNDINGS & DISPATCHES) */}
         <View style={styles.feedSection}>
-          <Text style={styles.sectionHeaderLabel}>LIVE TRANSACTION & FUNDING STREAM</Text>
+          <Text style={styles.sectionHeaderLabel}>REAL-TIME TRANSACTION AUDIT FEED</Text>
           {recentTx.length > 0 ? (
-            recentTx.map((tx) => (
-              <View key={tx._id} style={styles.feedCard}>
-                <View style={styles.feedLeft}>
-                  <View
-                    style={[
-                      styles.feedIconCircle,
-                      {
-                        backgroundColor:
-                          tx.type === "wallet_funding" || tx.type === "deposit"
-                            ? "rgba(16, 185, 129, 0.15)"
-                            : "rgba(56, 189, 248, 0.15)",
-                      },
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        tx.type === "wallet_funding" || tx.type === "deposit"
-                          ? "card"
-                          : "flash"
-                      }
-                      size={18}
-                      color={
-                        tx.type === "wallet_funding" || tx.type === "deposit"
-                          ? "#34d399"
-                          : "#38bdf8"
-                      }
-                    />
+            recentTx.map((tx) => {
+              const isInflow = tx.type === "wallet_funding" || tx.type === "deposit" || tx.category === "credit";
+              return (
+                <View key={tx._id || Math.random().toString()} style={styles.feedCard}>
+                  <View style={styles.feedLeft}>
+                    <View
+                      style={[
+                        styles.feedIconCircle,
+                        {
+                          backgroundColor: isInflow
+                            ? "rgba(16, 185, 129, 0.12)"
+                            : "rgba(0, 240, 255, 0.12)",
+                          borderColor: isInflow ? "#10b981" : "#00f0ff",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isInflow ? "card" : "flash"}
+                        size={16}
+                        color={isInflow ? "#10b981" : "#00f0ff"}
+                      />
+                    </View>
+                    <View style={{ marginLeft: 12 }}>
+                      <Text style={styles.feedTitle}>
+                        {isInflow ? "User Wallet Funding" : tx.service || "Data & VTU Dispatch"}
+                      </Text>
+                      <Text style={styles.feedSubtitle}>
+                        {tx.user?.phone || tx.phone || tx.reference || "Gateway Node"}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={{ marginLeft: 10 }}>
-                    <Text style={styles.feedTitle}>
-                      {tx.type === "wallet_funding" || tx.type === "deposit"
-                        ? "User Wallet Funding"
-                        : tx.service || "Service Order"}
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text
+                      style={[
+                        styles.feedAmount,
+                        { color: isInflow ? "#10b981" : "#f8fafc" },
+                      ]}
+                    >
+                      {isInflow ? "+" : "-"}₦{Number(tx.amount || 0).toLocaleString()}
                     </Text>
-                    <Text style={styles.feedSubtitle}>
-                      {tx.user?.phone || tx.phone || tx.reference || "Verified Node"}
+                    <Text
+                      style={[
+                        styles.feedStatus,
+                        { color: tx.status === "failed" ? "#ef4444" : "#10b981" },
+                      ]}
+                    >
+                      {tx.status?.toUpperCase() || "SUCCESSFUL"}
                     </Text>
                   </View>
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text
-                    style={[
-                      styles.feedAmount,
-                      {
-                        color:
-                          tx.type === "wallet_funding" || tx.type === "deposit"
-                            ? "#34d399"
-                            : "#f8fafc",
-                      },
-                    ]}
-                  >
-                    {tx.type === "wallet_funding" || tx.type === "deposit" ? "+" : "-"}₦
-                    {Number(tx.amount || 0).toLocaleString()}
-                  </Text>
-                  <Text style={styles.feedStatus}>{tx.status?.toUpperCase() || "SUCCESSFUL"}</Text>
-                </View>
-              </View>
-            ))
+              );
+            })
           ) : (
             <View style={styles.emptyFeed}>
-              <Text style={{ color: "#64748b", fontSize: 12 }}>No transactions recorded recently.</Text>
+              <Ionicons name="cube-outline" size={32} color="#475569" />
+              <Text style={{ color: "#64748b", fontSize: 12, marginTop: 6 }}>
+                No active transaction streams recorded yet.
+              </Text>
             </View>
           )}
         </View>
 
-        {/* SUPREME COMMAND CORES & OVERRIDES */}
+        {/* SUPREME COMMAND TILES */}
         <View style={styles.actionsSection}>
-          <Text style={styles.sectionHeaderLabel}>SERVICE CONFIGURATIONS & MASTER OVERRIDES</Text>
+          <Text style={styles.sectionHeaderLabel}>HIGH-AUTHORITY COMMAND MODULES</Text>
 
-          {/* 1. Global Service Price Configurator */}
+          {/* 1. Global Services Tariff Configurator */}
           <TouchableOpacity
-            style={[styles.commandTile, { borderColor: "#38bdf8" }]}
+            style={[styles.commandTile, { borderColor: "#00f0ff" }]}
             activeOpacity={0.8}
             onPress={() => setPricingModalVisible(true)}
           >
@@ -532,17 +575,17 @@ const SuperAdminDashboard = ({ navigation }) => {
               <MaterialIcons name="tune" size={24} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={[styles.tileTitle, { color: "#38bdf8" }]}>
+              <Text style={[styles.tileTitle, { color: "#00f0ff" }]}>
                 Global Services Tariff Switch (All Rates)
               </Text>
               <Text style={styles.tileDescription}>
-                Individually configure fees for NIMC printing, NIN validation, BVN search, and surcharges.
+                Configure rates for NIMC printing, NIN validation, BVN lookup, and utility fees.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 2. Data Dispatcher */}
+          {/* 2. Enterprise Data Plan Dispatcher */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -552,17 +595,17 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="paper-plane" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Data Dispatcher & Wholesale Margin</Text>
+              <Text style={styles.tileTitle}>Enterprise Data Dispatcher & Margins</Text>
               <Text style={styles.tileDescription}>
-                Provision network bundles, retail margins, validity days, and target recipients.
+                Deploy custom bundles, adjust wholesale prices, validity, and push broadcasts.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 3. SuperAdmin Refund Exclusive */}
+          {/* 3. SuperAdmin Exclusive Refund Engine */}
           <TouchableOpacity
-            style={[styles.commandTile, { borderColor: "#ef4444" }]}
+            style={[styles.commandTile, { borderColor: "rgba(239, 68, 68, 0.4)" }]}
             activeOpacity={0.8}
             onPress={() => setRefundModalVisible(true)}
           >
@@ -570,33 +613,35 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="refresh-circle" size={24} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={[styles.tileTitle, { color: "#f87171" }]}>Disburse Direct Refund (SuperAdmin Only)</Text>
+              <Text style={[styles.tileTitle, { color: "#f87171" }]}>
+                Disburse Direct Refund (SuperAdmin Only)
+              </Text>
               <Text style={styles.tileDescription}>
-                Directly refund failed operations into any user, agent, or staff wallet.
+                Directly disburse automated wallet refunds for failed transactions.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 4. Direct Wallet Adjustment */}
+          {/* 4. Direct Ledger Injector */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
             onPress={() => setWalletModalVisible(true)}
           >
-            <View style={[styles.tileIconContainer, { backgroundColor: "#047857" }]}>
+            <View style={[styles.tileIconContainer, { backgroundColor: "#059669" }]}>
               <Ionicons name="wallet" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
               <Text style={styles.tileTitle}>Direct Ledger Injector (Credit / Debit)</Text>
               <Text style={styles.tileDescription}>
-                Inject or deduct balances from customer or staff accounts with audit remarks.
+                Instantly adjust customer or staff wallet balances with immutable audit notes.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 5. Force Password Reset Override */}
+          {/* 5. Password Override Engine */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -608,13 +653,13 @@ const SuperAdminDashboard = ({ navigation }) => {
             <View style={styles.tileInfo}>
               <Text style={styles.tileTitle}>User & Staff Password Override</Text>
               <Text style={styles.tileDescription}>
-                Forcefully change the password of any account on the platform without OTPs.
+                Forcefully reset passwords for any user, supervisor, or agent without OTP delays.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 6. Account Suspension & Reactivation */}
+          {/* 6. Suspension & Access Termination */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -626,13 +671,13 @@ const SuperAdminDashboard = ({ navigation }) => {
             <View style={styles.tileInfo}>
               <Text style={styles.tileTitle}>Suspend / Activate Staff & Users</Text>
               <Text style={styles.tileDescription}>
-                Instantly freeze or reactivate access for any Agent, Supervisor, Admin, or User.
+                Freeze compromised accounts or restore service access immediately.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 7. Supervisors Hub */}
+          {/* 7. Supervisor Network Hub */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -642,9 +687,9 @@ const SuperAdminDashboard = ({ navigation }) => {
               <FontAwesome5 name="user-tie" size={18} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Supervisors & Network Hierarchy</Text>
+              <Text style={styles.tileTitle}>Supervisors Network & Targets</Text>
               <Text style={styles.tileDescription}>
-                Manage team quotas, assigned agents, and performance benchmarks.
+                Assign team sales goals, track monthly quota, and review commissions.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
@@ -660,9 +705,9 @@ const SuperAdminDashboard = ({ navigation }) => {
               <MaterialCommunityIcons name="account-group" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Agent Reassignment & Mapping</Text>
+              <Text style={styles.tileTitle}>Field Agent Reassignment & Mapping</Text>
               <Text style={styles.tileDescription}>
-                Shift agents between supervisors and inspect field throughput.
+                Re-assign agents across supervisor networks and track daily field throughput.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
@@ -674,19 +719,19 @@ const SuperAdminDashboard = ({ navigation }) => {
             activeOpacity={0.8}
             onPress={() => navigation?.navigate("ServiceTracker")}
           >
-            <View style={[styles.tileIconContainer, { backgroundColor: "#0e7490" }]}>
+            <View style={[styles.tileIconContainer, { backgroundColor: "#0891b2" }]}>
               <Ionicons name="search" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Transaction & Utility Investigation</Text>
+              <Text style={styles.tileTitle}>Live Service & Transaction Tracker</Text>
               <Text style={styles.tileDescription}>
-                Trace NIN, BVN, Airtime, Electricity, and Cable TV operations.
+                Investigate and audit NIN, BVN, Airtime, Electricity, and Cable TV operations.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 10. NIMC Verification Operations */}
+          {/* 10. NIMC Requests Queue */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -696,7 +741,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="id-card" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>NIMC Modification & Verification Queue</Text>
+              <Text style={styles.tileTitle}>NIMC Verification & Modification Queue</Text>
               <Text style={styles.tileDescription}>
                 Review, process, approve, or reject identity modification documents.
               </Text>
@@ -723,8 +768,8 @@ const SuperAdminDashboard = ({ navigation }) => {
               <View style={styles.sidebarBrandRow}>
                 <MaterialCommunityIcons name="shield-crown" size={26} color="#f59e0b" />
                 <View style={{ marginLeft: 10 }}>
-                  <Text style={styles.sidebarBrandText}>Ayax Terminal</Text>
-                  <Text style={styles.sidebarRoleText}>SuperAdmin Master</Text>
+                  <Text style={styles.sidebarBrandText}>Ayax Supreme</Text>
+                  <Text style={styles.sidebarRoleText}>Root SuperAdmin</Text>
                 </View>
               </View>
               <TouchableOpacity onPress={() => toggleSidebar(false)}>
@@ -736,8 +781,8 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Text style={styles.sidebarCategory}>CORE NAVIGATION</Text>
 
               <TouchableOpacity style={styles.navItem} onPress={() => toggleSidebar(false)}>
-                <Feather name="grid" size={18} color="#38bdf8" />
-                <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Master Overview</Text>
+                <Feather name="grid" size={18} color="#00f0ff" />
+                <Text style={[styles.navItemText, { color: "#00f0ff" }]}>Master Overview</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -747,8 +792,8 @@ const SuperAdminDashboard = ({ navigation }) => {
                   setPricingModalVisible(true);
                 }}
               >
-                <MaterialIcons name="tune" size={18} color="#38bdf8" />
-                <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Set Service Prices</Text>
+                <MaterialIcons name="tune" size={18} color="#00f0ff" />
+                <Text style={[styles.navItemText, { color: "#00f0ff" }]}>Set Service Tariffs</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -871,71 +916,108 @@ const SuperAdminDashboard = ({ navigation }) => {
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Global Service Pricing Tariff</Text>
-                <Text style={styles.modalCardSubtitle}>Select service node to adjust fee structure</Text>
+                <Text style={styles.modalCardTitle}>Global Service Tariffs</Text>
+                <Text style={styles.modalCardSubtitle}>Select any service to update its platform tariff</Text>
               </View>
               <TouchableOpacity onPress={() => setPricingModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 360 }}>
-              <Text style={styles.formFieldLabel}>SELECT SERVICE OPERATION</Text>
-              {serviceCategories.map((svc) => (
+            {/* Category Tabs */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {["All", "NIMC Services", "NIN Validation", "Identity & BVN", "Utilities & Bills"].map((tab) => (
                 <TouchableOpacity
-                  key={svc.key}
-                  style={[
-                    styles.serviceSelectBtn,
-                    selectedServiceKey === svc.key && styles.activeServiceSelectBtn,
-                  ]}
-                  onPress={() => setSelectedServiceKey(svc.key)}
+                  key={tab}
+                  style={[styles.categoryTab, selectedCategoryTab === tab && styles.categoryTabActive]}
+                  onPress={() => setSelectedCategoryTab(tab)}
                 >
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        styles.serviceSelectTitle,
-                        selectedServiceKey === svc.key && { color: "#ffffff" },
-                      ]}
-                    >
-                      {svc.name}
-                    </Text>
-                    <Text style={styles.serviceSelectCategory}>{svc.category}</Text>
-                  </View>
                   <Text
                     style={[
-                      styles.serviceSelectPrice,
-                      selectedServiceKey === svc.key && { color: "#34d399" },
+                      styles.categoryTabText,
+                      selectedCategoryTab === tab && styles.categoryTabTextActive,
                     ]}
                   >
-                    ₦{Number(prices[svc.key] || 0).toLocaleString()}
+                    {tab}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
 
-            <Text style={[styles.formFieldLabel, { marginTop: 15 }]}>
-              NEW TARIFF PRICE FOR {selectedServiceKey.toUpperCase()} (₦)
-            </Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder={`Current: ₦${prices[selectedServiceKey] || 0}`}
-              placeholderTextColor="#64748b"
-              keyboardType="numeric"
-              value={newServicePrice}
-              onChangeText={setNewServicePrice}
-            />
+            {/* Search Input */}
+            <View style={styles.modalSearchBox}>
+              <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.modalSearchInput}
+                placeholder="Search service name or key..."
+                placeholderTextColor="#64748b"
+                value={priceSearchQuery}
+                onChangeText={setPriceSearchQuery}
+              />
+            </View>
 
-            <TouchableOpacity
-              style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
-              onPress={handleUpdateServicePrice}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryActionBtnText}>SAVE & DEPLOY SERVICE TARIFF</Text>
-              )}
-            </TouchableOpacity>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 280 }}>
+              {filteredCatalog.map((svc) => {
+                const isSelected = targetService?.key === svc.key;
+                const activePrice = prices[svc.key] || svc.defaultFee;
+                return (
+                  <TouchableOpacity
+                    key={svc.key}
+                    style={[styles.serviceRowItem, isSelected && styles.serviceRowItemActive]}
+                    onPress={() => {
+                      setTargetService(svc);
+                      setNewServicePrice(activePrice.toString());
+                    }}
+                  >
+                    <View style={styles.serviceRowLeft}>
+                      <View style={[styles.serviceIconWrap, isSelected && { backgroundColor: "#0284c7" }]}>
+                        <FontAwesome5
+                          name={svc.icon}
+                          size={14}
+                          color={isSelected ? "#fff" : "#00f0ff"}
+                        />
+                      </View>
+                      <View style={{ marginLeft: 10, flex: 1 }}>
+                        <Text style={[styles.serviceRowName, isSelected && { color: "#fff" }]}>
+                          {svc.name}
+                        </Text>
+                        <Text style={styles.serviceRowCat}>{svc.category}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.serviceRowFee, isSelected && { color: "#10b981" }]}>
+                      ₦{Number(activePrice).toLocaleString()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {targetService && (
+              <View style={styles.priceEditContainer}>
+                <Text style={styles.priceEditLabel}>
+                  SET NEW PRICE FOR {targetService.name.toUpperCase()} (₦)
+                </Text>
+                <TextInput
+                  style={styles.textInputStyle}
+                  placeholder={`Current: ₦${prices[targetService.key] || targetService.defaultFee}`}
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={newServicePrice}
+                  onChangeText={setNewServicePrice}
+                />
+                <TouchableOpacity
+                  style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1, marginTop: 10 }]}
+                  onPress={handleUpdateServicePrice}
+                  disabled={actionLoading}
+                >
+                  {actionLoading ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : (
+                    <Text style={styles.primaryActionBtnText}>SAVE & DEPLOY TARIFF</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -956,7 +1038,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
               <Text style={styles.formFieldLabel}>TELECOM NETWORK</Text>
               <View style={styles.pillGrid}>
                 {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
@@ -1046,7 +1128,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <>
                   <Text style={styles.formFieldLabel}>RECIPIENT NUMBERS (Comma-separated)</Text>
                   <TextInput
-                    style={[styles.textInputStyle, { height: 75, textAlignVertical: "top" }]}
+                    style={[styles.textInputStyle, { height: 70, textAlignVertical: "top" }]}
                     placeholder="09033738409, 08012345678"
                     placeholderTextColor="#64748b"
                     multiline
@@ -1329,11 +1411,12 @@ const SuperAdminDashboard = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  mainWrapper: { flex: 1, backgroundColor: "#070c18" },
-  loaderContainer: { flex: 1, backgroundColor: "#070c18", justifyContent: "center", alignItems: "center" },
-  loaderText: { color: "#94a3b8", fontSize: 13, fontWeight: "700", marginTop: 12 },
+  mainWrapper: { flex: 1, backgroundColor: "#050811" },
+  loaderContainer: { flex: 1, backgroundColor: "#050811", justifyContent: "center", alignItems: "center" },
+  loaderTitle: { color: "#00f0ff", fontSize: 16, fontWeight: "900", letterSpacing: 1.5, marginTop: 16 },
+  loaderText: { color: "#64748b", fontSize: 12, fontWeight: "600", marginTop: 6 },
   topBar: {
-    backgroundColor: "#0d1424",
+    backgroundColor: "#0b1120",
     paddingTop: Platform.OS === "ios" ? 50 : 40,
     paddingBottom: 16,
     paddingHorizontal: 20,
@@ -1341,44 +1424,67 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#172033",
+    borderBottomColor: "#1e293b",
   },
   menuIconBtn: { padding: 6 },
   topBrandGroup: { alignItems: "center" },
   enterpriseBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#172033",
+    backgroundColor: "rgba(0, 240, 255, 0.08)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
     marginBottom: 3,
+    borderWidth: 1,
+    borderColor: "rgba(0, 240, 255, 0.2)",
   },
-  enterpriseBadgeText: { color: "#f59e0b", fontSize: 9, fontWeight: "900", marginLeft: 4 },
-  topBrandTitle: { color: "#f8fafc", fontSize: 14, fontWeight: "900" },
+  livePulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#00f0ff",
+    marginRight: 6,
+  },
+  enterpriseBadgeText: { color: "#00f0ff", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  topBrandTitle: { color: "#f8fafc", fontSize: 14, fontWeight: "900", letterSpacing: 0.5 },
   avatarBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#172033",
+    backgroundColor: "#0f172a",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#38bdf8",
+    borderColor: "#00f0ff",
   },
   scrollArea: { flex: 1 },
   telemetrySection: { padding: 16 },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
   sectionHeaderLabel: {
     color: "#64748b",
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 1,
-    marginBottom: 12,
   },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  liveBadgeText: { color: "#10b981", fontSize: 9, fontWeight: "800", marginLeft: 4 },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   metricCard: {
     width: "48.5%",
-    backgroundColor: "#0d1424",
+    backgroundColor: "#0b1120",
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
@@ -1386,11 +1492,11 @@ const styles = StyleSheet.create({
   },
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   metricLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
-  metricValue: { color: "#f8fafc", fontSize: 17, fontWeight: "900", marginVertical: 4 },
+  metricValue: { fontSize: 17, fontWeight: "900", marginVertical: 4 },
   metricSub: { color: "#64748b", fontSize: 10, fontWeight: "600" },
   feedSection: { paddingHorizontal: 16, marginBottom: 15 },
   feedCard: {
-    backgroundColor: "#0d1424",
+    backgroundColor: "#0b1120",
     borderRadius: 12,
     padding: 12,
     flexDirection: "row",
@@ -1398,41 +1504,41 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#172033",
+    borderColor: "#1e293b",
   },
-  feedLeft: { flexDirection: "row", alignItems: "center" },
-  feedIconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center" },
+  feedLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  feedIconCircle: { width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center", borderWidth: 1 },
   feedTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "700" },
   feedSubtitle: { color: "#64748b", fontSize: 10, marginTop: 2 },
   feedAmount: { fontSize: 14, fontWeight: "900" },
-  feedStatus: { color: "#34d399", fontSize: 9, fontWeight: "800", marginTop: 2 },
-  emptyFeed: { backgroundColor: "#0d1424", padding: 20, borderRadius: 12, alignItems: "center" },
+  feedStatus: { fontSize: 9, fontWeight: "800", marginTop: 2 },
+  emptyFeed: { backgroundColor: "#0b1120", padding: 24, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: "#1e293b" },
   actionsSection: { paddingHorizontal: 16, marginTop: 6 },
   commandTile: {
-    backgroundColor: "#0d1424",
+    backgroundColor: "#0b1120",
     borderRadius: 14,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#172033",
+    borderColor: "#1e293b",
   },
   tileIconContainer: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   tileInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
   tileTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
   tileDescription: { color: "#64748b", fontSize: 11, marginTop: 2, lineHeight: 15 },
-  sidebarBackdrop: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0, 0, 0, 0.75)", zIndex: 100 },
+  sidebarBackdrop: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0, 0, 0, 0.8)", zIndex: 100 },
   sidebarContainer: {
     position: "absolute",
     top: 0,
     bottom: 0,
-    width: width * 0.8,
-    backgroundColor: "#0a0f1d",
+    width: width * 0.85,
+    backgroundColor: "#050811",
     paddingTop: Platform.OS === "ios" ? 50 : 35,
     paddingHorizontal: 18,
     borderRightWidth: 1,
-    borderRightColor: "#172033",
+    borderRightColor: "#1e293b",
   },
   sidebarHeader: {
     flexDirection: "row",
@@ -1440,35 +1546,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#172033",
+    borderBottomColor: "#1e293b",
   },
   sidebarBrandRow: { flexDirection: "row", alignItems: "center" },
   sidebarBrandText: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
-  sidebarRoleText: { color: "#f59e0b", fontSize: 11, fontWeight: "700" },
+  sidebarRoleText: { color: "#00f0ff", fontSize: 11, fontWeight: "700" },
   sidebarNavList: { flex: 1, marginTop: 15 },
   sidebarCategory: { color: "#475569", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 18, marginBottom: 8 },
   navItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 8, borderRadius: 8 },
   navItemText: { color: "#cbd5e1", fontSize: 13, fontWeight: "700", marginLeft: 12 },
-  logoutBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 18, borderTopWidth: 1, borderTopColor: "#172033" },
+  logoutBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 18, borderTopWidth: 1, borderTopColor: "#1e293b" },
   logoutBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "800", marginLeft: 10 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.8)", justifyContent: "center", alignItems: "center", padding: 16 },
-  modalCard: { backgroundColor: "#0d1424", borderRadius: 20, padding: 20, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: "#172033" },
-  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottomWidth: 1, borderBottomColor: "#172033", paddingBottom: 10 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.85)", justifyContent: "center", alignItems: "center", padding: 16 },
+  modalCard: { backgroundColor: "#0b1120", borderRadius: 20, padding: 20, width: "100%", maxWidth: 440, borderWidth: 1, borderColor: "#1e293b" },
+  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14, borderBottomWidth: 1, borderBottomColor: "#1e293b", paddingBottom: 10 },
   modalCardTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
   modalCardSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
+  categoryTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#0f172a", marginRight: 8, borderWidth: 1, borderColor: "#1e293b" },
+  categoryTabActive: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
+  categoryTabText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
+  categoryTabTextActive: { color: "#ffffff" },
+  modalSearchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#0f172a", paddingHorizontal: 12, borderRadius: 10, height: 40, borderWidth: 1, borderColor: "#1e293b", marginBottom: 10 },
+  modalSearchInput: { flex: 1, color: "#fff", fontSize: 12 },
+  serviceRowItem: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 10, borderRadius: 10, backgroundColor: "#0f172a", marginBottom: 6, borderWidth: 1, borderColor: "#1e293b" },
+  serviceRowItemActive: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
+  serviceRowLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  serviceIconWrap: { width: 30, height: 30, borderRadius: 8, backgroundColor: "#1e293b", justifyContent: "center", alignItems: "center" },
+  serviceRowName: { color: "#f8fafc", fontSize: 12, fontWeight: "700" },
+  serviceRowCat: { color: "#64748b", fontSize: 10, marginTop: 1 },
+  serviceRowFee: { color: "#00f0ff", fontSize: 13, fontWeight: "900" },
+  priceEditContainer: { marginTop: 12, borderTopWidth: 1, borderTopColor: "#1e293b", paddingTop: 10 },
+  priceEditLabel: { color: "#00f0ff", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginBottom: 6 },
   formFieldLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
   pillGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  pillBtn: { flex: 1, paddingVertical: 8, alignItems: "center", backgroundColor: "#172033", marginHorizontal: 2, borderRadius: 8 },
-  activePillBtn: { backgroundColor: "#0284c7" },
+  pillBtn: { flex: 1, paddingVertical: 8, alignItems: "center", backgroundColor: "#0f172a", marginHorizontal: 2, borderRadius: 8, borderWidth: 1, borderColor: "#1e293b" },
+  activePillBtn: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
   pillBtnText: { color: "#94a3b8", fontSize: 11, fontWeight: "800" },
   activePillBtnText: { color: "#ffffff" },
-  textInputStyle: { backgroundColor: "#172033", borderWidth: 1, borderColor: "#334155", borderRadius: 10, paddingHorizontal: 12, height: 44, color: "#f8fafc", fontSize: 13, fontWeight: "600" },
+  textInputStyle: { backgroundColor: "#0f172a", borderWidth: 1, borderColor: "#1e293b", borderRadius: 10, paddingHorizontal: 12, height: 44, color: "#f8fafc", fontSize: 13, fontWeight: "600" },
   dualInputRow: { flexDirection: "row", justifyContent: "space-between" },
   checkboxWrapper: { flexDirection: "row", alignItems: "center", marginTop: 14, marginBottom: 6 },
-  checkboxSquare: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: "#0284c7", justifyContent: "center", alignItems: "center", marginRight: 8 },
+  checkboxSquare: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: "#00f0ff", justifyContent: "center", alignItems: "center", marginRight: 8 },
   checkboxSquareActive: { backgroundColor: "#0284c7" },
   checkboxLabel: { color: "#f8fafc", fontSize: 11, fontWeight: "700" },
-  toggleRowContainer: { flexDirection: "row", backgroundColor: "#172033", padding: 3, borderRadius: 10, marginBottom: 10 },
+  toggleRowContainer: { flexDirection: "row", backgroundColor: "#0f172a", padding: 3, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: "#1e293b" },
   toggleBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
   creditActiveToggle: { backgroundColor: "#059669" },
   debitActiveToggle: { backgroundColor: "#dc2626" },
@@ -1476,36 +1597,6 @@ const styles = StyleSheet.create({
   activeToggleText: { color: "#ffffff" },
   primaryActionBtn: { backgroundColor: "#0284c7", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 18 },
   primaryActionBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
-  serviceSelectBtn: {
-    backgroundColor: "#172033",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#1e293b",
-  },
-  activeServiceSelectBtn: {
-    backgroundColor: "#0369a1",
-    borderColor: "#38bdf8",
-  },
-  serviceSelectTitle: {
-    color: "#cbd5e1",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  serviceSelectCategory: {
-    color: "#64748b",
-    fontSize: 10,
-    marginTop: 2,
-  },
-  serviceSelectPrice: {
-    color: "#38bdf8",
-    fontSize: 13,
-    fontWeight: "900",
-  },
 });
 
 export default SuperAdminDashboard;
