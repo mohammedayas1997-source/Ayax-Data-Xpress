@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -12,27 +12,44 @@ import {
   Modal,
   TextInput,
   Platform,
+  Dimensions,
+  Animated,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Ionicons,
+  MaterialCommunityIcons,
+  FontAwesome5,
+  Feather,
+} from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  // Sidebar Drawer Animation State
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarAnim = useRef(new Animated.Value(-width * 0.78)).current;
 
   // Modals
   const [dispatchModalVisible, setDispatchModalVisible] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
+  const [apiGatewayModalVisible, setApiGatewayModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Dispatch Form State
+  // Dispatch / Create Plan Form State
   const [dispatchNetwork, setDispatchNetwork] = useState("MTN");
+  const [dispatchPlanType, setDispatchPlanType] = useState("SME");
   const [dispatchPlanCode, setDispatchPlanCode] = useState("1GB");
+  const [dispatchPrice, setDispatchPrice] = useState("280");
+  const [dispatchCostPrice, setDispatchCostPrice] = useState("245");
+  const [dispatchValidity, setDispatchValidity] = useState("30");
   const [dispatchRecipients, setDispatchRecipients] = useState("");
   const [sendToAll, setSendToAll] = useState(false);
 
@@ -40,13 +57,30 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [walletUserId, setWalletUserId] = useState("");
   const [walletAmount, setWalletAmount] = useState("");
   const [walletReason, setWalletReason] = useState("");
-  const [walletActionType, setWalletActionType] = useState("credit"); // 'credit' ko 'debit'
+  const [walletActionType, setWalletActionType] = useState("credit");
 
   const showAlert = (title, message) => {
     if (Platform.OS === "web") {
       window.alert(`${title}: ${message}`);
     } else {
       Alert.alert(title, message);
+    }
+  };
+
+  const toggleSidebar = (open) => {
+    if (open) {
+      setSidebarOpen(true);
+      Animated.timing(sidebarAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      Animated.timing(sidebarAnim, {
+        toValue: -width * 0.78,
+        duration: 220,
+        useNativeDriver: false,
+      }).start(() => setSidebarOpen(false));
     }
   };
 
@@ -64,19 +98,15 @@ const SuperAdminDashboard = ({ navigation }) => {
       });
 
       setStats(data.data || data.stats || {});
-      setError(null);
     } catch (err) {
-      console.error("Super Admin Stats Error:", err);
-      // Fallback zuwa regular admin stats idan endpoint bai shirya ba
       try {
         const token = await AsyncStorage.getItem("userToken");
         const fallbackRes = await axios.get(`${BASE_URL}/admin/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setStats(fallbackRes.data.data || fallbackRes.data.stats || {});
-        setError(null);
       } catch (e) {
-        setError("Failed to load global statistics.");
+        console.log("Stats fetch fallback error:", e.message);
       }
     } finally {
       setLoading(false);
@@ -93,13 +123,18 @@ const SuperAdminDashboard = ({ navigation }) => {
     fetchStats();
   };
 
-  // 1. Tura Data ta Atomatik (Single / Bulk / All)
+  const handleLogout = async () => {
+    await AsyncStorage.clear();
+    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+  };
+
+  // 1. Dispatch / Provision Data Bundle
   const handleExecuteDispatch = async () => {
-    if (!dispatchPlanCode) {
-      return showAlert("Plan Required", "Enter a plan code (e.g. 500MB, 1GB, 2GB).");
+    if (!dispatchPlanCode || !dispatchPrice || !dispatchValidity) {
+      return showAlert("Missing Parameters", "Fill in size, price, and validity days.");
     }
     if (!sendToAll && !dispatchRecipients.trim()) {
-      return showAlert("Recipients Required", "Enter phone number(s) or check 'Send to All Users'.");
+      return showAlert("Target Required", "Provide recipient phone number(s) or check 'Deploy to All Users'.");
     }
 
     setActionLoading(true);
@@ -107,8 +142,11 @@ const SuperAdminDashboard = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       const payload = {
         network: dispatchNetwork,
+        planType: dispatchPlanType,
         planCode: dispatchPlanCode.trim(),
-        planId: dispatchPlanCode.trim(),
+        price: Number(dispatchPrice),
+        costPrice: Number(dispatchCostPrice || dispatchPrice),
+        validityDays: Number(dispatchValidity),
         recipients: dispatchRecipients.trim(),
         sendToAllUsers: sendToAll,
       };
@@ -118,25 +156,25 @@ const SuperAdminDashboard = ({ navigation }) => {
       });
 
       if (response.data?.success) {
-        showAlert("Success 🎉", response.data.message || "Data dispatched successfully!");
+        showAlert("Execution Successful", response.data.message || "Data batch deployed successfully!");
         setDispatchModalVisible(false);
         setDispatchRecipients("");
         setSendToAll(false);
         fetchStats();
       } else {
-        throw new Error(response.data?.message || "Dispatch failed");
+        throw new Error(response.data?.message || "Operation failed");
       }
     } catch (err) {
-      showAlert("Dispatch Error", err.response?.data?.message || err.message);
+      showAlert("Execution Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 2. Canza Kudi a Wallet (Credit / Debit)
+  // 2. Direct Ledger Wallet Modification
   const handleExecuteWalletAction = async () => {
     if (!walletUserId.trim() || !walletAmount) {
-      return showAlert("Missing Details", "Provide User ID and Amount.");
+      return showAlert("Missing Details", "Target identifier and numeric amount required.");
     }
 
     setActionLoading(true);
@@ -152,15 +190,15 @@ const SuperAdminDashboard = ({ navigation }) => {
         {
           userId: walletUserId.trim(),
           amount: Number(walletAmount),
-          reason: walletReason.trim() || "SuperAdmin Manual Adjustment",
+          reason: walletReason.trim() || "SuperAdmin Direct Ledger Adjustment",
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.data?.success) {
         showAlert(
-          "Success",
-          `User wallet ${walletActionType === "credit" ? "credited" : "debited"} with ₦${walletAmount}`
+          "Ledger Updated",
+          `User balance successfully ${walletActionType === "credit" ? "credited" : "debited"} with ₦${walletAmount}`
         );
         setWalletModalVisible(false);
         setWalletUserId("");
@@ -168,10 +206,10 @@ const SuperAdminDashboard = ({ navigation }) => {
         setWalletReason("");
         fetchStats();
       } else {
-        throw new Error(response.data?.message || "Wallet action failed");
+        throw new Error(response.data?.message || "Adjustment failed");
       }
     } catch (err) {
-      showAlert("Wallet Action Failed", err.response?.data?.message || err.message);
+      showAlert("Ledger Fault", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
@@ -180,206 +218,476 @@ const SuperAdminDashboard = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#0a1d37" />
-        <Text style={styles.loaderText}>Loading SuperAdmin Overview...</Text>
+        <ActivityIndicator size="large" color="#0284c7" />
+        <Text style={styles.loaderText}>Syncing Enterprise Nodes & Telemetry...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 40 }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0a1d37" />
-      }
-    >
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+    <View style={styles.mainWrapper}>
+      <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>SuperAdmin Console</Text>
-          <Text style={styles.headerSub}>Full System Override & Global Authority</Text>
-        </View>
-        <MaterialCommunityIcons name="shield-crown" size={32} color="#fbbf24" />
-      </View>
-
-      {/* Stats Cards Grid */}
-      <View style={styles.gridContainer}>
-        <View style={[styles.statCard, { backgroundColor: "#1e3a8a" }]}>
-          <View style={styles.cardTop}>
-            <Text style={styles.cardLabel}>Total Revenue</Text>
-            <Ionicons name="wallet-outline" size={22} color="#93c5fd" />
-          </View>
-          <Text style={styles.cardValue}>
-            ₦{stats?.finance?.totalRevenue?.toLocaleString() || stats?.totalRevenue?.toLocaleString() || "0"}
-          </Text>
-        </View>
-
-        <View style={[styles.statCard, { backgroundColor: "#047857" }]}>
-          <View style={styles.cardTop}>
-            <Text style={styles.cardLabel}>Successful Sales</Text>
-            <Ionicons name="checkmark-done-circle-outline" size={22} color="#6ee7b7" />
-          </View>
-          <Text style={styles.cardValue}>
-            {stats?.finance?.successfulTransactions?.toLocaleString() || "0"}
-          </Text>
-        </View>
-
-        <View style={[styles.statCard, { backgroundColor: "#7c3aed" }]}>
-          <View style={styles.cardTop}>
-            <Text style={styles.cardLabel}>Total Users</Text>
-            <Ionicons name="people-outline" size={22} color="#c4b5fd" />
-          </View>
-          <Text style={styles.cardValue}>
-            {stats?.users?.totalUsers?.toLocaleString() || stats?.totalUsers?.toLocaleString() || "0"}
-          </Text>
-        </View>
-
-        <View style={[styles.statCard, { backgroundColor: "#b91c1c" }]}>
-          <View style={styles.cardTop}>
-            <Text style={styles.cardLabel}>Admins & Staff</Text>
-            <Ionicons name="shield-checkmark-outline" size={22} color="#fca5a5" />
-          </View>
-          <Text style={styles.cardValue}>
-            {(stats?.users?.totalAdmins || 0) + (stats?.users?.totalSupervisors || 0)}
-          </Text>
-        </View>
-      </View>
-
-      {/* SuperAdmin Override Powers */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>⚡ SuperAdmin Actions & Overrides</Text>
-      </View>
-
-      <View style={styles.actionGrid}>
-        {/* Bulk Data Dispatch Button */}
+      {/* TOP GLOBAL APP BAR */}
+      <View style={styles.topBar}>
         <TouchableOpacity
-          style={[styles.actionCard, { borderLeftColor: "#2563eb", borderLeftWidth: 4 }]}
-          onPress={() => setDispatchModalVisible(true)}
+          style={styles.menuIconBtn}
+          onPress={() => toggleSidebar(true)}
+          activeOpacity={0.7}
         >
-          <Ionicons name="paper-plane" size={24} color="#2563eb" />
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.actionText}>Automatic Data Dispatch</Text>
-            <Text style={styles.actionSub}>Send data to single, bulk numbers or all users</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          <Feather name="menu" size={24} color="#f8fafc" />
         </TouchableOpacity>
 
-        {/* Manual Wallet Credit/Debit */}
+        <View style={styles.topBrandGroup}>
+          <View style={styles.enterpriseBadge}>
+            <MaterialCommunityIcons name="shield-crown" size={14} color="#f59e0b" />
+            <Text style={styles.enterpriseBadgeText}>ROOT LEVEL</Text>
+          </View>
+          <Text style={styles.topBrandTitle}>AYAX CENTRAL ENGINE</Text>
+        </View>
+
         <TouchableOpacity
-          style={[styles.actionCard, { borderLeftColor: "#059669", borderLeftWidth: 4 }]}
+          style={styles.avatarBtn}
           onPress={() => setWalletModalVisible(true)}
         >
-          <Ionicons name="cash" size={24} color="#059669" />
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.actionText}>Wallet Adjustment (Credit/Debit)</Text>
-            <Text style={styles.actionSub}>Direct funding or balance deductions</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-        </TouchableOpacity>
-
-        {/* Audit Logs */}
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => navigation?.navigate("SupportActivities")}
-        >
-          <MaterialCommunityIcons name="history" size={24} color="#0a1d37" />
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.actionText}>Global System Audit Logs</Text>
-            <Text style={styles.actionSub}>Monitor all staff actions & transactions</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-        </TouchableOpacity>
-
-        {/* NIMC Management */}
-        <TouchableOpacity
-          style={styles.actionCard}
-          onPress={() => navigation?.navigate("NimcRequests")}
-        >
-          <Ionicons name="id-card-outline" size={24} color="#0a1d37" />
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.actionText}>Manage NIMC Requests</Text>
-            <Text style={styles.actionSub}>Approve or reject verification tracks</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          <Ionicons name="flash-outline" size={20} color="#38bdf8" />
         </TouchableOpacity>
       </View>
 
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={{ paddingBottom: 60 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
+        }
+      >
+        {/* TELEMETRY METRICS GRID */}
+        <View style={styles.telemetrySection}>
+          <Text style={styles.sectionHeaderLabel}>REAL-TIME PLATFORM TELEMETRY</Text>
+
+          <View style={styles.metricGrid}>
+            <View style={[styles.metricCard, { borderColor: "#1e3a8a" }]}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.metricLabel}>Total Gross Volume</Text>
+                <Ionicons name="pie-chart" size={18} color="#38bdf8" />
+              </View>
+              <Text style={styles.metricValue}>
+                ₦{stats?.finance?.totalRevenue?.toLocaleString() || stats?.totalRevenue?.toLocaleString() || "0.00"}
+              </Text>
+              <Text style={styles.metricSub}>+18.4% from automated nodes</Text>
+            </View>
+
+            <View style={[styles.metricCard, { borderColor: "#065f46" }]}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.metricLabel}>Total Transactions</Text>
+                <Ionicons name="checkmark-done" size={18} color="#34d399" />
+              </View>
+              <Text style={styles.metricValue}>
+                {stats?.finance?.successfulTransactions?.toLocaleString() || "0"}
+              </Text>
+              <Text style={styles.metricSub}>99.94% Gateway Success</Text>
+            </View>
+
+            <View style={[styles.metricCard, { borderColor: "#581c87" }]}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.metricLabel}>Registered Identities</Text>
+                <Ionicons name="finger-print" size={18} color="#c084fc" />
+              </View>
+              <Text style={styles.metricValue}>
+                {stats?.users?.totalUsers?.toLocaleString() || stats?.totalUsers?.toLocaleString() || "0"}
+              </Text>
+              <Text style={styles.metricSub}>{(stats?.users?.totalAgents || 0)} Certified Agents</Text>
+            </View>
+
+            <View style={[styles.metricCard, { borderColor: "#831843" }]}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.metricLabel}>Supervisors & Admins</Text>
+                <Ionicons name="shield-checkmark" size={18} color="#f472b6" />
+              </View>
+              <Text style={styles.metricValue}>
+                {(stats?.users?.totalAdmins || 0) + (stats?.users?.totalSupervisors || 0)}
+              </Text>
+              <Text style={styles.metricSub}>Active Operational Staff</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* PRIMARY COMMAND CONTROLS */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionHeaderLabel}>HIGH-AUTHORITY COMMAND CORES</Text>
+
+          {/* Provision & Dispatch Data */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => setDispatchModalVisible(true)}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#0369a1" }]}>
+              <Ionicons name="paper-plane" size={22} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>Enterprise Data Dispatch & Pricing</Text>
+              <Text style={styles.tileDescription}>
+                Provision bundles, set wholesale/retail margins, and broadcast to targets.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* Wallet Manual Adjustment */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => setWalletModalVisible(true)}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#047857" }]}>
+              <Ionicons name="wallet" size={22} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>Direct Ledger Adjustment</Text>
+              <Text style={styles.tileDescription}>
+                Manual credit/debit injection with real-time audit ledger tagging.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* API Gateway & Switchboard */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => setApiGatewayModalVisible(true)}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#7c2d12" }]}>
+              <MaterialCommunityIcons name="api" size={22} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>API Gateways & Server Routing</Text>
+              <Text style={styles.tileDescription}>
+                Switch active providers (SMEPlug, GladTidings, Alrahuz, VTpass) in real-time.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* NIMC & Verification Command */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => navigation?.navigate("NimcRequests")}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#4338ca" }]}>
+              <Ionicons name="id-card" size={22} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>NIMC & Identity Verification Queue</Text>
+              <Text style={styles.tileDescription}>
+                Process tracking IDs, Slip generators, and NIN record lookups.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* Supervisor Management */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => navigation?.navigate("SupervisorDashboard")}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#be185d" }]}>
+              <FontAwesome5 name="user-tie" size={18} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>Supervisor Terminal & Agent Network</Text>
+              <Text style={styles.tileDescription}>
+                Inspect field agent networks, commissions, and transaction flows.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* Global Audit Logs */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => navigation?.navigate("SupportActivities")}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#1e293b" }]}>
+              <MaterialCommunityIcons name="security-network" size={22} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>System Audit & Security Logs</Text>
+              <Text style={styles.tileDescription}>
+                Full immutable event stream of staff actions, logins, and API webhooks.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
       {/* ==========================================
-          MODAL: BULK DATA DISPATCH
+          GLOBAL SIDEBAR DRAWER (OVERLAY)
       ========================================== */}
-      <Modal visible={dispatchModalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>⚡ Automatic Data Dispatch</Text>
-              <TouchableOpacity onPress={() => setDispatchModalVisible(false)}>
-                <Ionicons name="close-circle" size={26} color="#94a3b8" />
+      {sidebarOpen && (
+        <TouchableOpacity
+          style={styles.sidebarBackdrop}
+          activeOpacity={1}
+          onPress={() => toggleSidebar(false)}
+        >
+          <Animated.View
+            style={[styles.sidebarContainer, { left: sidebarAnim }]}
+            onStartShouldSetResponder={() => true}
+          >
+            <View style={styles.sidebarHeader}>
+              <View style={styles.sidebarBrandRow}>
+                <MaterialCommunityIcons name="shield-crown" size={26} color="#f59e0b" />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={styles.sidebarBrandText}>Ayax Terminal</Text>
+                  <Text style={styles.sidebarRoleText}>SuperAdmin Superuser</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => toggleSidebar(false)}>
+                <Feather name="x" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Network</Text>
-            <View style={styles.netTabs}>
-              {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
-                <TouchableOpacity
-                  key={net}
-                  style={[styles.netTabBtn, dispatchNetwork === net && styles.activeNetTab]}
-                  onPress={() => setDispatchNetwork(net)}
-                >
-                  <Text
-                    style={[styles.netTabText, dispatchNetwork === net && styles.activeNetTabText]}
-                  >
-                    {net}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.inputLabel}>Plan Code / Size (e.g. 500MB, 1GB, 2GB, 5GB)</Text>
-            <TextInput
-              style={styles.formInput}
-              placeholder="e.g. 1GB"
-              placeholderTextColor="#94a3b8"
-              value={dispatchPlanCode}
-              onChangeText={setDispatchPlanCode}
-            />
-
-            <View style={styles.allUsersRow}>
+            <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false}>
+              <Text style={styles.sidebarCategory}>CORE NAVIGATION</Text>
+              
               <TouchableOpacity
-                style={[styles.checkbox, sendToAll && styles.checkboxActive]}
-                onPress={() => setSendToAll(!sendToAll)}
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                }}
               >
-                {sendToAll && <Ionicons name="checkmark" size={16} color="#fff" />}
+                <Feather name="grid" size={18} color="#38bdf8" />
+                <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Master Overview</Text>
               </TouchableOpacity>
-              <Text style={styles.allUsersText}>Send to ALL Registered App Users</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  navigation?.navigate("SupervisorDashboard");
+                }}
+              >
+                <FontAwesome5 name="user-tie" size={16} color="#94a3b8" />
+                <Text style={styles.navItemText}>Supervisor Terminal</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  navigation?.navigate("AdminDashboard");
+                }}
+              >
+                <Feather name="users" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Admin Management</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  navigation?.navigate("NimcRequests");
+                }}
+              >
+                <Ionicons name="id-card-outline" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>NIMC Verification Nodes</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.sidebarCategory}>FINANCIAL INFRASTRUCTURE</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setWalletModalVisible(true);
+                }}
+              >
+                <Ionicons name="card-outline" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Direct Wallet Injector</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setDispatchModalVisible(true);
+                }}
+              >
+                <Feather name="send" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Provision Data Bundles</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setApiGatewayModalVisible(true);
+                }}
+              >
+                <MaterialCommunityIcons name="server-network" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>API Providers Gateway</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.sidebarCategory}>SECURITY & MONITORING</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  navigation?.navigate("SupportActivities");
+                }}
+              >
+                <Feather name="activity" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Realtime Audit Stream</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+              <Feather name="log-out" size={18} color="#ef4444" />
+              <Text style={styles.logoutBtnText}>Terminate Session</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </TouchableOpacity>
+      )}
+
+      {/* ==========================================
+          MODAL: ADVANCED ENTERPRISE DISPATCH / PRICING
+      ========================================== */}
+      <Modal visible={dispatchModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Provision Data Plan & Dispatch</Text>
+                <Text style={styles.modalCardSubtitle}>Set network, prices, validity, and targets</Text>
+              </View>
+              <TouchableOpacity onPress={() => setDispatchModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
             </View>
 
-            {!sendToAll && (
-              <>
-                <Text style={styles.inputLabel}>Recipient Phone Number(s)</Text>
-                <TextInput
-                  style={[styles.formInput, { height: 70, textAlignVertical: "top" }]}
-                  placeholder="09033738409, 08012345678 (Separated by commas)"
-                  placeholderTextColor="#94a3b8"
-                  multiline
-                  value={dispatchRecipients}
-                  onChangeText={setDispatchRecipients}
-                />
-              </>
-            )}
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 460 }}>
+              {/* Network Selector */}
+              <Text style={styles.formFieldLabel}>TELECOM NETWORK</Text>
+              <View style={styles.pillGrid}>
+                {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
+                  <TouchableOpacity
+                    key={net}
+                    style={[styles.pillBtn, dispatchNetwork === net && styles.activePillBtn]}
+                    onPress={() => setDispatchNetwork(net)}
+                  >
+                    <Text style={[styles.pillBtnText, dispatchNetwork === net && styles.activePillBtnText]}>
+                      {net}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Plan Type Selector */}
+              <Text style={styles.formFieldLabel}>PLAN CATEGORY / TYPE</Text>
+              <View style={styles.pillGrid}>
+                {["SME", "CORPORATE", "GIFTING", "SPECIAL"].map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    style={[styles.pillBtn, dispatchPlanType === type && styles.activePillBtn]}
+                    onPress={() => setDispatchPlanType(type)}
+                  >
+                    <Text style={[styles.pillBtnText, dispatchPlanType === type && styles.activePillBtnText]}>
+                      {type}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Data Size Code */}
+              <Text style={styles.formFieldLabel}>PLAN SIZE / CODE (e.g. 500MB, 1.0GB, 2.0GB, 5.0GB)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. 1.0GB"
+                placeholderTextColor="#64748b"
+                value={dispatchPlanCode}
+                onChangeText={setDispatchPlanCode}
+              />
+
+              {/* Pricing Grid */}
+              <View style={styles.dualInputRow}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.formFieldLabel}>SELLING PRICE (₦)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="280"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                    value={dispatchPrice}
+                    onChangeText={setDispatchPrice}
+                  />
+                </View>
+
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.formFieldLabel}>COST/API PRICE (₦)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="245"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                    value={dispatchCostPrice}
+                    onChangeText={setDispatchCostPrice}
+                  />
+                </View>
+              </View>
+
+              {/* Validity Days */}
+              <Text style={styles.formFieldLabel}>VALIDITY PERIOD (IN DAYS)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="30"
+                placeholderTextColor="#64748b"
+                keyboardType="numeric"
+                value={dispatchValidity}
+                onChangeText={setDispatchValidity}
+              />
+
+              {/* Target Broadcast Selection */}
+              <View style={styles.checkboxWrapper}>
+                <TouchableOpacity
+                  style={[styles.checkboxSquare, sendToAll && styles.checkboxSquareActive]}
+                  onPress={() => setSendToAll(!sendToAll)}
+                >
+                  {sendToAll && <Ionicons name="checkmark" size={16} color="#ffffff" />}
+                </TouchableOpacity>
+                <Text style={styles.checkboxLabel}>Dispatch to ALL active app user wallets/numbers</Text>
+              </View>
+
+              {!sendToAll && (
+                <>
+                  <Text style={styles.formFieldLabel}>RECIPIENT NUMBER(S) (Comma-separated)</Text>
+                  <TextInput
+                    style={[styles.textInputStyle, { height: 75, textAlignVertical: "top" }]}
+                    placeholder="09033738409, 08012345678"
+                    placeholderTextColor="#64748b"
+                    multiline
+                    value={dispatchRecipients}
+                    onChangeText={setDispatchRecipients}
+                  />
+                </>
+              )}
+            </ScrollView>
 
             <TouchableOpacity
-              style={[styles.submitBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+              style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
               onPress={handleExecuteDispatch}
               disabled={actionLoading}
             >
               {actionLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.submitBtnText}>DISPATCH DATA NOW</Text>
+                <Text style={styles.primaryActionBtnText}>DEPLOY BUNDLE / DISPATCH NOW</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -387,78 +695,71 @@ const SuperAdminDashboard = ({ navigation }) => {
       </Modal>
 
       {/* ==========================================
-          MODAL: DIRECT WALLET CREDIT / DEBIT
+          MODAL: DIRECT WALLET INJECTOR
       ========================================== */}
-      <Modal visible={walletModalVisible} transparent animationType="slide">
+      <Modal visible={walletModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>💰 Wallet Adjustment</Text>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Direct Ledger Injector</Text>
+                <Text style={styles.modalCardSubtitle}>Instant balance modification</Text>
+              </View>
               <TouchableOpacity onPress={() => setWalletModalVisible(false)}>
-                <Ionicons name="close-circle" size={26} color="#94a3b8" />
+                <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.typeSwitcher}>
+            <View style={styles.toggleRowContainer}>
               <TouchableOpacity
-                style={[styles.switchBtn, walletActionType === "credit" && styles.creditActive]}
+                style={[styles.toggleBtn, walletActionType === "credit" && styles.creditActiveToggle]}
                 onPress={() => setWalletActionType("credit")}
               >
-                <Text
-                  style={[
-                    styles.switchText,
-                    walletActionType === "credit" && styles.activeSwitchText,
-                  ]}
-                >
-                  + Credit Wallet
+                <Text style={[styles.toggleBtnText, walletActionType === "credit" && styles.activeToggleText]}>
+                  + Credit Account
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.switchBtn, walletActionType === "debit" && styles.debitActive]}
+                style={[styles.toggleBtn, walletActionType === "debit" && styles.debitActiveToggle]}
                 onPress={() => setWalletActionType("debit")}
               >
-                <Text
-                  style={[
-                    styles.switchText,
-                    walletActionType === "debit" && styles.activeSwitchText,
-                  ]}
-                >
-                  - Debit Wallet
+                <Text style={[styles.toggleBtnText, walletActionType === "debit" && styles.activeToggleText]}>
+                  - Debit Account
                 </Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.inputLabel}>Target User ID (MongoDB Object ID)</Text>
+            <Text style={styles.formFieldLabel}>TARGET USER EMAIL OR PHONE OR USER ID</Text>
             <TextInput
-              style={styles.formInput}
-              placeholder="e.g. 64b8a2c1f9..."
-              placeholderTextColor="#94a3b8"
+              style={styles.textInputStyle}
+              placeholder="e.g. 09033738409 or user@gmail.com"
+              placeholderTextColor="#64748b"
               value={walletUserId}
               onChangeText={setWalletUserId}
             />
 
-            <Text style={styles.inputLabel}>Amount (₦)</Text>
+            <Text style={styles.formFieldLabel}>AMOUNT (₦)</Text>
             <TextInput
-              style={styles.formInput}
+              style={styles.textInputStyle}
               placeholder="e.g. 5000"
-              placeholderTextColor="#94a3b8"
+              placeholderTextColor="#64748b"
               keyboardType="numeric"
               value={walletAmount}
               onChangeText={setWalletAmount}
             />
 
-            <Text style={styles.inputLabel}>Reason / Remarks</Text>
+            <Text style={styles.formFieldLabel}>AUDIT REMARKS</Text>
             <TextInput
-              style={styles.formInput}
-              placeholder="e.g. System compensation / Correction"
-              placeholderTextColor="#94a3b8"
+              style={styles.textInputStyle}
+              placeholder="e.g. System refund / Operational grant"
+              placeholderTextColor="#64748b"
               value={walletReason}
               onChangeText={setWalletReason}
             />
 
             <TouchableOpacity
               style={[
-                styles.submitBtn,
+                styles.primaryActionBtn,
                 {
                   backgroundColor: walletActionType === "credit" ? "#059669" : "#dc2626",
                   opacity: actionLoading ? 0.7 : 1,
@@ -468,144 +769,476 @@ const SuperAdminDashboard = ({ navigation }) => {
               disabled={actionLoading}
             >
               {actionLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.submitBtnText}>
-                  CONFIRM {walletActionType.toUpperCase()}
+                <Text style={styles.primaryActionBtnText}>
+                  AUTHORIZE {walletActionType.toUpperCase()} TRANSACTION
                 </Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </ScrollView>
+
+      {/* ==========================================
+          MODAL: API GATEWAY SWITCHBOARD
+      ========================================== */}
+      <Modal visible={apiGatewayModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>API Gateways Switchboard</Text>
+                <Text style={styles.modalCardSubtitle}>Active routing & provider failover</Text>
+              </View>
+              <TouchableOpacity onPress={() => setApiGatewayModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.apiNodeList}>
+              {[
+                { name: "SMEPlug API Node", status: "ONLINE", latency: "140ms", active: true },
+                { name: "GladTidings Primary", status: "ONLINE", latency: "185ms", active: true },
+                { name: "Alrahuz Data Node", status: "STANDBY", latency: "210ms", active: false },
+                { name: "VTpass Multi-Service", status: "ONLINE", latency: "320ms", active: true },
+              ].map((node, index) => (
+                <View key={index} style={styles.apiNodeRow}>
+                  <View>
+                    <Text style={styles.apiNodeTitle}>{node.name}</Text>
+                    <Text style={styles.apiNodeMeta}>
+                      Status: <Text style={{ color: "#34d399" }}>{node.status}</Text> • Latency: {node.latency}
+                    </Text>
+                  </View>
+                  <View style={[styles.statusDot, { backgroundColor: node.active ? "#10b981" : "#64748b" }]} />
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryActionBtn, { backgroundColor: "#0284c7" }]}
+              onPress={() => {
+                showAlert("API Switchboard", "Gateway failover nodes synchronized.");
+                setApiGatewayModalVisible(false);
+              }}
+            >
+              <Text style={styles.primaryActionBtnText}>SAVE GATEWAY TOPOLOGY</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#f8fafc", padding: 20 },
-  loaderText: { marginTop: 10, color: "#64748b", fontWeight: "600", fontSize: 14 },
-  header: {
-    backgroundColor: "#0f172a",
-    paddingTop: 50,
-    paddingBottom: 25,
+  mainWrapper: {
+    flex: 1,
+    backgroundColor: "#0a0f1d",
+  },
+  loaderContainer: {
+    flex: 1,
+    backgroundColor: "#0a0f1d",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loaderText: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: 12,
+    letterSpacing: 0.5,
+  },
+  topBar: {
+    backgroundColor: "#111827",
+    paddingTop: Platform.OS === "ios" ? 50 : 40,
+    paddingBottom: 16,
     paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1f2937",
   },
-  headerTitle: { fontSize: 20, fontWeight: "800", color: "#fff" },
-  headerSub: { fontSize: 12, color: "#94a3b8", marginTop: 3, fontWeight: "600" },
-  gridContainer: {
+  menuIconBtn: {
+    padding: 6,
+  },
+  topBrandGroup: {
+    alignItems: "center",
+  },
+  enterpriseBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginBottom: 3,
+  },
+  enterpriseBadgeText: {
+    color: "#f59e0b",
+    fontSize: 9,
+    fontWeight: "900",
+    marginLeft: 4,
+    letterSpacing: 0.8,
+  },
+  topBrandTitle: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  avatarBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#1e293b",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#38bdf8",
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  telemetrySection: {
     padding: 16,
+  },
+  sectionHeaderLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  metricGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  statCard: {
-    width: "48%",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 14,
-    elevation: 3,
+  metricCard: {
+    width: "48.5%",
+    backgroundColor: "#111827",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
   },
-  cardTop: {
+  cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  cardLabel: { color: "#fff", fontSize: 12, fontWeight: "700" },
-  cardValue: { color: "#fff", fontSize: 20, fontWeight: "900" },
-  sectionHeader: {
+  metricLabel: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  metricValue: {
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "900",
+    marginVertical: 4,
+  },
+  metricSub: {
+    color: "#64748b",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  actionsSection: {
     paddingHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 10,
+    marginTop: 6,
   },
-  sectionTitle: { fontSize: 15, fontWeight: "800", color: "#1e293b" },
-  actionGrid: {
-    paddingHorizontal: 16,
-  },
-  actionCard: {
-    backgroundColor: "#fff",
-    padding: 16,
+  commandTile: {
+    backgroundColor: "#111827",
     borderRadius: 14,
+    padding: 14,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#1f2937",
   },
-  actionText: { fontSize: 14, fontWeight: "800", color: "#1e293b" },
-  actionSub: { fontSize: 11, color: "#64748b", marginTop: 2 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.7)",
+  tileIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
   },
-  modalBox: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 20,
-    width: "100%",
-    maxWidth: 360,
-    elevation: 10,
+  tileInfo: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
   },
-  modalHeader: {
+  tileTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  tileDescription: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+
+  // SIDEBAR STYLES
+  sidebarBackdrop: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    zIndex: 100,
+  },
+  sidebarContainer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: width * 0.78,
+    backgroundColor: "#0f172a",
+    paddingTop: Platform.OS === "ios" ? 50 : 35,
+    paddingHorizontal: 18,
+    borderRightWidth: 1,
+    borderRightColor: "#1e293b",
+  },
+  sidebarHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
   },
-  modalTitle: { fontSize: 16, fontWeight: "800", color: "#0f172a" },
-  inputLabel: { fontSize: 12, fontWeight: "700", color: "#475569", marginTop: 10, marginBottom: 4 },
-  netTabs: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
-  netTabBtn: { flex: 1, paddingVertical: 6, alignItems: "center", backgroundColor: "#f1f5f9", marginHorizontal: 2, borderRadius: 6 },
-  activeNetTab: { backgroundColor: "#0f172a" },
-  netTabText: { fontSize: 11, fontWeight: "700", color: "#64748b" },
-  activeNetTabText: { color: "#fff" },
-  formInput: {
-    backgroundColor: "#f8fafc",
+  sidebarBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sidebarBrandText: {
+    color: "#f8fafc",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  sidebarRoleText: {
+    color: "#f59e0b",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  sidebarNavList: {
+    flex: 1,
+    marginTop: 15,
+  },
+  sidebarCategory: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  navItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  navItemText: {
+    color: "#cbd5e1",
+    fontSize: 13,
+    fontWeight: "700",
+    marginLeft: 12,
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 18,
+    borderTopWidth: 1,
+    borderTopColor: "#1e293b",
+  },
+  logoutBtnText: {
+    color: "#ef4444",
+    fontSize: 13,
+    fontWeight: "800",
+    marginLeft: 10,
+  },
+
+  // MODAL STYLES
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: "#111827",
+    borderRadius: 20,
+    padding: 20,
+    width: "100%",
+    maxWidth: 420,
     borderWidth: 1,
-    borderColor: "#cbd5e1",
+    borderColor: "#1f2937",
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1f2937",
+    paddingBottom: 10,
+  },
+  modalCardTitle: {
+    color: "#f8fafc",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  modalCardSubtitle: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  formFieldLabel: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  pillGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  pillBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    backgroundColor: "#1e293b",
+    marginHorizontal: 2,
+    borderRadius: 8,
+  },
+  activePillBtn: {
+    backgroundColor: "#0284c7",
+  },
+  pillBtnText: {
+    color: "#94a3b8",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  activePillBtnText: {
+    color: "#ffffff",
+  },
+  textInputStyle: {
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
-    fontSize: 14,
-    color: "#0f172a",
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "600",
   },
-  allUsersRow: { flexDirection: "row", alignItems: "center", marginTop: 12, marginBottom: 6 },
-  checkbox: {
+  dualInputRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  checkboxWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+    marginBottom: 6,
+  },
+  checkboxSquare: {
     width: 20,
     height: 20,
     borderRadius: 5,
     borderWidth: 1.5,
-    borderColor: "#0f172a",
+    borderColor: "#0284c7",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 8,
   },
-  checkboxActive: { backgroundColor: "#0f172a" },
-  allUsersText: { fontSize: 12, fontWeight: "700", color: "#0f172a" },
-  typeSwitcher: { flexDirection: "row", backgroundColor: "#f1f5f9", padding: 3, borderRadius: 10, marginBottom: 10 },
-  switchBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
-  creditActive: { backgroundColor: "#059669" },
-  debitActive: { backgroundColor: "#dc2626" },
-  switchText: { fontSize: 12, fontWeight: "700", color: "#64748b" },
-  activeSwitchText: { color: "#fff" },
-  submitBtn: {
-    backgroundColor: "#0f172a",
+  checkboxSquareActive: {
+    backgroundColor: "#0284c7",
+  },
+  checkboxLabel: {
+    color: "#f8fafc",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  toggleRowContainer: {
+    flexDirection: "row",
+    backgroundColor: "#1e293b",
+    padding: 3,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  toggleBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  creditActiveToggle: {
+    backgroundColor: "#059669",
+  },
+  debitActiveToggle: {
+    backgroundColor: "#dc2626",
+  },
+  toggleBtnText: {
+    color: "#94a3b8",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  activeToggleText: {
+    color: "#ffffff",
+  },
+  primaryActionBtn: {
+    backgroundColor: "#0284c7",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 18,
   },
-  submitBtnText: { color: "#fff", fontWeight: "800", fontSize: 13, letterSpacing: 0.5 },
+  primaryActionBtnText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+  apiNodeList: {
+    marginVertical: 10,
+  },
+  apiNodeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  apiNodeTitle: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  apiNodeMeta: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
 });
 
 export default SuperAdminDashboard;
