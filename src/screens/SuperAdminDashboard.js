@@ -30,21 +30,23 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
+  const [recentTx, setRecentTx] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Sidebar Drawer Animation State
+  // Sidebar Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
-  // Modals
+  // Master Modals
   const [dispatchModalVisible, setDispatchModalVisible] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [refundModalVisible, setRefundModalVisible] = useState(false);
-  const [restrictModalVisible, setRestrictModalVisible] = useState(false);
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [suspendModalVisible, setSuspendModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Data Plan Dispatcher State
+  // Form States
   const [dispatchNetwork, setDispatchNetwork] = useState("MTN");
   const [dispatchPlanType, setDispatchPlanType] = useState("SME");
   const [dispatchPlanCode, setDispatchPlanCode] = useState("1.0GB");
@@ -54,20 +56,20 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [dispatchRecipients, setDispatchRecipients] = useState("");
   const [sendToAll, setSendToAll] = useState(false);
 
-  // Wallet Funding State
   const [walletUserId, setWalletUserId] = useState("");
   const [walletAmount, setWalletAmount] = useState("");
   const [walletReason, setWalletReason] = useState("");
   const [walletActionType, setWalletActionType] = useState("credit");
 
-  // Refund State (SuperAdmin Only)
   const [refundUserId, setRefundUserId] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
   const [refundTxId, setRefundTxId] = useState("");
   const [refundReason, setRefundReason] = useState("");
 
-  // Restriction State
-  const [restrictUserId, setRestrictUserId] = useState("");
+  const [pwdUserId, setPwdUserId] = useState("");
+  const [pwdNew, setPwdNew] = useState("");
+
+  const [suspendUserId, setSuspendUserId] = useState("");
 
   const showAlert = (title, message) => {
     if (Platform.OS === "web") {
@@ -94,7 +96,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  const fetchMasterStats = async () => {
+  const fetchMasterTelemetry = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
@@ -107,6 +109,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       });
 
       setStats(res.data?.stats || {});
+      setRecentTx(res.data?.recentTransactions || []);
     } catch (err) {
       console.log("Telemetry Sync Warning:", err.message);
     } finally {
@@ -116,12 +119,12 @@ const SuperAdminDashboard = ({ navigation }) => {
   };
 
   useEffect(() => {
-    fetchMasterStats();
+    fetchMasterTelemetry();
   }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchMasterStats();
+    fetchMasterTelemetry();
   };
 
   const handleLogout = async () => {
@@ -129,7 +132,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
 
-  // 1. Dispatch Data Bundles
+  // 1. Dispatch Data
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice || !dispatchValidity) {
       return showAlert("Validation Error", "Plan Size, Price, and Validity Days are required.");
@@ -158,7 +161,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         setDispatchModalVisible(false);
         setDispatchRecipients("");
         setSendToAll(false);
-        fetchMasterStats();
+        fetchMasterTelemetry();
       }
     } catch (err) {
       showAlert("Dispatch Fault", err.response?.data?.message || err.message);
@@ -167,7 +170,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. Process Refund (SuperAdmin Only)
+  // 2. SuperAdmin Exclusive Refund
   const handleExecuteRefund = async () => {
     if (!refundUserId.trim() || !refundAmount) {
       return showAlert("Validation Error", "Recipient phone/email and refund amount are required.");
@@ -194,7 +197,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         setRefundAmount("");
         setRefundTxId("");
         setRefundReason("");
-        fetchMasterStats();
+        fetchMasterTelemetry();
       }
     } catch (err) {
       showAlert("Refund Error", err.response?.data?.message || err.message);
@@ -228,7 +231,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         setWalletModalVisible(false);
         setWalletUserId("");
         setWalletAmount("");
-        fetchMasterStats();
+        fetchMasterTelemetry();
       }
     } catch (err) {
       showAlert("Adjustment Failed", err.response?.data?.message || err.message);
@@ -237,31 +240,57 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. Toggle Wallet Restriction
-  const handleExecuteLockAction = async (lock) => {
-    if (!restrictUserId.trim()) {
-      return showAlert("Validation Error", "Please provide a valid Phone Number or Email.");
+  // 4. Force Password Reset Override
+  const handleExecutePasswordOverride = async () => {
+    if (!pwdUserId.trim() || !pwdNew || pwdNew.length < 6) {
+      return showAlert("Validation Error", "Target user identifier and a 6+ character password are required.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/superadmin/toggle-wallet`,
-        {
-          userId: restrictUserId.trim(),
-          lock: lock,
-        },
+        `${BASE_URL}/superadmin/override-password`,
+        { userId: pwdUserId.trim(), newPassword: pwdNew.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Status Changed", res.data.message);
-        setRestrictModalVisible(false);
-        setRestrictUserId("");
+        showAlert("Password Overridden", res.data.message);
+        setPasswordModalVisible(false);
+        setPwdUserId("");
+        setPwdNew("");
       }
     } catch (err) {
-      showAlert("Restriction Error", err.response?.data?.message || err.message);
+      showAlert("Override Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 5. Suspend / Activate Staff & Users
+  const handleExecuteSuspension = async (suspend) => {
+    if (!suspendUserId.trim()) {
+      return showAlert("Validation Error", "Target identifier is required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.post(
+        `${BASE_URL}/superadmin/toggle-suspension`,
+        { userId: suspendUserId.trim(), suspend },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.success) {
+        showAlert("Account Status Changed", res.data.message);
+        setSuspendModalVisible(false);
+        setSuspendUserId("");
+        fetchMasterTelemetry();
+      }
+    } catch (err) {
+      showAlert("Operation Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
@@ -271,16 +300,16 @@ const SuperAdminDashboard = ({ navigation }) => {
     return (
       <View style={styles.loaderContainer}>
         <ActivityIndicator size="large" color="#0284c7" />
-        <Text style={styles.loaderText}>Syncing Ayax VTU Master Telemetry...</Text>
+        <Text style={styles.loaderText}>Establishing Supreme Master Protocol...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.mainWrapper}>
-      <StatusBar barStyle="light-content" backgroundColor="#0a0f1d" />
+      <StatusBar barStyle="light-content" backgroundColor="#070c18" />
 
-      {/* TOP COMMAND HEADER */}
+      {/* TOP COMMAND BAR */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)}>
           <Feather name="menu" size={24} color="#f8fafc" />
@@ -291,13 +320,10 @@ const SuperAdminDashboard = ({ navigation }) => {
             <MaterialCommunityIcons name="shield-crown" size={14} color="#f59e0b" />
             <Text style={styles.enterpriseBadgeText}>SUPERADMIN SUPREME</Text>
           </View>
-          <Text style={styles.topBrandTitle}>AYAX CENTRAL OVERRIDE</Text>
+          <Text style={styles.topBrandTitle}>AYAX CENTRAL CONSOLE</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.avatarBtn}
-          onPress={() => setRefundModalVisible(true)}
-        >
+        <TouchableOpacity style={styles.avatarBtn} onPress={() => setRefundModalVisible(true)}>
           <Ionicons name="refresh-circle" size={24} color="#38bdf8" />
         </TouchableOpacity>
       </View>
@@ -310,62 +336,133 @@ const SuperAdminDashboard = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />
         }
       >
-        {/* STATS OVERVIEW */}
+        {/* FINANCIAL TELEMETRY CARDS (INFLOW & OUTFLOW) */}
         <View style={styles.telemetrySection}>
-          <Text style={styles.sectionHeaderLabel}>PLATFORM OVERVIEW & REVENUE</Text>
+          <Text style={styles.sectionHeaderLabel}>REAL-TIME FINANCIAL INFLOW & OUTFLOW</Text>
 
           <View style={styles.metricGrid}>
-            <View style={[styles.metricCard, { borderColor: "#1e3a8a" }]}>
+            <View style={[styles.metricCard, { borderColor: "#059669" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Total Revenue</Text>
-                <Ionicons name="wallet-outline" size={18} color="#38bdf8" />
+                <Text style={styles.metricLabel}>Total Inflow (Fundings)</Text>
+                <Ionicons name="arrow-down-circle" size={18} color="#34d399" />
               </View>
-              <Text style={styles.metricValue}>
-                ₦{Number(stats?.totalRevenue || 0).toLocaleString()}
+              <Text style={[styles.metricValue, { color: "#34d399" }]}>
+                ₦{Number(stats?.totalInflow || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>Gross processed volume</Text>
+              <Text style={styles.metricSub}>{stats?.totalWalletFundingCount || 0} Inflow Events</Text>
             </View>
 
-            <View style={[styles.metricCard, { borderColor: "#065f46" }]}>
+            <View style={[styles.metricCard, { borderColor: "#dc2626" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Total Transactions</Text>
-                <Ionicons name="checkmark-done" size={18} color="#34d399" />
+                <Text style={styles.metricLabel}>Total Outflow (Sales)</Text>
+                <Ionicons name="arrow-up-circle" size={18} color="#f87171" />
               </View>
-              <Text style={styles.metricValue}>
-                {Number(stats?.successfulTransactions || 0).toLocaleString()}
+              <Text style={[styles.metricValue, { color: "#f87171" }]}>
+                ₦{Number(stats?.totalOutflow || 0).toLocaleString()}
               </Text>
-              <Text style={styles.metricSub}>Successful automated sales</Text>
+              <Text style={styles.metricSub}>{stats?.successfulSalesCount || 0} Successful Dispatches</Text>
             </View>
 
-            <View style={[styles.metricCard, { borderColor: "#581c87" }]}>
+            <View style={[styles.metricCard, { borderColor: "#0284c7" }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Total Users</Text>
+                <Text style={styles.metricLabel}>Net Growth Ledger</Text>
+                <Ionicons name="wallet" size={18} color="#38bdf8" />
+              </View>
+              <Text style={styles.metricValue}>
+                ₦{Number(stats?.netRevenue || 0).toLocaleString()}
+              </Text>
+              <Text style={styles.metricSub}>99.98% Gateway Health</Text>
+            </View>
+
+            <View style={[styles.metricCard, { borderColor: "#7c3aed" }]}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.metricLabel}>Platform Entities</Text>
                 <Ionicons name="people" size={18} color="#c084fc" />
               </View>
               <Text style={styles.metricValue}>
-                {Number(stats?.totalUsers || 0).toLocaleString()}
+                {(stats?.totalUsers || 0) + (stats?.totalAgents || 0) + (stats?.totalSupervisors || 0)}
               </Text>
-              <Text style={styles.metricSub}>Registered customer profiles</Text>
-            </View>
-
-            <View style={[styles.metricCard, { borderColor: "#831843" }]}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.metricLabel}>Supervisors & Agents</Text>
-                <Ionicons name="shield-checkmark" size={18} color="#f472b6" />
-              </View>
-              <Text style={styles.metricValue}>
-                {(stats?.totalSupervisors || 0) + (stats?.totalAgents || 0)}
+              <Text style={styles.metricSub}>
+                {stats?.totalSupervisors || 0} Supervisors • {stats?.totalAgents || 0} Agents
               </Text>
-              <Text style={styles.metricSub}>Active field & network staff</Text>
             </View>
           </View>
         </View>
 
-        {/* ACTIONS & OVERRIDES */}
-        <View style={styles.actionsSection}>
-          <Text style={styles.sectionHeaderLabel}>SUPERADMIN EXCLUSIVE COMMAND ACTIONS</Text>
+        {/* RECENT LIVE INFLOW & FUNDING FEED */}
+        <View style={styles.feedSection}>
+          <Text style={styles.sectionHeaderLabel}>LIVE TRANSACTION & FUNDING STREAM</Text>
+          {recentTx.length > 0 ? (
+            recentTx.map((tx) => (
+              <View key={tx._id} style={styles.feedCard}>
+                <View style={styles.feedLeft}>
+                  <View
+                    style={[
+                      styles.feedIconCircle,
+                      {
+                        backgroundColor:
+                          tx.type === "wallet_funding" || tx.type === "deposit"
+                            ? "rgba(16, 185, 129, 0.15)"
+                            : "rgba(56, 189, 248, 0.15)",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        tx.type === "wallet_funding" || tx.type === "deposit"
+                          ? "card"
+                          : "flash"
+                      }
+                      size={18}
+                      color={
+                        tx.type === "wallet_funding" || tx.type === "deposit"
+                          ? "#34d399"
+                          : "#38bdf8"
+                      }
+                    />
+                  </View>
+                  <View style={{ marginLeft: 10 }}>
+                    <Text style={styles.feedTitle}>
+                      {tx.type === "wallet_funding" || tx.type === "deposit"
+                        ? "User Wallet Funding"
+                        : tx.service || "Service Order"}
+                    </Text>
+                    <Text style={styles.feedSubtitle}>
+                      {tx.user?.phone || tx.phone || tx.reference || "Verified Node"}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text
+                    style={[
+                      styles.feedAmount,
+                      {
+                        color:
+                          tx.type === "wallet_funding" || tx.type === "deposit"
+                            ? "#34d399"
+                            : "#f8fafc",
+                      },
+                    ]}
+                  >
+                    {tx.type === "wallet_funding" || tx.type === "deposit" ? "+" : "-"}₦
+                    {Number(tx.amount || 0).toLocaleString()}
+                  </Text>
+                  <Text style={styles.feedStatus}>{tx.status?.toUpperCase() || "SUCCESSFUL"}</Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyFeed}>
+              <Text style={{ color: "#64748b", fontSize: 12 }}>No transactions recorded recently.</Text>
+            </View>
+          )}
+        </View>
 
-          {/* 1. Data Dispatcher & Pricing */}
+        {/* SUPREME COMMAND CORES & OVERRIDES */}
+        <View style={styles.actionsSection}>
+          <Text style={styles.sectionHeaderLabel}>SUPREME OVERRIDES & GLOBAL COMMANDS</Text>
+
+          {/* 1. Data Dispatcher */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -375,15 +472,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="paper-plane" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Data Dispatcher & Pricing Setup</Text>
+              <Text style={styles.tileTitle}>Data Dispatcher & Tariff Pricing</Text>
               <Text style={styles.tileDescription}>
-                Configure network bundles, retail/cost prices, validity days, and target recipients.
+                Provision network bundles, retail margins, validity days, and target recipients.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 2. Process Refund (SuperAdmin Only) */}
+          {/* 2. SuperAdmin Refund Exclusive */}
           <TouchableOpacity
             style={[styles.commandTile, { borderColor: "#ef4444" }]}
             activeOpacity={0.8}
@@ -393,15 +490,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="refresh-circle" size={24} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={[styles.tileTitle, { color: "#f87171" }]}>Process User Refund (SuperAdmin Only)</Text>
+              <Text style={[styles.tileTitle, { color: "#f87171" }]}>Disburse Direct Refund (SuperAdmin Only)</Text>
               <Text style={styles.tileDescription}>
-                Authorize direct automated wallet refunds for failed transactions.
+                Directly refund failed operations into any user, agent, or staff wallet.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 3. Wallet Credit / Debit */}
+          {/* 3. Direct Wallet Adjustment */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -411,33 +508,51 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="wallet" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Direct Wallet Adjustment (Credit / Debit)</Text>
+              <Text style={styles.tileTitle}>Direct Ledger Injector (Credit / Debit)</Text>
               <Text style={styles.tileDescription}>
-                Manually adjust wallet balances for Users, Agents, and Staff with audit remarks.
+                Inject or deduct balances from customer or staff accounts with audit remarks.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 4. Wallet Restriction Toggle */}
+          {/* 4. Force Password Reset Override */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
-            onPress={() => setRestrictModalVisible(true)}
+            onPress={() => setPasswordModalVisible(true)}
           >
-            <View style={[styles.tileIconContainer, { backgroundColor: "#b91c1c" }]}>
-              <MaterialIcons name="lock-person" size={22} color="#ffffff" />
+            <View style={[styles.tileIconContainer, { backgroundColor: "#4f46e5" }]}>
+              <MaterialIcons name="lock-reset" size={24} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Wallet Status & Account Restrictions (Block / Unblock)</Text>
+              <Text style={styles.tileTitle}>User & Staff Password Override</Text>
               <Text style={styles.tileDescription}>
-                Freeze suspicious wallets or unfreeze accounts to resume transactions.
+                Forcefully change the password of any account on the platform without email pins.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 5. Supervisor Network Management */}
+          {/* 5. Account Suspension & Reactivation */}
+          <TouchableOpacity
+            style={styles.commandTile}
+            activeOpacity={0.8}
+            onPress={() => setSuspendModalVisible(true)}
+          >
+            <View style={[styles.tileIconContainer, { backgroundColor: "#b91c1c" }]}>
+              <MaterialIcons name="block" size={22} color="#ffffff" />
+            </View>
+            <View style={styles.tileInfo}>
+              <Text style={styles.tileTitle}>Suspend / Activate Staff & Users</Text>
+              <Text style={styles.tileDescription}>
+                Instantly freeze access for any rogue Agent, Supervisor, Admin, or User.
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color="#64748b" />
+          </TouchableOpacity>
+
+          {/* 6. Supervisors Hub */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -447,15 +562,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <FontAwesome5 name="user-tie" size={18} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Supervisor Network & Authority Hub</Text>
+              <Text style={styles.tileTitle}>Supervisors & Network Hierarchy</Text>
               <Text style={styles.tileDescription}>
-                Assign targets, suspend supervisors, or view team performance records.
+                Manage team quotas, assigned agents, and performance benchmarks.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 6. Agent Transfer & Management */}
+          {/* 7. Field Agent Management */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -465,15 +580,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <MaterialCommunityIcons name="account-group" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Field Agent Reassignment & Mapping</Text>
+              <Text style={styles.tileTitle}>Agent Reassignment & Mapping</Text>
               <Text style={styles.tileDescription}>
-                Transfer agents between supervisors and monitor daily field sales.
+                Shift agents between supervisors and inspect field throughput.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 7. Service & Transaction Investigation */}
+          {/* 8. Service Tracker & Investigation */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -483,15 +598,15 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="search" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>Service Tracing (Data, NIMC & Bills)</Text>
+              <Text style={styles.tileTitle}>Transaction & Utility Investigation</Text>
               <Text style={styles.tileDescription}>
-                Investigate and resolve pending transactions by phone number or reference.
+                Trace NIN, BVN, Airtime, Electricity, and Cable TV operations.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
           </TouchableOpacity>
 
-          {/* 8. NIMC & Modification Requests */}
+          {/* 9. NIMC Verification Operations */}
           <TouchableOpacity
             style={styles.commandTile}
             activeOpacity={0.8}
@@ -501,9 +616,9 @@ const SuperAdminDashboard = ({ navigation }) => {
               <Ionicons name="id-card" size={22} color="#ffffff" />
             </View>
             <View style={styles.tileInfo}>
-              <Text style={styles.tileTitle}>NIMC Verification & Modification Queue</Text>
+              <Text style={styles.tileTitle}>NIMC Modification & Verification Queue</Text>
               <Text style={styles.tileDescription}>
-                Process, approve, or reject customer identity modification submissions.
+                Review, process, approve, or reject identity modification documents.
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color="#64748b" />
@@ -512,7 +627,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       </ScrollView>
 
       {/* ==========================================
-          GLOBAL SIDEBAR DRAWER
+          GLOBAL SIDEBAR OVERLAY
       ========================================== */}
       {sidebarOpen && (
         <TouchableOpacity
@@ -540,10 +655,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false}>
               <Text style={styles.sidebarCategory}>CORE NAVIGATION</Text>
 
-              <TouchableOpacity
-                style={styles.navItem}
-                onPress={() => toggleSidebar(false)}
-              >
+              <TouchableOpacity style={styles.navItem} onPress={() => toggleSidebar(false)}>
                 <Feather name="grid" size={18} color="#38bdf8" />
                 <Text style={[styles.navItemText, { color: "#38bdf8" }]}>Master Overview</Text>
               </TouchableOpacity>
@@ -581,7 +693,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <Text style={styles.navItemText}>Manage Field Agents</Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>DATA & FINANCIALS</Text>
+              <Text style={styles.sidebarCategory}>FINANCIAL INFRASTRUCTURE</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -602,7 +714,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="refresh-circle-outline" size={20} color="#f87171" />
-                <Text style={[styles.navItemText, { color: "#f87171" }]}>Process Refund (Exclusive)</Text>
+                <Text style={[styles.navItemText, { color: "#f87171" }]}>Disburse Refund (Exclusive)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -613,21 +725,32 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="wallet-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Wallet Adjustment</Text>
+                <Text style={styles.navItemText}>Direct Ledger Injector</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.sidebarCategory}>SECURITY & ACCESS CONTROL</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setPasswordModalVisible(true);
+                }}
+              >
+                <MaterialIcons name="lock-reset" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Override User Password</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setRestrictModalVisible(true);
+                  setSuspendModalVisible(true);
                 }}
               >
-                <MaterialIcons name="lock-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Wallet Restrictions</Text>
+                <MaterialIcons name="block" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Suspend / Activate Account</Text>
               </TouchableOpacity>
-
-              <Text style={styles.sidebarCategory}>INVESTIGATION & VERIFICATION</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -638,28 +761,6 @@ const SuperAdminDashboard = ({ navigation }) => {
               >
                 <Feather name="search" size={18} color="#94a3b8" />
                 <Text style={styles.navItemText}>Service Investigation</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.navItem}
-                onPress={() => {
-                  toggleSidebar(false);
-                  navigation?.navigate("NimcRequests");
-                }}
-              >
-                <Ionicons name="id-card-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>NIMC Verification</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.navItem}
-                onPress={() => {
-                  toggleSidebar(false);
-                  navigation?.navigate("SupportActivities");
-                }}
-              >
-                <Feather name="activity" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>System Audit Logs</Text>
               </TouchableOpacity>
             </ScrollView>
 
@@ -770,7 +871,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 >
                   {sendToAll && <Ionicons name="checkmark" size={16} color="#ffffff" />}
                 </TouchableOpacity>
-                <Text style={styles.checkboxLabel}>Dispatch to ALL active app users</Text>
+                <Text style={styles.checkboxLabel}>Dispatch to ALL active platform users</Text>
               </View>
 
               {!sendToAll && (
@@ -796,7 +897,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               {actionLoading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>DISPATCH BUNDLE NOW</Text>
+                <Text style={styles.primaryActionBtnText}>PROVISION & DISPATCH NOW</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -812,7 +913,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={[styles.modalCardTitle, { color: "#f87171" }]}>Authorize Wallet Refund</Text>
-                <Text style={styles.modalCardSubtitle}>SuperAdmin exclusive refund authorization</Text>
+                <Text style={styles.modalCardSubtitle}>SuperAdmin exclusive fund replenishment</Text>
               </View>
               <TouchableOpacity onPress={() => setRefundModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -883,7 +984,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Direct Ledger Adjustment</Text>
-                <Text style={styles.modalCardSubtitle}>Instant credit or debit balance injection</Text>
+                <Text style={styles.modalCardSubtitle}>Instant balance injection or deduction</Text>
               </View>
               <TouchableOpacity onPress={() => setWalletModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -931,7 +1032,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>AUDIT REMARKS</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. System compensation"
+              placeholder="e.g. Operational grant / Manual settlement"
               placeholderTextColor="#64748b"
               value={walletReason}
               onChangeText={setWalletReason}
@@ -961,45 +1062,95 @@ const SuperAdminDashboard = ({ navigation }) => {
       </Modal>
 
       {/* ==========================================
-          MODAL 4: WALLET RESTRICTIONS
+          MODAL 4: PASSWORD OVERRIDE
       ========================================== */}
-      <Modal visible={restrictModalVisible} transparent animationType="fade">
+      <Modal visible={passwordModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Wallet Access Restrictions</Text>
-                <Text style={styles.modalCardSubtitle}>Freeze or unfreeze customer wallet operations</Text>
+                <Text style={styles.modalCardTitle}>Override User Password</Text>
+                <Text style={styles.modalCardSubtitle}>Direct administrative credential modification</Text>
               </View>
-              <TouchableOpacity onPress={() => setRestrictModalVisible(false)}>
+              <TouchableOpacity onPress={() => setPasswordModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>TARGET PHONE OR EMAIL</Text>
+            <Text style={styles.formFieldLabel}>TARGET PHONE, EMAIL, OR USER ID</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="Enter User Phone or Email"
+              placeholderTextColor="#64748b"
+              value={pwdUserId}
+              onChangeText={setPwdUserId}
+            />
+
+            <Text style={styles.formFieldLabel}>NEW STRONG PASSWORD (MIN 6 CHARS)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="Enter New Password"
+              placeholderTextColor="#64748b"
+              secureTextEntry
+              value={pwdNew}
+              onChangeText={setPwdNew}
+            />
+
+            <TouchableOpacity
+              style={[styles.primaryActionBtn, { backgroundColor: "#4f46e5", opacity: actionLoading ? 0.7 : 1 }]}
+              onPress={handleExecutePasswordOverride}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.primaryActionBtnText}>SET NEW CREDENTIALS</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ==========================================
+          MODAL 5: SUSPEND / ACTIVATE ACCOUNT
+      ========================================== */}
+      <Modal visible={suspendModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Account Access Control</Text>
+                <Text style={styles.modalCardSubtitle}>Suspend or reactivate staff and user accounts</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSuspendModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.formFieldLabel}>TARGET PHONE, EMAIL, OR USER ID</Text>
             <TextInput
               style={styles.textInputStyle}
               placeholder="Enter Phone Number or Email"
               placeholderTextColor="#64748b"
-              value={restrictUserId}
-              onChangeText={setRestrictUserId}
+              value={suspendUserId}
+              onChangeText={setSuspendUserId}
             />
 
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 20 }}>
               <TouchableOpacity
                 style={[styles.primaryActionBtn, { flex: 1, marginRight: 6, backgroundColor: "#dc2626" }]}
-                onPress={() => handleExecuteLockAction(true)}
+                onPress={() => handleExecuteSuspension(true)}
                 disabled={actionLoading}
               >
-                <Text style={styles.primaryActionBtnText}>FREEZE WALLET</Text>
+                <Text style={styles.primaryActionBtnText}>SUSPEND ACCOUNT</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[styles.primaryActionBtn, { flex: 1, marginLeft: 6, backgroundColor: "#059669" }]}
-                onPress={() => handleExecuteLockAction(false)}
+                onPress={() => handleExecuteSuspension(false)}
                 disabled={actionLoading}
               >
-                <Text style={styles.primaryActionBtnText}>UNFREEZE</Text>
+                <Text style={styles.primaryActionBtnText}>ACTIVATE</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1010,11 +1161,11 @@ const SuperAdminDashboard = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  mainWrapper: { flex: 1, backgroundColor: "#0a0f1d" },
-  loaderContainer: { flex: 1, backgroundColor: "#0a0f1d", justifyContent: "center", alignItems: "center" },
+  mainWrapper: { flex: 1, backgroundColor: "#070c18" },
+  loaderContainer: { flex: 1, backgroundColor: "#070c18", justifyContent: "center", alignItems: "center" },
   loaderText: { color: "#94a3b8", fontSize: 13, fontWeight: "700", marginTop: 12 },
   topBar: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0d1424",
     paddingTop: Platform.OS === "ios" ? 50 : 40,
     paddingBottom: 16,
     paddingHorizontal: 20,
@@ -1022,14 +1173,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#1f2937",
+    borderBottomColor: "#172033",
   },
   menuIconBtn: { padding: 6 },
   topBrandGroup: { alignItems: "center" },
   enterpriseBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e293b",
+    backgroundColor: "#172033",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -1041,7 +1192,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#1e293b",
+    backgroundColor: "#172033",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
@@ -1059,7 +1210,7 @@ const styles = StyleSheet.create({
   metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   metricCard: {
     width: "48.5%",
-    backgroundColor: "#111827",
+    backgroundColor: "#0d1424",
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
@@ -1069,16 +1220,35 @@ const styles = StyleSheet.create({
   metricLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   metricValue: { color: "#f8fafc", fontSize: 17, fontWeight: "900", marginVertical: 4 },
   metricSub: { color: "#64748b", fontSize: 10, fontWeight: "600" },
+  feedSection: { paddingHorizontal: 16, marginBottom: 15 },
+  feedCard: {
+    backgroundColor: "#0d1424",
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#172033",
+  },
+  feedLeft: { flexDirection: "row", alignItems: "center" },
+  feedIconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center" },
+  feedTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "700" },
+  feedSubtitle: { color: "#64748b", fontSize: 10, marginTop: 2 },
+  feedAmount: { fontSize: 14, fontWeight: "900" },
+  feedStatus: { color: "#34d399", fontSize: 9, fontWeight: "800", marginTop: 2 },
+  emptyFeed: { backgroundColor: "#0d1424", padding: 20, borderRadius: 12, alignItems: "center" },
   actionsSection: { paddingHorizontal: 16, marginTop: 6 },
   commandTile: {
-    backgroundColor: "#111827",
+    backgroundColor: "#0d1424",
     borderRadius: 14,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
+    borderColor: "#172033",
   },
   tileIconContainer: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
   tileInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
@@ -1090,11 +1260,11 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: width * 0.8,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#0a0f1d",
     paddingTop: Platform.OS === "ios" ? 50 : 35,
     paddingHorizontal: 18,
     borderRightWidth: 1,
-    borderRightColor: "#1e293b",
+    borderRightColor: "#172033",
   },
   sidebarHeader: {
     flexDirection: "row",
@@ -1102,7 +1272,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    borderBottomColor: "#172033",
   },
   sidebarBrandRow: { flexDirection: "row", alignItems: "center" },
   sidebarBrandText: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
@@ -1111,26 +1281,26 @@ const styles = StyleSheet.create({
   sidebarCategory: { color: "#475569", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 18, marginBottom: 8 },
   navItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 8, borderRadius: 8 },
   navItemText: { color: "#cbd5e1", fontSize: 13, fontWeight: "700", marginLeft: 12 },
-  logoutBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 18, borderTopWidth: 1, borderTopColor: "#1e293b" },
+  logoutBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 18, borderTopWidth: 1, borderTopColor: "#172033" },
   logoutBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "800", marginLeft: 10 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.8)", justifyContent: "center", alignItems: "center", padding: 16 },
-  modalCard: { backgroundColor: "#111827", borderRadius: 20, padding: 20, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: "#1f2937" },
-  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottomWidth: 1, borderBottomColor: "#1f2937", paddingBottom: 10 },
+  modalCard: { backgroundColor: "#0d1424", borderRadius: 20, padding: 20, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: "#172033" },
+  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottomWidth: 1, borderBottomColor: "#172033", paddingBottom: 10 },
   modalCardTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
   modalCardSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
   formFieldLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
   pillGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  pillBtn: { flex: 1, paddingVertical: 8, alignItems: "center", backgroundColor: "#1e293b", marginHorizontal: 2, borderRadius: 8 },
+  pillBtn: { flex: 1, paddingVertical: 8, alignItems: "center", backgroundColor: "#172033", marginHorizontal: 2, borderRadius: 8 },
   activePillBtn: { backgroundColor: "#0284c7" },
   pillBtnText: { color: "#94a3b8", fontSize: 11, fontWeight: "800" },
   activePillBtnText: { color: "#ffffff" },
-  textInputStyle: { backgroundColor: "#1e293b", borderWidth: 1, borderColor: "#334155", borderRadius: 10, paddingHorizontal: 12, height: 44, color: "#f8fafc", fontSize: 13, fontWeight: "600" },
+  textInputStyle: { backgroundColor: "#172033", borderWidth: 1, borderColor: "#334155", borderRadius: 10, paddingHorizontal: 12, height: 44, color: "#f8fafc", fontSize: 13, fontWeight: "600" },
   dualInputRow: { flexDirection: "row", justifyContent: "space-between" },
   checkboxWrapper: { flexDirection: "row", alignItems: "center", marginTop: 14, marginBottom: 6 },
   checkboxSquare: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: "#0284c7", justifyContent: "center", alignItems: "center", marginRight: 8 },
   checkboxSquareActive: { backgroundColor: "#0284c7" },
   checkboxLabel: { color: "#f8fafc", fontSize: 11, fontWeight: "700" },
-  toggleRowContainer: { flexDirection: "row", backgroundColor: "#1e293b", padding: 3, borderRadius: 10, marginBottom: 10 },
+  toggleRowContainer: { flexDirection: "row", backgroundColor: "#172033", padding: 3, borderRadius: 10, marginBottom: 10 },
   toggleBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
   creditActiveToggle: { backgroundColor: "#059669" },
   debitActiveToggle: { backgroundColor: "#dc2626" },
