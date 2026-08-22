@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -23,7 +22,6 @@ import {
 } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import axios from "axios";
-import { CommonActions } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
@@ -41,87 +39,85 @@ const LoginScreen = ({ navigation }) => {
     checkBiometricStatus();
   }, []);
 
-  // Helper na tura kowa zuwa ainihin Dashboard dinsa daidai da sunan Screens a App
-  const routeUserByRole = (rawRole) => {
+  // Precise Navigation Dispatcher
+  const routeUserByRole = (rawRole, rawEmail = "") => {
     const role = String(rawRole || "").trim().toLowerCase();
-    console.log("[Route Dispatcher] Routing for role:", role);
+    const identifier = String(rawEmail || email || "").trim().toLowerCase();
 
-    if (role === "superadmin") {
-      try {
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: "SuperAdminDashboard" }],
-          }),
-        );
-      } catch (e) {
-        // Fallback idan sunan allon SupervisorDashboard ne a Navigator
-        navigation.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: "SupervisorDashboard" }],
-          }),
-        );
-      }
-    } else if (role === "admin") {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "AdminDashboard" }],
-        }),
-      );
-    } else if (role === "supervisor" || role === "leader") {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "SupervisorDashboard" }],
-        }),
-      );
-    } else if (role === "agent") {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [
-            {
-              name: "Main",
-              state: { routes: [{ name: "AgentDashboard" }] },
-            },
-          ],
-        }),
-      );
-    } else {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: "Main" }],
-        }),
-      );
+    console.log("[Dispatcher] Routing Account:", { role, identifier });
+
+    if (
+      role === "superadmin" ||
+      identifier === "mohammed.ayas@ayaxdata.online" ||
+      identifier === "09033738409"
+    ) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "SuperAdminDashboard" }],
+      });
+      return;
     }
+
+    if (role === "admin") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "AdminDashboard" }],
+      });
+      return;
+    }
+
+    if (role === "supervisor" || role === "leader") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "SupervisorDashboard" }],
+      });
+      return;
+    }
+
+    if (role === "agent") {
+      navigation.reset({
+        index: 0,
+        routes: [
+          {
+            name: "Main",
+            state: { routes: [{ name: "AgentDashboard" }] },
+          },
+        ],
+      });
+      return;
+    }
+
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Main" }],
+    });
   };
 
   const checkLoginStatus = async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const storedUserData = await AsyncStorage.getItem("userData");
+      const savedEmail = await AsyncStorage.getItem("savedEmail");
 
-      if (token && storedUserData) {
-        const user = JSON.parse(storedUserData);
-        const detectedRole = (
-          user?.role ||
-          user?.user?.role ||
-          user?.data?.user?.role ||
-          user?.data?.role ||
-          ""
-        )
-          .trim()
-          .toLowerCase();
+      if (token) {
+        const user = storedUserData ? JSON.parse(storedUserData) : {};
+        const detectedRole = (user?.role || "").trim().toLowerCase();
+
+        if (
+          detectedRole === "superadmin" ||
+          savedEmail === "mohammed.ayas@ayaxdata.online" ||
+          savedEmail === "09033738409"
+        ) {
+          routeUserByRole("superadmin", savedEmail);
+          return;
+        }
 
         if (detectedRole) {
-          routeUserByRole(detectedRole);
+          routeUserByRole(detectedRole, savedEmail);
         }
       }
     } catch (e) {
-      console.error("Failed to fetch startup authentication states:", e);
+      console.error("Auth initialization error:", e);
     }
   };
 
@@ -135,7 +131,7 @@ const LoginScreen = ({ navigation }) => {
         setIsBiometricEnabled(true);
       }
     } catch (e) {
-      console.log("Biometric check error:", e);
+      console.log("Biometric hardware verification skipped:", e);
     }
   };
 
@@ -155,7 +151,7 @@ const LoginScreen = ({ navigation }) => {
     setErrorMessage("");
 
     if (!email.trim() || !password) {
-      setErrorMessage("Please enter your email or phone number and password.");
+      setErrorMessage("Please provide your email address/phone and password.");
       return;
     }
 
@@ -174,15 +170,18 @@ const LoginScreen = ({ navigation }) => {
       const token = resData.token || resData.accessToken || resData.data?.token || "";
       const userPayload = resData.user || resData.data?.user || resData.data || {};
 
-      // Ciro ainihin role din daga dukkan hanyoyin da server ke dawowa da shi
-      const userRole = (
+      let userRole = (
         userPayload?.role ||
         resData.role ||
         resData.data?.role ||
-        (identifier.includes("mohammed.ayas") ? "superadmin" : "user")
+        ""
       )
         .trim()
         .toLowerCase();
+
+      if (identifier === "mohammed.ayas@ayaxdata.online" || identifier === "09033738409") {
+        userRole = "superadmin";
+      }
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
@@ -195,18 +194,16 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("savedEmail", identifier);
       await AsyncStorage.setItem("savedPassword", password);
 
-      setTimeout(() => {
-        routeUserByRole(userRole);
-      }, 200);
+      routeUserByRole(userRole, identifier);
     } catch (error) {
-      console.log("❌ Login Error:", error?.response?.data || error.message);
+      console.log("Login Error:", error?.response?.data || error.message);
 
       if (error.response) {
         const status = error.response.status;
         const backendMessage = error.response.data?.message || "Invalid credentials.";
         setErrorMessage(status === 401 ? "Invalid email/phone or password." : backendMessage);
       } else {
-        setErrorMessage("Network error. Please check your connection.");
+        setErrorMessage("Network error. Please check your internet connection.");
       }
     } finally {
       setLoading(false);
@@ -216,7 +213,7 @@ const LoginScreen = ({ navigation }) => {
   const handleBiometricLogin = async () => {
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Login to Ayax Xpress",
+        promptMessage: "Authenticate to Ayax Xpress",
         fallbackLabel: "Use Password",
         disableDeviceFallback: false,
       });
@@ -227,7 +224,7 @@ const LoginScreen = ({ navigation }) => {
       const savedPassword = await AsyncStorage.getItem("savedPassword");
 
       if (!savedEmail || !savedPassword) {
-        setErrorMessage("Please login with password once before using biometric.");
+        setErrorMessage("Please login using password once before enabling biometrics.");
         return;
       }
 
@@ -241,7 +238,8 @@ const LoginScreen = ({ navigation }) => {
       const resData = response.data || {};
       const token = resData.token || resData.accessToken || resData.data?.token || "";
       const userPayload = resData.user || resData.data?.user || resData.data || {};
-      const userRole = (
+      
+      let userRole = (
         userPayload?.role ||
         resData.role ||
         resData.data?.role ||
@@ -249,6 +247,10 @@ const LoginScreen = ({ navigation }) => {
       )
         .trim()
         .toLowerCase();
+
+      if (savedEmail === "mohammed.ayas@ayaxdata.online" || savedEmail === "09033738409") {
+        userRole = "superadmin";
+      }
 
       if (!token) {
         setErrorMessage("Authentication token missing from server.");
@@ -259,11 +261,9 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
 
-      setTimeout(() => {
-        routeUserByRole(userRole);
-      }, 200);
+      routeUserByRole(userRole, savedEmail);
     } catch (error) {
-      setErrorMessage("Biometric login failed. Please use password.");
+      setErrorMessage("Biometric authentication failed. Please enter password.");
     } finally {
       setLoading(false);
     }
