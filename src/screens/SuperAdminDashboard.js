@@ -76,7 +76,7 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Tabs
-  const [activeMainTab, setActiveMainTab] = useState("overview"); // 'overview' | 'history' | 'tariffs'
+  const [activeMainTab, setActiveMainTab] = useState("overview");
   const [selectedTariffCategory, setSelectedTariffCategory] = useState("All");
   const [tariffSearch, setTariffSearch] = useState("");
 
@@ -196,8 +196,29 @@ const SuperAdminDashboard = ({ navigation }) => {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.clear();
-    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+    if (Platform.OS === "web") {
+      const confirmLogout = window.confirm("Are you sure you want to log out of the SuperAdmin Console?");
+      if (confirmLogout) {
+        await AsyncStorage.clear();
+        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      }
+    } else {
+      Alert.alert(
+        "Log Out Session",
+        "Are you sure you want to log out of the SuperAdmin Console?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Log Out",
+            style: "destructive",
+            onPress: async () => {
+              await AsyncStorage.clear();
+              navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+            },
+          },
+        ]
+      );
+    }
   };
 
   // 1. Update Tariff
@@ -450,7 +471,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" backgroundColor="#050811" />
 
-      {/* TOP SUPREME APP BAR */}
+      {/* TOP SUPREME APP BAR WITH LOGOUT ACTION */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)} activeOpacity={0.7}>
           <Feather name="menu" size={24} color="#f8fafc" />
@@ -470,15 +491,23 @@ const SuperAdminDashboard = ({ navigation }) => {
             onPress={() => setNotificationModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="notifications" size={18} color="#00f0ff" />
+            <Ionicons name="notifications" size={17} color="#00f0ff" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.avatarBtn}
+            style={[styles.avatarBtn, { marginRight: 8 }]}
             onPress={() => setActiveMainTab("tariffs")}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="tune" size={18} color="#00f0ff" />
+            <MaterialIcons name="tune" size={17} color="#00f0ff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.avatarBtn, styles.logoutIconBtn]}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Feather name="log-out" size={17} color="#ef4444" />
           </TouchableOpacity>
         </View>
       </View>
@@ -927,9 +956,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* ==========================================
-          GLOBAL SIDEBAR OVERLAY
-      ========================================== */}
+      {/* SIDEBAR OVERLAY */}
       {sidebarOpen && (
         <TouchableOpacity
           style={styles.sidebarBackdrop}
@@ -1643,6 +1670,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#00f0ff",
   },
+  logoutIconBtn: {
+    borderColor: "#ef4444",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+  },
   mainNavBar: {
     flexDirection: "row",
     backgroundColor: "#0b1120",
@@ -1672,14 +1703,14 @@ const styles = StyleSheet.create({
     color: "#00f0ff",
   },
   
-  // SCROLLING FIXES
+  // SCROLLING STYLES
   scrollArea: {
     flex: 1,
     width: "100%",
   },
   scrollContentContainer: {
     flexGrow: 1,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   tabWrapper: {
     flex: 1,
