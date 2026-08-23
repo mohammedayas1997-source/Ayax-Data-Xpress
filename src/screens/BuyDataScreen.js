@@ -98,20 +98,40 @@ const BuyDataScreen = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         setPinModalVisible(false);
+        showAlert("Session Expired", "Please login again.");
         return navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       }
+
+      // Tabbatar da cewa dukkan bayanan network da planCode basu zama undefined ba
+      const netName = selectedPlan?.networkName || selectedPlan?.network || selectedNetwork;
+      const cleanPlanCode = selectedPlan?.planCode || selectedPlan?.code || "1000";
+      const finalAmount = userRole === "agent" 
+        ? (selectedPlan?.agentPrice || selectedPlan?.price || 0)
+        : (selectedPlan?.userPrice || selectedPlan?.price || 0);
+
+      console.log("Sending Buy Data Request:", {
+        network: netName,
+        planCode: cleanPlanCode,
+        phoneNumber: phoneNumber.trim(),
+        amount: finalAmount,
+      });
 
       const res = await axios.post(
         `${BASE_URL}/vtu/buy-data`,
         {
-          network: selectedPlan.networkName,
-          networkId: selectedPlan.networkId,
-          planCode: selectedPlan.planCode,
+          network: netName,
+          networkId: selectedPlan?.networkId || null,
+          planCode: cleanPlanCode,
           phoneNumber: phoneNumber.trim(),
-          amount: userRole === "agent" ? selectedPlan.agentPrice : selectedPlan.userPrice,
+          amount: finalAmount,
           transactionPin: pin.trim(),
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          } 
+        }
       );
 
       if (res.data?.success || res.data?.status === "success") {
@@ -119,7 +139,7 @@ const BuyDataScreen = ({ navigation }) => {
         setPin("");
         showAlert(
           "Purchase Successful 🎉",
-          `${selectedPlan.planLabel} dispatched to ${phoneNumber} successfully!`,
+          `${selectedPlan?.planLabel || "Data"} dispatched to ${phoneNumber} successfully!`,
           () => {
             setPhoneNumber("");
             setSelectedPlan(null);
@@ -129,7 +149,11 @@ const BuyDataScreen = ({ navigation }) => {
         throw new Error(res.data?.message || "Transaction Error");
       }
     } catch (err) {
-      showAlert("Transaction Failed", err.response?.data?.message || err.message);
+      console.error("Buy Data Client Error:", err.response?.data || err.message);
+      showAlert(
+        "Transaction Failed",
+        err.response?.data?.message || err.message || "Network error. Please try again."
+      );
     } finally {
       setPurchasing(false);
     }
