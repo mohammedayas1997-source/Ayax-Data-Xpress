@@ -98,41 +98,42 @@ const BuyDataScreen = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         setPinModalVisible(false);
-        showAlert("Session Expired", "Please login again.");
+        showAlert("Auth Error", "No login token found. Please login again.");
         return navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       }
 
-      // Tabbatar da cewa dukkan bayanan network da planCode basu zama undefined ba
       const netName = selectedPlan?.networkName || selectedPlan?.network || selectedNetwork;
       const cleanPlanCode = selectedPlan?.planCode || selectedPlan?.code || "1000";
       const finalAmount = userRole === "agent" 
         ? (selectedPlan?.agentPrice || selectedPlan?.price || 0)
         : (selectedPlan?.userPrice || selectedPlan?.price || 0);
 
-      console.log("Sending Buy Data Request:", {
+      const requestBody = {
         network: netName,
+        networkId: selectedPlan?.networkId || null,
         planCode: cleanPlanCode,
         phoneNumber: phoneNumber.trim(),
         amount: finalAmount,
-      });
+        transactionPin: pin.trim(),
+      };
+
+      console.log("--> OUTGOING POST TO:", `${BASE_URL}/vtu/buy-data`);
+      console.log("--> PAYLOAD:", JSON.stringify(requestBody));
 
       const res = await axios.post(
         `${BASE_URL}/vtu/buy-data`,
+        requestBody,
         {
-          network: netName,
-          networkId: selectedPlan?.networkId || null,
-          planCode: cleanPlanCode,
-          phoneNumber: phoneNumber.trim(),
-          amount: finalAmount,
-          transactionPin: pin.trim(),
-        },
-        { 
-          headers: { 
+          headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          } 
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          timeout: 25000,
         }
       );
+
+      console.log("<-- SERVER RESPONSE:", res.data);
 
       if (res.data?.success || res.data?.status === "success") {
         setPinModalVisible(false);
@@ -149,11 +150,22 @@ const BuyDataScreen = ({ navigation }) => {
         throw new Error(res.data?.message || "Transaction Error");
       }
     } catch (err) {
-      console.error("Buy Data Client Error:", err.response?.data || err.message);
-      showAlert(
-        "Transaction Failed",
-        err.response?.data?.message || err.message || "Network error. Please try again."
-      );
+      console.error("BUY DATA ERROR CAUGHT:", err);
+
+      let errorMessage = "Network or Server Error";
+      if (err.response) {
+        // Server ta dawo da error response (misali 400, 401, 404, 500)
+        console.log("Error Response Data:", err.response.data);
+        console.log("Error Response Status:", err.response.status);
+        errorMessage = err.response.data?.message || `Server returned ${err.response.status}`;
+      } else if (err.request) {
+        // Request ya fita amma babu amsa daga server
+        errorMessage = "No response from server. Check your internet connection.";
+      } else {
+        errorMessage = err.message;
+      }
+
+      showAlert("Transaction Failed", errorMessage);
     } finally {
       setPurchasing(false);
     }
