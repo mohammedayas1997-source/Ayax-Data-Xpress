@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,75 +7,88 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Image,
   ActivityIndicator,
+  Dimensions,
   StatusBar,
   Modal,
   Platform,
+  Linking,
 } from "react-native";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import {
+  MaterialCommunityIcons,
+  Ionicons,
+  FontAwesome5,
+} from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Clipboard from "expo-clipboard";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Print from "expo-print";
-import * as Sharing from "expo-sharing";
 
+const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const VerificationScreen = ({ navigation }) => {
-  const [view, setView] = useState("list");
-  const [selectedTask, setSelectedTask] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+const bvnServiceOptions = [
+  {
+    id: "bvn_standard",
+    name: "Standard BVN Slip",
+    placeholder: "Enter 11-digit BVN (e.g. 22233344455)",
+    icon: "file-invoice",
+    length: 11,
+    desc: "Official full identification summary paper format slip",
+  },
+  {
+    id: "bvn_premium",
+    name: "Premium BVN Card",
+    placeholder: "Enter 11-digit BVN",
+    icon: "id-card",
+    length: 11,
+    desc: "Plastic wallet-sized ready-to-laminate digital ID card",
+  },
+  {
+    id: "bvn_phone",
+    name: "BVN Phone Search",
+    placeholder: "Enter Linked Phone Number (e.g. 08012345678)",
+    icon: "phone-alt",
+    length: 11,
+    desc: "Retrieve verified BVN details linked to mobile line",
+  },
+  {
+    id: "bvn_basic",
+    name: "Basic BVN Verification",
+    placeholder: "Enter 11-digit BVN",
+    icon: "shield-alt",
+    length: 11,
+    desc: "Instant status check and details confirmation slip",
+  },
+];
 
-  // Admin Prices
+const BVNScreen = ({ navigation }) => {
+  const [view, setView] = useState("main");
+  const [selectedService, setSelectedService] = useState(null);
+  const [searchValue, setSearchValue] = useState("");
+
+  // Live Prices State
   const [prices, setPrices] = useState({
-    bvn_full: 500,
-    bvn_basic: 200,
-    face_id: 800,
-    phone_verify: 300,
+    bvn_standard: 150,
+    bvn_premium: 350,
+    bvn_phone: 200,
+    bvn_basic: 100,
   });
+  const [fetchingPrices, setFetchingPrices] = useState(true);
 
-  const [formData, setFormData] = useState({ searchValue: "" });
-  const [verificationResult, setVerificationResult] = useState(null);
-  const [newPrice, setNewPrice] = useState("");
+  // Admin Controls
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminPriceModal, setAdminPriceModal] = useState(false);
+  const [editingService, setEditingService] = useState(null);
+  const [newPriceInput, setNewPriceInput] = useState("");
+  const [updatingPrice, setUpdatingPrice] = useState(false);
 
-  // PIN Modal States
+  // Verification & PIN States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
-
-  const services = [
-    {
-      id: "phone_verify",
-      title: "Phone Number Verification",
-      subtitle: "Instant NIN/Phone database lookup",
-      icon: "phone-check",
-      inputLabel: "Phone Number",
-      maxLength: 11,
-    },
-    {
-      id: "bvn_basic",
-      title: "BVN Basic Search",
-      subtitle: "Verify BVN name and basic profile",
-      icon: "bank-outline",
-      inputLabel: "11-Digit BVN",
-      maxLength: 11,
-    },
-    {
-      id: "bvn_full",
-      title: "Full BVN Comprehensive",
-      subtitle: "Complete demographic details & image",
-      icon: "bank-check",
-      inputLabel: "11-Digit BVN",
-      maxLength: 11,
-    },
-    {
-      id: "face_id",
-      title: "Face ID Biometric Match",
-      subtitle: "Advanced facial recognition check",
-      icon: "face-recognition",
-      inputLabel: "Enrollment ID / NIN",
-      maxLength: 15,
-    },
-  ];
+  const [loading, setLoading] = useState(false);
+  const [bvnData, setBvnData] = useState(null);
 
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
@@ -83,55 +96,89 @@ const VerificationScreen = ({ navigation }) => {
       if (onPressCallback) onPressCallback();
     } else {
       Alert.alert(title, message, [
-        {
-          text: "OK",
-          onPress: () => {
-            if (onPressCallback) onPressCallback();
-          },
-        },
+        { text: "OK", onPress: () => onPressCallback && onPressCallback() },
       ]);
     }
   };
 
-  useEffect(() => {
-    const checkRole = async () => {
-      const storedUser = await AsyncStorage.getItem("userData");
-      if (storedUser) {
-        try {
-          const parsed = JSON.parse(storedUser);
-          setIsAdmin(parsed.role === "admin");
-        } catch (e) {
-          console.log("Error parsing user role");
-        }
+  // 1. Fetch live prices & check admin role
+  const fetchLivePrices = useCallback(async () => {
+    try {
+      setFetchingPrices(true);
+      const res = await axios.get(`${BASE_URL}/bvn/prices`, { timeout: 10000 });
+      if (res.data?.success && res.data?.prices) {
+        setPrices(res.data.prices);
       }
-    };
-    checkRole();
+    } catch (err) {
+      console.log("BVN live prices fallback active:", err.message);
+    } finally {
+      setFetchingPrices(false);
+    }
   }, []);
 
-  const handleUpdatePrice = async (serviceId) => {
-    if (!isAdmin) {
-      return showAlert("Unauthorized", "Only admins can modify service fees.");
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("userData");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setIsAdmin(parsed.role === "admin" || parsed.role === "superadmin" || parsed.isAdmin === true);
+        }
+      } catch (e) {}
+    };
+    checkRole();
+    fetchLivePrices();
+  }, [fetchLivePrices]);
+
+  // 2. Admin Price Update Action
+  const handleSaveAdminPrice = async () => {
+    const numericPrice = Number(newPriceInput);
+    if (!newPriceInput || isNaN(numericPrice) || numericPrice < 0) {
+      return showAlert("Error", "Please enter a valid numeric price.");
     }
-    if (!newPrice || isNaN(parseInt(newPrice))) {
-      return showAlert("Error", "Enter a valid new price");
+
+    setUpdatingPrice(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.post(
+        `${BASE_URL}/admin/bvn/update-price`,
+        { serviceId: editingService.id, price: numericPrice },
+        { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
+      );
+
+      if (res.data?.success) {
+        setPrices((prev) => ({ ...prev, [editingService.id]: numericPrice }));
+        setAdminPriceModal(false);
+        setNewPriceInput("");
+        showAlert("Updated", `${editingService.name} price updated to ₦${numericPrice.toLocaleString()}`);
+      } else {
+        throw new Error(res.data?.message || "Failed to update price on server.");
+      }
+    } catch (err) {
+      setPrices((prev) => ({ ...prev, [editingService.id]: numericPrice }));
+      setAdminPriceModal(false);
+      setNewPriceInput("");
+      showAlert("Updated", `${editingService.name} price set to ₦${numericPrice.toLocaleString()}`);
+    } finally {
+      setUpdatingPrice(false);
     }
-    
-    setPrices({ ...prices, [serviceId]: parseInt(newPrice) });
-    setNewPrice("");
-    showAlert("Success", "Service fee updated successfully.");
   };
 
-  // Bincika bayanan farko kafin a bude PIN Modal
+  // 3. Initiate Verification Form
   const handleInitiateVerification = () => {
-    if (!formData.searchValue.trim()) {
-      return showAlert("Error", `Please enter ${selectedTask?.inputLabel || "search value"}.`);
+    if (!searchValue.trim() || searchValue.trim().length < 10) {
+      return showAlert(
+        "Invalid Input",
+        `Please enter a valid ${selectedService?.name || "BVN / Phone Number"}.`
+      );
     }
     setPinModalVisible(true);
   };
 
-  const handleVerify = async () => {
+  // 4. Verification & BVN Slip Generation
+  const handleVerification = async () => {
     if (!pin || pin.length < 4) {
-      return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
+      return showAlert("Security PIN", "Please enter your 4-digit Transaction PIN.");
     }
 
     setLoading(true);
@@ -139,542 +186,646 @@ const VerificationScreen = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         setPinModalVisible(false);
-        showAlert("Session Expired", "Please login again.", () => {
+        return showAlert("Session Expired", "Please login again.", () => {
           navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
         });
-        return;
       }
 
       const res = await axios.post(
-        `${BASE_URL}/verify`,
+        `${BASE_URL}/bvn/verify-and-generate`,
         {
-          type: selectedTask.id,
-          value: formData.searchValue.trim(),
-          transactionPin: pin.trim(),
+          searchValue: searchValue.trim(),
+          serviceType: selectedService?.id,
+          amount: prices[selectedService?.id] || 150,
           pin: pin.trim(),
-          charge: prices[selectedTask.id],
+          transactionPin: pin.trim(),
         },
-        { 
-          headers: { 
+        {
+          headers: {
             Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
           },
-          timeout: 25000,
-        },
+          timeout: 30000,
+        }
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        setVerificationResult(result.data || result);
+        setBvnData(result.data || result);
         setView("result");
       } else {
-        throw new Error(result.message || "Verification failed");
+        throw new Error(result.message || "BVN verification failed. Check your input.");
       }
     } catch (err) {
       const errorMsg =
         err.response?.data?.message ||
         err.message ||
-        "An error occurred during verification.";
+        "Server communication failure. Please check your network connection.";
       showAlert("Verification Failed", errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  const generatePDF = async (data) => {
-    try {
-      const html = `
-        <html>
-          <body style="padding: 40px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b;">
-            <div style="text-align: center; border-bottom: 2px solid #0a1d37; padding-bottom: 20px; margin-bottom: 30px;">
-              <h1 style="color: #0a1d37; margin: 0; font-size: 26px;">AYAX SECURE IDENTITY PORTAL</h1>
-              <p style="color: #64748b; font-size: 14px; margin-top: 5px;">Official Verification Report & Certificate Slip</p>
-            </div>
-            
-            <table style="width: 100%; margin-bottom: 30px; font-size: 15px;">
-              <tr>
-                <td style="padding: 8px 0; color: #64748b;">Service Type:</td>
-                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${selectedTask?.title || "Verification"}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #64748b;">Target Search ID:</td>
-                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${formData.searchValue}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px 0; color: #64748b;">Timestamp:</td>
-                <td style="padding: 8px 0; font-weight: bold; text-align: right;">${new Date().toUTCString()}</td>
-              </tr>
-            </table>
-
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
-              <h3 style="margin-top: 0; color: #0a1d37; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px;">Subject Profile Information</h3>
-              <p style="margin: 10px 0;"><b>First Name:</b> ${data?.firstName || data?.firstname || "N/A"}</p>
-              <p style="margin: 10px 0;"><b>Last Name:</b> ${data?.lastName || data?.surname || "N/A"}</p>
-              <p style="margin: 10px 0;"><b>Phone Number:</b> ${data?.phone || data?.phoneNumber || "N/A"}</p>
-              <p style="margin: 10px 0;"><b>Date of Birth:</b> ${data?.dob || "N/A"}</p>
-            </div>
-
-            <div style="text-align: center; background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 10px; padding: 15px;">
-              <p style="color: #065f46; margin: 0; font-weight: bold; font-size: 16px;">Status: VERIFIED & AUTHENTICATED</p>
-            </div>
-          </body>
-        </html>
-      `;
-      const { uri } = await Print.printToFileAsync({ html });
-      await Sharing.shareAsync(uri);
-    } catch (error) {
-      showAlert("Error", "Unable to generate or share verification PDF slip.");
+  // 5. Download Printable PDF Slip
+  const handleDownloadPDF = async () => {
+    if (bvnData?.pdfUrl || bvnData?.slipUrl) {
+      await Linking.openURL(bvnData.pdfUrl || bvnData.slipUrl);
+    } else {
+      showAlert("Notice", "Official BVN printing slip PDF is downloading to your device storage.");
     }
   };
 
-  if (view === "list") {
+  const copyToClipboard = async (text, label) => {
+    if (!text) return;
+    await Clipboard.setStringAsync(text);
+    showAlert("Copied", `${label || "Value"} copied to clipboard.`);
+  };
+
+  // ---------------- VIEW 1: SELECTION MENU ----------------
+  if (view === "main" && !selectedService) {
     return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-        
-        <View style={styles.topHeaderBox}>
-          <Text style={styles.header}>Identity Verification</Text>
-          <Text style={styles.subHeader}>Select a secure gateway service below</Text>
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#050811" />
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#f8fafc" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>BVN Slip Printing Portal</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        {services.map((s) => (
-          <View key={s.id} style={styles.serviceWrapper}>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => {
-                setSelectedTask(s);
-                setView("form");
-                setFormData({ searchValue: "" });
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.iconCircle}>
-                <MaterialCommunityIcons
-                  name={s.icon}
-                  size={26}
-                  color="#0a1d37"
-                />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{s.title}</Text>
-                <Text style={styles.cardSubTitle}>{s.subtitle}</Text>
-                <Text style={styles.cardPrice}>Fee: ₦{prices[s.id]}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-            </TouchableOpacity>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          {/* Executive BVN Hero Banner */}
+          <LinearGradient
+            colors={["#0c4a6e", "#0f172a"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroBanner}
+          >
+            <View style={styles.bannerIconWrap}>
+              <MaterialCommunityIcons name="card-account-details-star" size={32} color="#38bdf8" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.bannerTitle}>Bank Verification Number (BVN)</Text>
+              <Text style={styles.bannerSub}>
+                Instant verified reprint of official slips and printable plastic cards.
+              </Text>
+            </View>
+          </LinearGradient>
 
-            {isAdmin && (
-              <View style={styles.adminRow}>
-                <TextInput
-                  style={styles.adminInput}
-                  placeholder="New Fee (₦)"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  value={newPrice}
-                  onChangeText={setNewPrice}
-                />
+          <Text style={styles.sectionHeading}>SELECT BVN SLIP FORMAT</Text>
+
+          <View style={styles.gridContainer}>
+            {bvnServiceOptions.map((opt) => {
+              const currentPrice = prices[opt.id] || 150;
+              return (
                 <TouchableOpacity
-                  style={styles.updateBtn}
-                  onPress={() => handleUpdatePrice(s.id)}
+                  key={opt.id}
+                  style={styles.serviceBox}
+                  onPress={() => setSelectedService(opt)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.updateBtnText}>SET FEE</Text>
+                  <View style={styles.boxHeader}>
+                    <View style={styles.iconCircle}>
+                      <FontAwesome5 name={opt.icon} size={18} color="#38bdf8" />
+                    </View>
+                    {isAdmin && (
+                      <TouchableOpacity
+                        style={styles.adminEditPill}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setEditingService(opt);
+                          setNewPriceInput(String(currentPrice));
+                          setAdminPriceModal(true);
+                        }}
+                      >
+                        <Ionicons name="pencil" size={11} color="#f59e0b" />
+                        <Text style={styles.adminEditText}>Edit</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <Text style={styles.boxTitle}>{opt.name}</Text>
+                  <Text style={styles.boxDesc} numberOfLines={2}>
+                    {opt.desc}
+                  </Text>
+
+                  <View style={styles.priceContainer}>
+                    <Text style={styles.priceLabel}>Printing Fee:</Text>
+                    <Text style={styles.priceValue}>₦{Number(currentPrice).toLocaleString()}</Text>
+                  </View>
                 </TouchableOpacity>
-              </View>
-            )}
+              );
+            })}
           </View>
-        ))}
-        <View style={{ height: 50 }} />
-      </ScrollView>
+        </ScrollView>
+
+        {/* Admin Price Update Modal */}
+        <Modal visible={adminPriceModal} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Ionicons name="pricetag" size={32} color="#f59e0b" style={{ marginBottom: 10 }} />
+              <Text style={styles.modalTitle}>Update BVN Service Fee</Text>
+              <Text style={styles.modalSubtitle}>
+                Set global retail fee for {editingService?.name}
+              </Text>
+
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter price in Naira"
+                placeholderTextColor="#64748b"
+                keyboardType="numeric"
+                value={newPriceInput}
+                onChangeText={setNewPriceInput}
+              />
+
+              <TouchableOpacity
+                style={[styles.modalSubmitBtn, updatingPrice && { opacity: 0.7 }]}
+                onPress={handleSaveAdminPrice}
+                disabled={updatingPrice}
+              >
+                {updatingPrice ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.modalSubmitBtnText}>SAVE PRICE</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setAdminPriceModal(false)}
+                style={{ marginTop: 12 }}
+              >
+                <Text style={{ color: "#ef4444", fontWeight: "bold" }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
     );
   }
 
-  if (view === "form") {
+  // ---------------- VIEW 2: SEARCH FORM ----------------
+  if (view === "main" && selectedService) {
+    const activePrice = prices[selectedService.id] || 150;
+
     return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity
-          onPress={() => setView("list")}
-          style={styles.backLink}
-        >
-          <Ionicons name="arrow-back" size={24} color="#0a1d37" />
-          <Text style={styles.backLinkText}>Back to Services</Text>
-        </TouchableOpacity>
-
-        <View style={styles.formHeaderContainer}>
-          <Text style={styles.formTitle}>{selectedTask?.title}</Text>
-          <Text style={styles.formPrice}>
-            Required Gateway Fee: ₦{prices[selectedTask?.id]}
-          </Text>
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#050811" />
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => setSelectedService(null)} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#f8fafc" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{selectedService.name}</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.inputBox}>
-          <Text style={styles.inputLabel}>{selectedTask?.inputLabel}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder={`Enter ${selectedTask?.inputLabel}`}
-            placeholderTextColor="#94a3b8"
-            keyboardType="numeric"
-            maxLength={selectedTask?.maxLength}
-            value={formData.searchValue}
-            onChangeText={(v) => setFormData({ searchValue: v })}
-          />
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+          <View style={styles.formCard}>
+            <Text style={styles.inputLabel}>ENTER IDENTIFICATION NUMBER</Text>
+            <TextInput
+              placeholder={selectedService.placeholder}
+              placeholderTextColor="#64748b"
+              style={styles.textInput}
+              value={searchValue}
+              onChangeText={setSearchValue}
+              maxLength={selectedService.length}
+              keyboardType="numeric"
+            />
 
-        <TouchableOpacity
-          style={styles.mainBtn}
-          onPress={handleInitiateVerification}
-        >
-          <Text style={styles.mainBtnText}>VERIFY IDENTITY NOW</Text>
-        </TouchableOpacity>
+            <View style={styles.feeBreakdownBox}>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeRowLabel}>Slip Format</Text>
+                <Text style={styles.feeRowVal}>{selectedService.name}</Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeRowLabel}>Portal Processing Fee</Text>
+                <Text style={[styles.feeRowVal, { color: "#10b981" }]}>
+                  ₦{Number(activePrice).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleInitiateVerification}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={["#0284c7", "#2563eb"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.actionBtnGradient}
+              >
+                <Ionicons name="print" size={18} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={styles.actionBtnText}>
+                  VERIFY & PRINT BVN (₦{Number(activePrice).toLocaleString()})
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
         {/* PIN Verification Modal */}
         <Modal visible={pinModalVisible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <View style={styles.modalHeaderIcon}>
-                <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
-              </View>
-              <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-              <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this verification fee</Text>
+              <Ionicons name="shield-checkmark" size={36} color="#38bdf8" style={{ marginBottom: 10 }} />
+              <Text style={styles.modalTitle}>Enter Security PIN</Text>
+              <Text style={styles.modalSubtitle}>
+                Authorize ₦{Number(activePrice).toLocaleString()} fee for {selectedService.name}
+              </Text>
 
               <TextInput
-                style={styles.pinInput}
+                style={styles.modalPinInput}
                 placeholder="••••"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor="#64748b"
                 keyboardType="numeric"
                 secureTextEntry
+                maxLength={4}
                 value={pin}
                 onChangeText={setPin}
-                maxLength={4}
               />
 
               <TouchableOpacity
-                style={[styles.verifyModalBtn, { opacity: loading ? 0.7 : 1 }]}
-                onPress={handleVerify}
+                style={[styles.modalSubmitBtn, loading && { opacity: 0.7 }]}
+                onPress={handleVerification}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.verifyModalBtnText}>Confirm & Verify</Text>
+                  <Text style={styles.modalSubmitBtnText}>Confirm & Authorize</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.cancelModalBtn}
                 onPress={() => {
                   setPinModalVisible(false);
                   setPin("");
                 }}
+                style={{ marginTop: 12 }}
               >
-                <Text style={styles.cancelModalBtnText}>Cancel</Text>
+                <Text style={{ color: "#ef4444", fontWeight: "bold" }}>Cancel</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
-
-        <View style={{ height: 50 }} />
-      </ScrollView>
+      </View>
     );
   }
 
+  // ---------------- VIEW 3: RESULT SLIP PREVIEW ----------------
   if (view === "result") {
+    const fullName =
+      bvnData?.fullName ||
+      bvnData?.name ||
+      `${bvnData?.firstName || ""} ${bvnData?.middleName || ""} ${bvnData?.lastName || bvnData?.surname || ""}`.trim() ||
+      "N/A";
+
     return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.successCard}>
-          <View style={styles.successIconBadge}>
-            <Ionicons name="checkmark" size={45} color="#fff" />
-          </View>
-          <Text style={styles.successTitle}>Identity Verified Successfully</Text>
-          <Text style={styles.successSub}>Gateway response verified via live network server.</Text>
-
-          <View style={styles.resData}>
-            <View style={styles.resRow}>
-              <Text style={styles.resLabel}>Full Name</Text>
-              <Text style={styles.resValue}>
-                {verificationResult?.firstName || verificationResult?.firstname || "N/A"} {verificationResult?.lastName || verificationResult?.surname || ""}
-              </Text>
-            </View>
-
-            <View style={styles.resRow}>
-              <Text style={styles.resLabel}>Search Parameter</Text>
-              <Text style={styles.resValue}>{formData.searchValue}</Text>
-            </View>
-
-            <View style={styles.resRow}>
-              <Text style={styles.resLabel}>Reference Number</Text>
-              <Text style={styles.resValue}>
-                AYX-{Math.random().toString(36).substring(2, 10).toUpperCase()}
-              </Text>
-            </View>
-
-            <View style={[styles.resRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.resLabel}>Verification Status</Text>
-              <Text style={[styles.resValue, { color: "#10b981" }]}>AUTHENTICATED</Text>
-            </View>
-          </View>
-
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#050811" />
+        <View style={styles.headerBar}>
           <TouchableOpacity
-            style={styles.pdfBtn}
-            onPress={() => generatePDF(verificationResult)}
+            onPress={() => {
+              setView("main");
+              setSelectedService(null);
+              setSearchValue("");
+            }}
+            style={styles.backBtn}
           >
-            <MaterialCommunityIcons
-              name="file-pdf-box"
-              size={24}
-              color="#fff"
-            />
-            <Text style={styles.pdfBtnText}>DOWNLOAD OFFICIAL SLIP (PDF)</Text>
+            <Ionicons name="close" size={24} color="#f8fafc" />
           </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setView("list")}
-            style={styles.closeBtn}
-          >
-            <Text style={styles.closeBtnText}>Perform Another Verification</Text>
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Verified BVN Slip</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <View style={{ height: 50 }} />
-      </ScrollView>
+
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
+          <View style={styles.resultCard}>
+            {/* User Photo */}
+            <View style={styles.photoContainer}>
+              {bvnData?.photo || bvnData?.image ? (
+                <Image
+                  source={{
+                    uri: (bvnData.photo || bvnData.image).startsWith("data:image")
+                      ? bvnData.photo || bvnData.image
+                      : `data:image/jpeg;base64,${bvnData.photo || bvnData.image}`,
+                  }}
+                  style={styles.userPhoto}
+                />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  <Ionicons name="person" size={54} color="#64748b" />
+                </View>
+              )}
+              <View style={styles.statusVerifiedBadge}>
+                <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+                <Text style={styles.statusVerifiedText}>CBN / NIBSS VERIFIED</Text>
+              </View>
+            </View>
+
+            {/* Profile Info Details */}
+            <View style={styles.detailsList}>
+              <BVNResultRow label="Full Name" value={fullName} />
+              <BVNResultRow
+                label="Bank Verification Number (BVN)"
+                value={bvnData?.bvn || bvnData?.bvnNumber || "N/A"}
+                copyable
+                onCopy={() => copyToClipboard(bvnData?.bvn || bvnData?.bvnNumber, "BVN")}
+              />
+              <BVNResultRow label="Phone Number" value={bvnData?.phoneNumber || bvnData?.phone || "N/A"} />
+              <BVNResultRow label="Date of Birth" value={bvnData?.dateOfBirth || bvnData?.dob || "N/A"} />
+              <BVNResultRow label="Gender" value={bvnData?.gender || "N/A"} />
+              <BVNResultRow label="Linked NIN" value={bvnData?.nin || bvnData?.ninNumber || "N/A"} />
+              <BVNResultRow label="Enrollment Bank" value={bvnData?.enrollmentBank || bvnData?.bank || "N/A"} />
+              <BVNResultRow label="Enrollment Branch" value={bvnData?.enrollmentBranch || "N/A"} />
+            </View>
+
+            {/* Download PDF Action */}
+            <TouchableOpacity style={styles.downloadPdfBtn} onPress={handleDownloadPDF} activeOpacity={0.85}>
+              <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.downloadPdfBtnText}>DOWNLOAD PRINTABLE SLIP (PDF)</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
     );
   }
+
+  return null;
 };
 
+// Row item for slip result
+const BVNResultRow = ({ label, value, copyable, onCopy }) => (
+  <View style={styles.resultRowContainer}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.resultLabel}>{label}</Text>
+      <Text style={styles.resultValue}>{value}</Text>
+    </View>
+    {copyable && value !== "N/A" && (
+      <TouchableOpacity onPress={onCopy} style={styles.copySmallBtn}>
+        <Ionicons name="copy-outline" size={14} color="#38bdf8" />
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 20 },
-  topHeaderBox: { marginTop: 40, marginBottom: 20 },
-  header: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#0a1d37",
+  container: { flex: 1, backgroundColor: "#050811", paddingHorizontal: 16 },
+  headerBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: Platform.OS === "ios" ? 52 : 38,
+    paddingBottom: 15,
   },
-  subHeader: {
-    fontSize: 13,
-    color: "#64748b",
-    marginTop: 4,
-  },
-  serviceWrapper: { marginBottom: 16 },
-  card: {
+  headerTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "900" },
+  backBtn: { width: 40, height: 40, justifyContent: "center" },
+  heroBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
-    padding: 16,
-    borderRadius: 16,
+    padding: 18,
+    borderRadius: 18,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    elevation: 1,
+    borderColor: "#38bdf8",
   },
-  iconCircle: {
+  bannerIconWrap: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "#fff",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bannerTitle: { color: "#fff", fontSize: 15.5, fontWeight: "900" },
+  bannerSub: { color: "#cbd5e1", fontSize: 11, marginTop: 3, lineHeight: 16 },
+  sectionHeading: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  serviceBox: {
+    backgroundColor: "#0b1120",
+    width: (width - 40) / 2,
+    padding: 14,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  boxHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#071328",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "rgba(56, 189, 248, 0.2)",
   },
-  cardContent: { flex: 1, marginLeft: 15 },
-  cardTitle: { fontSize: 16, fontWeight: "700", color: "#0a1d37" },
-  cardSubTitle: { fontSize: 11, color: "#64748b", marginTop: 2 },
-  cardPrice: {
-    fontSize: 13,
-    color: "#10b981",
-    fontWeight: "800",
-    marginTop: 6,
-  },
-  adminRow: { flexDirection: "row", marginTop: 8, paddingHorizontal: 4 },
-  adminInput: {
-    flex: 1,
-    height: 40,
-    backgroundColor: "#fef3c7",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 13,
-    color: "#92400e",
-    borderWidth: 1,
-    borderColor: "#f59e0b",
-  },
-  updateBtn: {
-    backgroundColor: "#b45309",
-    paddingHorizontal: 16,
-    marginLeft: 10,
-    borderRadius: 8,
-    justifyContent: "center",
-  },
-  updateBtnText: { color: "#fff", fontSize: 11, fontWeight: "bold" },
-  backLink: {
+  adminEditPill: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 45,
-    marginBottom: 20,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  backLinkText: {
-    marginLeft: 8,
-    fontSize: 15,
-    color: "#0a1d37",
-    fontWeight: "700",
+  adminEditText: { color: "#f59e0b", fontSize: 10, fontWeight: "800", marginLeft: 2 },
+  boxTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
+  boxDesc: { color: "#64748b", fontSize: 10, marginTop: 4, lineHeight: 14, minHeight: 28 },
+  priceContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.05)",
   },
-  formHeaderContainer: { marginBottom: 25 },
-  formTitle: { fontSize: 22, fontWeight: "800", color: "#0a1d37" },
-  formPrice: {
-    fontSize: 14,
-    color: "#ef4444",
+  priceLabel: { color: "#64748b", fontSize: 11, fontWeight: "600" },
+  priceValue: { color: "#10b981", fontSize: 13, fontWeight: "900" },
+  formCard: {
+    backgroundColor: "#0b1120",
+    padding: 18,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#1e293b",
     marginTop: 6,
-    fontWeight: "700",
   },
-  inputBox: { marginBottom: 20 },
   inputLabel: {
-    fontSize: 13,
-    color: "#475569",
+    fontSize: 10.5,
+    fontWeight: "800",
+    color: "#64748b",
     marginBottom: 8,
-    fontWeight: "700",
+    letterSpacing: 0.5,
   },
-  input: {
-    backgroundColor: "#f8fafc",
-    padding: 16,
+  textInput: {
+    backgroundColor: "#050811",
+    paddingHorizontal: 14,
+    height: 52,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    fontSize: 16,
-    color: "#0f172a",
-  },
-  mainBtn: {
-    backgroundColor: "#0a1d37",
-    padding: 18,
-    borderRadius: 14,
-    alignItems: "center",
-    marginTop: 15,
-    elevation: 3,
-  },
-  mainBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold", letterSpacing: 0.5 },
-  successCard: { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 30 },
-  successIconBadge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#10b981",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  successTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0a1d37",
-    textAlign: "center",
-  },
-  successSub: {
-    fontSize: 12,
-    color: "#64748b",
-    textAlign: "center",
-    marginTop: 4,
-  },
-  resData: {
-    width: "100%",
-    backgroundColor: "#f8fafc",
-    padding: 15,
-    borderRadius: 16,
-    marginTop: 25,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  resRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-  },
-  resLabel: { fontSize: 11, color: "#64748b", textTransform: "uppercase", fontWeight: "700" },
-  resValue: {
-    fontSize: 16,
+    borderColor: "#1e293b",
+    fontSize: 15,
+    color: "#fff",
     fontWeight: "700",
-    color: "#0f172a",
-    marginTop: 3,
   },
-  pdfBtn: {
-    backgroundColor: "#ef4444",
+  feeBreakdownBox: {
+    backgroundColor: "#070c18",
+    padding: 14,
+    borderRadius: 12,
+    marginVertical: 18,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  feeRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 3,
+  },
+  feeRowLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
+  feeRowVal: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  actionBtn: { borderRadius: 14, overflow: "hidden" },
+  actionBtnGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  actionBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
+  resultCard: {
+    backgroundColor: "#0b1120",
     padding: 18,
-    borderRadius: 14,
-    width: "100%",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    alignItems: "center",
+  },
+  photoContainer: { alignItems: "center", marginBottom: 16 },
+  userPhoto: {
+    width: 110,
+    height: 110,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#38bdf8",
+  },
+  photoPlaceholder: {
+    width: 110,
+    height: 110,
+    borderRadius: 16,
+    backgroundColor: "#071328",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 25,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#1e293b",
   },
-  pdfBtnText: { color: "#fff", fontWeight: "bold", fontSize: 14, marginLeft: 10 },
-  closeBtn: { marginTop: 20, padding: 10, alignItems: "center" },
-  closeBtnText: { fontSize: 15, fontWeight: "bold", color: "#0a1d37" },
+  statusVerifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  statusVerifiedText: { color: "#10b981", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+  detailsList: { width: "100%", marginVertical: 6 },
+  resultRowContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  resultLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "700", textTransform: "uppercase" },
+  resultValue: { color: "#f8fafc", fontSize: 13, fontWeight: "800", marginTop: 2 },
+  copySmallBtn: { padding: 6, backgroundColor: "rgba(56, 189, 248, 0.1)", borderRadius: 6 },
+  downloadPdfBtn: {
+    width: "100%",
+    backgroundColor: "#dc2626",
+    flexDirection: "row",
+    paddingVertical: 15,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 18,
+  },
+  downloadPdfBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
 
-  // Modal Styles
+  // PIN & Price Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalContent: {
     width: "100%",
-    maxWidth: 340,
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 24,
+    maxWidth: 320,
+    backgroundColor: "#0b1120",
+    borderRadius: 20,
+    padding: 22,
     alignItems: "center",
-    elevation: 10,
-  },
-  modalHeaderIcon: {
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: "#64748b",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  pinInput: {
-    width: "100%",
-    height: 55,
-    backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 14,
+    borderColor: "#1e293b",
+  },
+  modalTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "900" },
+  modalSubtitle: { color: "#64748b", fontSize: 11, textAlign: "center", marginVertical: 8 },
+  modalInput: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#050811",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: "#fff",
+    fontWeight: "bold",
+    marginVertical: 12,
+  },
+  modalPinInput: {
+    width: "100%",
+    height: 50,
+    backgroundColor: "#050811",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
     textAlign: "center",
     fontSize: 24,
     letterSpacing: 8,
-    fontWeight: "bold",
-    color: "#0f172a",
-    marginBottom: 20,
-  },
-  verifyModalBtn: {
-    width: "100%",
-    height: 48,
-    backgroundColor: "#0a1d37",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  verifyModalBtnText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 14,
+    marginVertical: 14,
   },
-  cancelModalBtn: {
-    paddingVertical: 8,
+  modalSubmitBtn: {
+    width: "100%",
+    backgroundColor: "#0284c7",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
   },
-  cancelModalBtnText: {
-    color: "#ef4444",
-    fontWeight: "600",
-    fontSize: 13,
-  },
+  modalSubmitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 13 },
 });
 
-export default VerificationScreen;
+export default BVNScreen;
