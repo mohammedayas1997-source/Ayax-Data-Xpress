@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,6 @@ import {
 import {
   Ionicons,
   MaterialCommunityIcons,
-  FontAwesome5,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Clipboard from "expo-clipboard";
@@ -37,12 +36,69 @@ const FundWalletScreen = ({ navigation }) => {
   const [amount, setAmount] = useState("");
   const [loadingInit, setLoadingInit] = useState(false);
 
+  // 1. Load cached user profile and virtual account immediately on launch
   useEffect(() => {
+    const loadCachedData = async () => {
+      try {
+        const [cachedAcc, cachedUser] = await Promise.all([
+          AsyncStorage.getItem("userVirtualAccount"),
+          AsyncStorage.getItem("userData"),
+        ]);
+
+        if (cachedAcc) {
+          setVirtualAccount(JSON.parse(cachedAcc));
+        }
+        if (cachedUser) {
+          const parsed = JSON.parse(cachedUser);
+          setUserData(parsed);
+
+          // Fallback extraction if account was embedded inside user payload
+          if (!cachedAcc && (parsed.virtualAccount || parsed.virtualAccounts || parsed.dva)) {
+            const acc = extractVirtualAccount(parsed);
+            if (acc) {
+              setVirtualAccount(acc);
+              await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(acc));
+            }
+          }
+        }
+      } catch (e) {
+        console.log("Error loading cached storage:", e.message);
+      }
+    };
+    loadCachedData();
     fetchUserData();
   }, []);
 
-  // 1. Dauko bayanan Profile da Virtual Account daidai da HomeScreen
-  const fetchUserData = async () => {
+  // Helper function to resolve dynamic account formats
+  const extractVirtualAccount = (user) => {
+    if (!user) return null;
+    let activeAcc = null;
+
+    if (user.virtualAccount && (user.virtualAccount.accountNumber || user.virtualAccount.account_number)) {
+      activeAcc = {
+        bankName: user.virtualAccount.bankName || user.virtualAccount.bank_name || "Wema Bank",
+        accountName: user.virtualAccount.accountName || user.virtualAccount.account_name || user.name || "Ayax Customer",
+        accountNumber: user.virtualAccount.accountNumber || user.virtualAccount.account_number,
+      };
+    } else if (Array.isArray(user.virtualAccounts) && user.virtualAccounts.length > 0) {
+      const first = user.virtualAccounts[0];
+      activeAcc = {
+        bankName: first.bankName || first.bank_name || "Wema Bank",
+        accountName: first.accountName || first.account_name || user.name,
+        accountNumber: first.accountNumber || first.account_number,
+      };
+    } else if (user.dva && (user.dva.accountNumber || user.dva.account_number)) {
+      activeAcc = {
+        bankName: user.dva.bankName || user.dva.bank_name || "Wema Bank",
+        accountName: user.dva.accountName || user.dva.account_name || user.name,
+        accountNumber: user.dva.accountNumber || user.dva.account_number,
+      };
+    }
+    return activeAcc;
+  };
+
+  // 2. Real-time Live Synchronization
+  const fetchUserData = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
@@ -55,13 +111,18 @@ const FundWalletScreen = ({ navigation }) => {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
+        timeout: 10000,
       });
 
       if (response.data && response.data.success) {
         const user = response.data.user || response.data.data;
         setUserData(user);
-        if (user.virtualAccount && user.virtualAccount.accountNumber) {
-          setVirtualAccount(user.virtualAccount);
+        await AsyncStorage.setItem("userData", JSON.stringify(user));
+
+        const activeAcc = extractVirtualAccount(user);
+        if (activeAcc && activeAcc.accountNumber) {
+          setVirtualAccount(activeAcc);
+          await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(activeAcc));
         }
       }
     } catch (err) {
@@ -72,9 +133,9 @@ const FundWalletScreen = ({ navigation }) => {
         console.error("Profile Synchronization Failure:", err.message);
       }
     }
-  };
+  }, [navigation]);
 
-  // 2. Aikin Kirkirar Virtual Account daidai da HomeScreen
+  // 3. Virtual Account Creation Handler
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
@@ -92,29 +153,35 @@ const FundWalletScreen = ({ navigation }) => {
       );
 
       if (response.data && response.data.success) {
-        setVirtualAccount(response.data.data);
+        const accData = response.data.data || response.data.virtualAccount;
+        const formattedAcc = {
+          bankName: accData.bankName || accData.bank_name || "Wema Bank",
+          accountName: accData.accountName || accData.account_name || userData?.name || "Ayax Customer",
+          accountNumber: accData.accountNumber || accData.account_number,
+        };
+
+        setVirtualAccount(formattedAcc);
+        await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(formattedAcc));
+
         if (Platform.OS === "android") {
           ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
         } else {
           Alert.alert("Success", "Virtual account generated successfully!");
         }
+        fetchUserData();
       }
     } catch (error) {
-      console.error(
-        "Virtual Account Error:",
-        error.response?.data || error.message
-      );
       Alert.alert(
         "Error",
-        "Could not fetch or create virtual account. Try again later."
+        "Could not generate virtual account. Please try again later."
       );
     } finally {
       setLoadingAccount(false);
     }
   };
 
-  // 3. Online Card / USSD Payment Gateway
-  const handleOnlinePayment = async () => {
+  // 4. Secure Paystack Direct Checkout Integration
+  const handlePaystackPayment = async () => {
     const numAmount = Number(amount);
     if (!amount || isNaN(numAmount) || numAmount < 100) {
       Alert.alert("Invalid Amount", "Minimum funding amount is ₦100.");
@@ -127,7 +194,7 @@ const FundWalletScreen = ({ navigation }) => {
 
       const response = await axios.post(
         `${BASE_URL}/wallet/initialize`,
-        { amount: numAmount },
+        { amount: numAmount, gateway: "paystack" },
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -136,17 +203,21 @@ const FundWalletScreen = ({ navigation }) => {
         }
       );
 
-      if (response.data?.success && response.data?.data?.authorization_url) {
-        const authUrl = response.data.data.authorization_url;
+      const authUrl =
+        response.data?.data?.authorization_url ||
+        response.data?.authorization_url ||
+        response.data?.data?.checkout_url;
+
+      if (response.data?.success && authUrl) {
         await Linking.openURL(authUrl);
       } else {
-        Alert.alert("Error", "Could not retrieve payment gateway link.");
+        Alert.alert("Error", "Could not retrieve Paystack payment checkout link.");
       }
     } catch (error) {
       console.error("Initialize error:", error.response?.data || error.message);
       Alert.alert(
         "Payment Failed",
-        error.response?.data?.message || "Failed to initialize online payment."
+        error.response?.data?.message || "Failed to initialize Paystack checkout."
       );
     } finally {
       setLoadingInit(false);
@@ -175,7 +246,7 @@ const FundWalletScreen = ({ navigation }) => {
     <View
       style={[
         styles.container,
-        { backgroundColor: isDarkMode ? "#080c14" : "#f4f7fb" },
+        { backgroundColor: isDarkMode ? "#030712" : "#f8fafc" },
       ]}
     >
       <StatusBar
@@ -189,10 +260,10 @@ const FundWalletScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Tier-1 Executive Hero Header */}
+        {/* Modern Fintech Header */}
         <LinearGradient
           colors={
-            isDarkMode ? ["#0c1322", "#080c14"] : ["#0284c7", "#0369a1"]
+            isDarkMode ? ["#0f172a", "#030712"] : ["#0284c7", "#0369a1"]
           }
           style={styles.headerHero}
         >
@@ -215,7 +286,7 @@ const FundWalletScreen = ({ navigation }) => {
           </View>
 
           <View style={styles.balanceDisplayCard}>
-            <Text style={styles.balanceLabel}>AVAILABLE WALLET BALANCE</Text>
+            <Text style={styles.balanceLabel}>CURRENT WALLET BALANCE</Text>
             <View style={styles.balanceRow}>
               <Text style={styles.balanceSymbol}>₦</Text>
               <Text style={styles.balanceValue}>
@@ -237,27 +308,25 @@ const FundWalletScreen = ({ navigation }) => {
             <Text
               style={[
                 styles.sectionTitle,
-                { color: isDarkMode ? "#ffffff" : "#0f172a" },
+                { color: isDarkMode ? "#f8fafc" : "#0f172a" },
               ]}
             >
-              Method 1: Instant Bank Transfer
+              Method 1: Direct Bank Transfer
             </Text>
             <View style={styles.badgeRecommended}>
-              <Text style={styles.badgeRecommendedText}>RECOMMENDED</Text>
+              <Text style={styles.badgeRecommendedText}>INSTANT CREDIT</Text>
             </View>
           </View>
 
           {virtualAccount ? (
             <LinearGradient
               colors={
-                isDarkMode ? ["#111927", "#0d131f"] : ["#ffffff", "#f8fafc"]
+                isDarkMode ? ["#111827", "#0b1120"] : ["#ffffff", "#f8fafc"]
               }
               style={[
                 styles.dvaCardSurface,
                 {
-                  borderColor: isDarkMode
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(2,132,199,0.18)",
+                  borderColor: isDarkMode ? "#1f2937" : "#e2e8f0",
                 },
               ]}
             >
@@ -277,7 +346,7 @@ const FundWalletScreen = ({ navigation }) => {
                 </View>
                 <MaterialCommunityIcons
                   name="integrated-circuit-chip"
-                  size={38}
+                  size={36}
                   color="#f59e0b"
                 />
               </View>
@@ -286,7 +355,7 @@ const FundWalletScreen = ({ navigation }) => {
                 <Text
                   style={[
                     styles.dvaNumberText,
-                    { color: isDarkMode ? "#ffffff" : "#0f172a" },
+                    { color: isDarkMode ? "#f8fafc" : "#0f172a" },
                   ]}
                 >
                   {virtualAccount.accountNumber}
@@ -310,7 +379,7 @@ const FundWalletScreen = ({ navigation }) => {
                     { color: isDarkMode ? "#94a3b8" : "#64748b" },
                   ]}
                 >
-                  Transfer any amount to this account for instant wallet funding.
+                  Transfer any amount to this account for automatic instant wallet funding.
                 </Text>
               </View>
             </LinearGradient>
@@ -319,26 +388,24 @@ const FundWalletScreen = ({ navigation }) => {
               style={[
                 styles.emptyProvisionCard,
                 {
-                  backgroundColor: isDarkMode ? "#111927" : "#ffffff",
-                  borderColor: isDarkMode
-                    ? "rgba(255,255,255,0.08)"
-                    : "#e2e8f0",
+                  backgroundColor: isDarkMode ? "#111827" : "#ffffff",
+                  borderColor: isDarkMode ? "#1f2937" : "#e2e8f0",
                 },
               ]}
             >
               <View style={styles.emptyIconWrap}>
-                <Ionicons name="card-outline" size={32} color="#0284c7" />
+                <Ionicons name="card-outline" size={30} color="#0284c7" />
               </View>
               <Text
                 style={[
                   styles.emptyTitle,
-                  { color: isDarkMode ? "#ffffff" : "#0f172a" },
+                  { color: isDarkMode ? "#f8fafc" : "#0f172a" },
                 ]}
               >
                 No Virtual Account Assigned
               </Text>
               <Text style={styles.emptySub}>
-                You don't have an automated account assigned yet.
+                Your dedicated automated deposit account is ready for activation.
               </Text>
               <TouchableOpacity
                 style={styles.provisionBtn}
@@ -350,9 +417,9 @@ const FundWalletScreen = ({ navigation }) => {
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <>
-                    <Ionicons name="card-outline" size={16} color="#ffffff" />
+                    <Ionicons name="sparkles" size={15} color="#ffffff" />
                     <Text style={styles.provisionBtnText}>
-                      Get Virtual Account
+                      Get Dedicated Account
                     </Text>
                   </>
                 )}
@@ -360,28 +427,58 @@ const FundWalletScreen = ({ navigation }) => {
             </View>
           )}
 
-          {/* Method 2: Online Card / USSD Payment */}
-          <Text
+          {/* Network Fallback Warning Box */}
+          <View
             style={[
-              styles.sectionTitle,
+              styles.networkNoticeBox,
               {
-                color: isDarkMode ? "#ffffff" : "#0f172a",
-                marginTop: 28,
-                marginBottom: 12,
+                backgroundColor: isDarkMode ? "#172554" : "#eff6ff",
+                borderColor: isDarkMode ? "#1e40af" : "#bfdbfe",
               },
             ]}
           >
-            Method 2: Debit Card / USSD Online Top-up
-          </Text>
+            <Ionicons name="swap-horizontal" size={18} color="#0284c7" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text
+                style={[
+                  styles.networkNoticeTitle,
+                  { color: isDarkMode ? "#93c5fd" : "#1e40af" },
+                ]}
+              >
+                Experiencing Bank Network Delays?
+              </Text>
+              <Text
+                style={[
+                  styles.networkNoticeSub,
+                  { color: isDarkMode ? "#bfdbfe" : "#3b82f6" },
+                ]}
+              >
+                Use the Paystack Gateway below to complete your payment with Zero Delays using Card, Bank App, or USSD.
+              </Text>
+            </View>
+          </View>
+
+          {/* Method 2: Paystack Gateway Checkout */}
+          <View style={styles.sectionHeader}>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: isDarkMode ? "#f8fafc" : "#0f172a" },
+              ]}
+            >
+              Method 2: Paystack Online Gateway
+            </Text>
+            <View style={styles.badgePaystack}>
+              <Text style={styles.badgePaystackText}>SECURE GATEWAY</Text>
+            </View>
+          </View>
 
           <View
             style={[
               styles.cardPaymentBox,
               {
-                backgroundColor: isDarkMode ? "#111927" : "#ffffff",
-                borderColor: isDarkMode
-                  ? "rgba(255,255,255,0.06)"
-                  : "#e2e8f0",
+                backgroundColor: isDarkMode ? "#111827" : "#ffffff",
+                borderColor: isDarkMode ? "#1f2937" : "#e2e8f0",
               },
             ]}
           >
@@ -390,10 +487,8 @@ const FundWalletScreen = ({ navigation }) => {
               style={[
                 styles.inputRow,
                 {
-                  backgroundColor: isDarkMode ? "#1a2436" : "#f8fafc",
-                  borderColor: isDarkMode
-                    ? "rgba(255,255,255,0.08)"
-                    : "#cbd5e1",
+                  backgroundColor: isDarkMode ? "#0f172a" : "#f8fafc",
+                  borderColor: isDarkMode ? "#334155" : "#cbd5e1",
                 },
               ]}
             >
@@ -419,13 +514,13 @@ const FundWalletScreen = ({ navigation }) => {
                   style={[
                     styles.presetChip,
                     {
-                      backgroundColor: isDarkMode ? "#131c2e" : "#f1f5f9",
+                      backgroundColor: isDarkMode ? "#0f172a" : "#f1f5f9",
                       borderColor:
                         amount === preset.toString()
                           ? "#0284c7"
                           : isDarkMode
-                          ? "rgba(255,255,255,0.05)"
-                          : "transparent",
+                          ? "#1e293b"
+                          : "#e2e8f0",
                     },
                   ]}
                   onPress={() => setAmount(preset.toString())}
@@ -452,7 +547,7 @@ const FundWalletScreen = ({ navigation }) => {
 
             <TouchableOpacity
               style={styles.payOnlineBtn}
-              onPress={handleOnlinePayment}
+              onPress={handlePaystackPayment}
               disabled={loadingInit}
               activeOpacity={0.85}
             >
@@ -466,9 +561,9 @@ const FundWalletScreen = ({ navigation }) => {
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
                   <>
-                    <Ionicons name="lock-closed" size={16} color="#ffffff" />
+                    <Ionicons name="card" size={16} color="#ffffff" />
                     <Text style={styles.payOnlineBtnText}>
-                      PROCEED TO SECURE CHECKOUT
+                      PAY VIA PAYSTACK (CARD / USSD / APP)
                     </Text>
                   </>
                 )}
@@ -521,7 +616,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   balanceDisplayCard: {
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
@@ -555,6 +650,7 @@ const styles = StyleSheet.create({
     color: "#94a3b8",
     fontSize: 11,
     marginTop: 2,
+    fontWeight: "500",
   },
   bodyContent: { paddingHorizontal: 18, marginTop: 22 },
   sectionHeader: {
@@ -563,7 +659,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  sectionTitle: { fontSize: 15, fontWeight: "800", letterSpacing: -0.2 },
+  sectionTitle: { fontSize: 14, fontWeight: "800", letterSpacing: -0.2 },
   badgeRecommended: {
     backgroundColor: "rgba(16, 185, 129, 0.12)",
     paddingVertical: 3,
@@ -571,11 +667,18 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeRecommendedText: { color: "#10b981", fontSize: 9, fontWeight: "900" },
+  badgePaystack: {
+    backgroundColor: "rgba(2, 132, 199, 0.12)",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  badgePaystackText: { color: "#0284c7", fontSize: 9, fontWeight: "900" },
   dvaCardSurface: {
     borderRadius: 20,
     padding: 18,
     borderWidth: 1,
-    elevation: 3,
+    elevation: 2,
   },
   dvaMetaRow: {
     flexDirection: "row",
@@ -617,6 +720,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900",
     marginLeft: 4,
+    letterSpacing: 0.5,
   },
   dvaInstructionBox: {
     flexDirection: "row",
@@ -631,6 +735,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     marginLeft: 6,
     flex: 1,
+    fontWeight: "500",
   },
   emptyProvisionCard: {
     borderRadius: 20,
@@ -655,6 +760,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 18,
     lineHeight: 18,
+    fontWeight: "500",
   },
   provisionBtn: {
     flexDirection: "row",
@@ -670,6 +776,25 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0.5,
     marginLeft: 6,
+  },
+  networkNoticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 22,
+    marginBottom: 20,
+  },
+  networkNoticeTitle: {
+    fontSize: 12.5,
+    fontWeight: "800",
+    marginBottom: 3,
+  },
+  networkNoticeSub: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "500",
   },
   cardPaymentBox: {
     borderRadius: 20,
@@ -729,7 +854,7 @@ const styles = StyleSheet.create({
   },
   payOnlineBtnText: {
     color: "#ffffff",
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: "900",
     marginLeft: 6,
     letterSpacing: 0.5,
