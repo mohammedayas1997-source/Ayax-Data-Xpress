@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import {
   View,
   Text,
@@ -10,157 +10,282 @@ import {
   RefreshControl,
   StatusBar,
   Alert,
+  Platform,
 } from "react-native";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ThemeContext } from "../context/ThemeContext";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const NIMCHistory = ({ navigation }) => {
+  const { isDarkMode } = useContext(ThemeContext);
   const [myRequests, setMyRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchMyHistory = async () => {
+  const fetchMyHistory = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
-        Alert.alert("Session Expired", "Please login again.");
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        if (!isBackground && navigation) {
+          navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+        }
         return;
       }
 
       const { data } = await axios.get(`${BASE_URL}/nimc/my-requests`, {
         headers: { Authorization: `Bearer ${token}` },
+        timeout: 15000,
       });
 
-      setMyRequests(data.data || data.requests || []);
+      const list = data.data || data.requests || (Array.isArray(data) ? data : []);
+      setMyRequests(list);
     } catch (err) {
-      console.log("Error fetching history", err);
-      Alert.alert("Error", err.response?.data?.message || "Could not fetch history");
+      if (err.response && err.response.status === 401) {
+        await AsyncStorage.clear();
+        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+      } else {
+        console.log("Error fetching verification history:", err.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [navigation]);
 
   useEffect(() => {
     fetchMyHistory();
-  }, []);
+  }, [fetchMyHistory]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchMyHistory();
+    fetchMyHistory(true);
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "pending":
-        return "#64748b"; // Grey
-      case "processing":
-        return "#f59e0b"; // Orange
-      case "completed":
-        return "#10b981"; // Green
-      case "rejected":
-        return "#ef4444"; // Red
-      default:
-        return "#94a3b8";
+  const getStatusBadge = (status = "") => {
+    const s = String(status).toLowerCase();
+    if (s === "completed" || s === "success" || s === "approved") {
+      return {
+        label: "COMPLETED",
+        color: "#10b981",
+        bg: "rgba(16, 185, 129, 0.12)",
+        icon: "checkmark-circle",
+      };
+    }
+    if (s === "processing" || s === "in_progress") {
+      return {
+        label: "PROCESSING",
+        color: "#eab308",
+        bg: "rgba(234, 179, 8, 0.12)",
+        icon: "sync-circle",
+      };
+    }
+    if (s === "rejected" || s === "failed" || s === "declined") {
+      return {
+        label: "REJECTED",
+        color: "#ef4444",
+        bg: "rgba(239, 68, 68, 0.12)",
+        icon: "close-circle",
+      };
+    }
+    return {
+      label: "PENDING REVIEW",
+      color: "#64748b",
+      bg: "rgba(100, 116, 139, 0.12)",
+      icon: "time",
+    };
+  };
+
+  const downloadFile = async (url) => {
+    if (!url) {
+      return Alert.alert("Notice", "Your result slip is currently being processed by the system.");
+    }
+    try {
+      await Linking.openURL(url);
+    } catch (err) {
+      Alert.alert("Error", "Could not open download link.");
     }
   };
 
-  const downloadFile = (url) => {
-    if (url) {
-      Linking.openURL(url).catch((err) =>
-        Alert.alert("Error", "Couldn't open download link."),
-      );
-    }
-  };
+  const renderItem = ({ item }) => {
+    const badge = getStatusBadge(item.status);
+    const dateFormatted = item.createdAt
+      ? new Date(item.createdAt).toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "Recent";
 
-  const renderItem = ({ item }) => (
-    <View style={styles.historyCard}>
-      <View style={styles.cardTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.serviceType}>
-            {item.serviceType?.toUpperCase()}
-          </Text>
-          <Text style={styles.dateText}>
-            {item.createdAt
-              ? new Date(item.createdAt).toDateString()
-              : "Date N/A"}
-          </Text>
-        </View>
-        <MaterialCommunityIcons
-          name={item.status === "completed" ? "check-circle" : "clock-outline"}
-          size={24}
-          color={getStatusColor(item.status)}
-        />
-      </View>
+    const serviceTitle =
+      item.serviceType ||
+      item.validationType ||
+      item.service ||
+      item.title ||
+      "NIN Verification";
 
+    const idNumber =
+      item.nin ||
+      item.trackingId ||
+      item.searchValue ||
+      item.reference ||
+      "N/A";
+
+    return (
       <View
         style={[
-          styles.statusTag,
-          { backgroundColor: getStatusColor(item.status) },
+          styles.historyCard,
+          {
+            backgroundColor: isDarkMode ? "#0b1120" : "#ffffff",
+            borderColor: isDarkMode ? "#1e293b" : "#e2e8f0",
+          },
         ]}
       >
-        <Text style={styles.statusText}>
-          {item.status === "processing"
-            ? "🕒 PROCESSING..."
-            : item.status?.toUpperCase()}
-        </Text>
-      </View>
+        <View style={styles.cardTop}>
+          <View style={styles.iconCircle}>
+            <FontAwesome5 name="id-card" size={16} color="#0284c7" />
+          </View>
 
-      {item.status === "completed" && item.slipUrl && (
-        <TouchableOpacity
-          style={styles.downloadBtn}
-          onPress={() => downloadFile(item.slipUrl)}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons name="file-download" size={20} color="#fff" />
-          <Text style={styles.downloadText}>Download Result Slip</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <View style={styles.titleRow}>
+              <Text
+                style={[
+                  styles.serviceType,
+                  { color: isDarkMode ? "#f8fafc" : "#0f172a" },
+                ]}
+                numberOfLines={1}
+              >
+                {serviceTitle}
+              </Text>
+
+              <View style={[styles.statusTag, { backgroundColor: badge.bg }]}>
+                <Ionicons name={badge.icon} size={11} color={badge.color} style={{ marginRight: 4 }} />
+                <Text style={[styles.statusText, { color: badge.color }]}>
+                  {badge.label}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.identifierText}>ID: {idNumber}</Text>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.cardBottomRow}>
+          <View>
+            <Text style={styles.metaLabel}>Submission Date</Text>
+            <Text style={styles.dateText}>{dateFormatted}</Text>
+          </View>
+
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.metaLabel}>Fee Charged</Text>
+            <Text
+              style={[
+                styles.amountText,
+                { color: isDarkMode ? "#00f0ff" : "#0284c7" },
+              ]}
+            >
+              ₦{Number(item.amount || item.cost || 0).toLocaleString()}
+            </Text>
+          </View>
+        </View>
+
+        {(item.slipUrl || item.pdfUrl || String(item.status).toLowerCase() === "completed") && (
+          <TouchableOpacity
+            style={styles.downloadBtn}
+            onPress={() => downloadFile(item.slipUrl || item.pdfUrl)}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons name="file-download-outline" size={18} color="#fff" />
+            <Text style={styles.downloadText}>Download Result Slip</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: isDarkMode ? "#050811" : "#f8fafc" },
+      ]}
+    >
+      <StatusBar
+        barStyle={isDarkMode ? "light-content" : "dark-content"}
+        backgroundColor={isDarkMode ? "#050811" : "#f8fafc"}
+      />
 
-      {/* Custom Header */}
       <View style={styles.headerContainer}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons
+            name="arrow-back"
+            size={22}
+            color={isDarkMode ? "#f8fafc" : "#0f172a"}
+          />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Application History</Text>
-        <View style={{ width: 24 }} />
+        <Text
+          style={[
+            styles.headerTitle,
+            { color: isDarkMode ? "#f8fafc" : "#0f172a" },
+          ]}
+        >
+          Verification History
+        </Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.backButton}>
+          <Ionicons
+            name="reload-outline"
+            size={20}
+            color={isDarkMode ? "#00f0ff" : "#0284c7"}
+          />
+        </TouchableOpacity>
       </View>
 
-      {loading ? (
+      {loading && !refreshing ? (
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#0a1d37" />
-          <Text style={{ marginTop: 10, color: "#64748b", fontWeight: "600" }}>
-            Loading history...
+          <ActivityIndicator size="large" color="#0284c7" />
+          <Text style={[styles.loadingText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
+            Loading verification history...
           </Text>
         </View>
       ) : (
         <FlatList
           data={myRequests}
-          keyExtractor={(item) => item._id || Math.random().toString()}
+          keyExtractor={(item, index) => item._id || item.id || item.reference || index.toString()}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0a1d37" />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={["#0284c7"]}
+              tintColor={isDarkMode ? "#00f0ff" : "#0284c7"}
+            />
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
               <MaterialCommunityIcons
                 name="folder-open-outline"
-                size={80}
-                color="#cbd5e1"
+                size={54}
+                color="#64748b"
               />
+              <Text
+                style={[
+                  styles.emptyTitle,
+                  { color: isDarkMode ? "#f8fafc" : "#0f172a" },
+                ]}
+              >
+                No Verification Logs Found
+              </Text>
               <Text style={styles.emptyText}>
-                Baka da wani aiki a halin yanzu.
+                All submitted NIMC and BVN slip requests will appear here with live tracking updates.
               </Text>
             </View>
           }
@@ -171,64 +296,111 @@ const NIMCHistory = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: { flex: 1 },
   headerContainer: {
-    backgroundColor: "#0f172a",
-    paddingTop: 45,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 52 : 38,
+    paddingBottom: 14,
   },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#fff" },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: { fontSize: 16, fontWeight: "900", letterSpacing: -0.3 },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 12, fontSize: 12, fontWeight: "600" },
   historyCard: {
-    backgroundColor: "#fff",
-    padding: 18,
     borderRadius: 16,
-    marginBottom: 15,
+    padding: 15,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
   },
   cardTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
   },
-  serviceType: { fontSize: 15, fontWeight: "800", color: "#1e293b" },
-  dateText: { fontSize: 12, color: "#94a3b8", marginTop: 2 },
+  iconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(2, 132, 199, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  serviceType: { fontSize: 13.5, fontWeight: "800", flex: 1, paddingRight: 6 },
   statusTag: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   statusText: {
-    color: "#fff",
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
+  identifierText: {
+    fontSize: 11,
+    color: "#64748b",
+    marginTop: 3,
+    fontWeight: "600",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(100, 116, 139, 0.12)",
+    marginVertical: 10,
+  },
+  cardBottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  metaLabel: { fontSize: 10, color: "#64748b", fontWeight: "700", textTransform: "uppercase" },
+  dateText: { fontSize: 11.5, color: "#94a3b8", marginTop: 2, fontWeight: "600" },
+  amountText: { fontSize: 14, fontWeight: "900", marginTop: 2 },
   downloadBtn: {
-    backgroundColor: "#0a1d37",
+    backgroundColor: "#0284c7",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    padding: 14,
+    paddingVertical: 12,
     borderRadius: 12,
-    marginTop: 5,
+    marginTop: 12,
   },
   downloadText: {
-    color: "#fff",
-    marginLeft: 8,
-    fontWeight: "bold",
-    fontSize: 14,
+    color: "#ffffff",
+    marginLeft: 6,
+    fontWeight: "800",
+    fontSize: 12.5,
+    letterSpacing: 0.3,
   },
-  emptyState: { flex: 1, alignItems: "center", marginTop: 100 },
-  emptyText: { color: "#94a3b8", marginTop: 15, fontSize: 16, fontWeight: "600" },
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", marginTop: 100, paddingHorizontal: 24 },
+  emptyTitle: { fontSize: 15, fontWeight: "800", marginTop: 12, letterSpacing: -0.2 },
+  emptyText: {
+    color: "#64748b",
+    marginTop: 6,
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    fontWeight: "500",
+  },
 });
 
 export default NIMCHistory;
