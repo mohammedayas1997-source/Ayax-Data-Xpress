@@ -30,42 +30,30 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const ALL_SYSTEM_SERVICES = [
   // NIMC Printing Services
-  { key: "nimc_basicSlip", name: "NIMC Basic Black Slip", category: "NIMC Printing", icon: "print", defaultFee: 300 },
-  { key: "nimc_standardSlip", name: "NIMC Standard Color Slip", category: "NIMC Printing", icon: "file-alt", defaultFee: 500 },
-  { key: "nimc_premiumCard", name: "NIMC Premium Plastic Card", category: "NIMC Printing", icon: "id-card", defaultFee: 1500 },
-  { key: "nimc_nin", name: "NIN Verification Lookup", category: "NIMC Printing", icon: "fingerprint", defaultFee: 1000 },
-  { key: "nimc_phone", name: "NIMC Phone Number Search", category: "NIMC Printing", icon: "phone-alt", defaultFee: 1000 },
-  { key: "nimc_trackingId", name: "Tracking ID Verification", category: "NIMC Printing", icon: "barcode", defaultFee: 1000 },
+  { key: "standardSlip", categoryKey: "nimc", name: "NIMC Standard Slip", category: "NIMC Printing", icon: "file-alt", defaultFee: 500 },
+  { key: "premiumCard", categoryKey: "nimc", name: "NIMC Premium Card", category: "NIMC Printing", icon: "id-card", defaultFee: 1500 },
+  { key: "basicSlip", categoryKey: "nimc", name: "NIMC Basic Slip", category: "NIMC Printing", icon: "print", defaultFee: 300 },
+  { key: "nin", categoryKey: "nimc", name: "NIN Verification Lookup", category: "NIMC Printing", icon: "fingerprint", defaultFee: 200 },
+  { key: "phone", categoryKey: "nimc", name: "NIMC Phone Search", category: "NIMC Printing", icon: "phone-alt", defaultFee: 500 },
+  { key: "trackingId", categoryKey: "nimc", name: "Tracking ID Search", category: "NIMC Printing", icon: "barcode", defaultFee: 500 },
 
   // NIMC Modification Services
-  { key: "mod_name", name: "Modification: Name Correction", category: "NIMC Modification", icon: "user-edit", defaultFee: 2500 },
-  { key: "mod_phone", name: "Modification: Phone Number Change", category: "NIMC Modification", icon: "mobile-alt", defaultFee: 2000 },
-  { key: "mod_dob", name: "Modification: Date of Birth (DOB)", category: "NIMC Modification", icon: "calendar-alt", defaultFee: 3000 },
-  { key: "mod_address", name: "Modification: Address Details", category: "NIMC Modification", icon: "map-marker-alt", defaultFee: 1500 },
-  { key: "mod_name_dob", name: "Modification: Name & DOB Combo", category: "NIMC Modification", icon: "id-badge", defaultFee: 4500 },
-  { key: "mod_name_phone", name: "Modification: Name & Phone Combo", category: "NIMC Modification", icon: "user-plus", defaultFee: 3500 },
+  { key: "mod_name", categoryKey: "nimc", name: "Modification: Name Correction", category: "NIMC Modification", icon: "user-edit", defaultFee: 2500 },
+  { key: "mod_phone", categoryKey: "nimc", name: "Modification: Phone Update", category: "NIMC Modification", icon: "mobile-alt", defaultFee: 2000 },
+  { key: "mod_dob", categoryKey: "nimc", name: "Modification: Date of Birth", category: "NIMC Modification", icon: "calendar-alt", defaultFee: 3000 },
+  { key: "mod_address", categoryKey: "nimc", name: "Modification: Address Details", category: "NIMC Modification", icon: "map-marker-alt", defaultFee: 1500 },
 
   // NIN Validation Services
-  { key: "val_noRecord", name: "Validation: No Record Found", category: "NIN Validation", icon: "search-minus", defaultFee: 1300 },
-  { key: "val_sim", name: "Validation: SIM Card Validation", category: "NIN Validation", icon: "sim-card", defaultFee: 1300 },
-  { key: "val_vnin", name: "Validation: vNIN Virtual Validation", category: "NIN Validation", icon: "shield-alt", defaultFee: 1300 },
-  { key: "val_update", name: "Validation: Update Records", category: "NIN Validation", icon: "sync-alt", defaultFee: 1300 },
-  { key: "val_bank", name: "Validation: Bank Records Linkage", category: "NIN Validation", icon: "university", defaultFee: 1300 },
-  { key: "val_mod", name: "Validation: Modification Validation", category: "NIN Validation", icon: "edit", defaultFee: 1700 },
-  { key: "val_photoError", name: "Validation: Photographic Error", category: "NIN Validation", icon: "camera", defaultFee: 1400 },
+  { key: "val_noRecord", categoryKey: "nimc", name: "Validation: No Record", category: "NIN Validation", icon: "search-minus", defaultFee: 1300 },
+  { key: "val_sim", categoryKey: "nimc", name: "Validation: SIM Card Bypass", category: "NIN Validation", icon: "sim-card", defaultFee: 1300 },
+  { key: "val_vnin", categoryKey: "nimc", name: "Validation: vNIN Linkage", category: "NIN Validation", icon: "shield-alt", defaultFee: 1300 },
+  { key: "val_bank", categoryKey: "nimc", name: "Validation: Bank Records", category: "NIN Validation", icon: "university", defaultFee: 1300 },
 
-  // Identity & BVN Services
-  { key: "verify_phone", name: "Phone Identification Check", category: "Identity & BVN", icon: "phone-square-alt", defaultFee: 300 },
-  { key: "verify_bvn_basic", name: "BVN Basic Profile Lookup", category: "Identity & BVN", icon: "user-check", defaultFee: 200 },
-  { key: "verify_bvn_full", name: "Comprehensive BVN Demographics", category: "Identity & BVN", icon: "user-tie", defaultFee: 500 },
-  { key: "verify_face_id", name: "Biometric Face ID Matching", category: "Identity & BVN", icon: "smile-beam", defaultFee: 800 },
-
-  // Utility Surcharges
-  { key: "fee_electricity", name: "Electricity Token Surcharge", category: "Utilities Surcharge", icon: "bolt", defaultFee: 100 },
-  { key: "fee_gotv", name: "GOtv Surcharge Fee", category: "Utilities Surcharge", icon: "tv", defaultFee: 50 },
-  { key: "fee_dstv", name: "DStv Surcharge Fee", category: "Utilities Surcharge", icon: "tv", defaultFee: 100 },
-  { key: "fee_startimes", name: "StarTimes Surcharge Fee", category: "Utilities Surcharge", icon: "tv", defaultFee: 50 },
-  { key: "fee_showmax", name: "Showmax Surcharge Fee", category: "Utilities Surcharge", icon: "tv", defaultFee: 50 },
+  // BVN Services
+  { key: "bvn_standard", categoryKey: "bvn", name: "BVN Standard Slip", category: "BVN Services", icon: "user-check", defaultFee: 300 },
+  { key: "bvn_premium", categoryKey: "bvn", name: "BVN Premium Card", category: "BVN Services", icon: "id-badge", defaultFee: 1000 },
+  { key: "bvn_phone", categoryKey: "bvn", name: "BVN Phone Lookup", category: "BVN Services", icon: "phone-square-alt", defaultFee: 400 },
+  { key: "bvn_basic", categoryKey: "bvn", name: "BVN Basic Verification", category: "BVN Services", icon: "user-tie", defaultFee: 200 },
 ];
 
 const SuperAdminDashboard = ({ navigation }) => {
@@ -90,25 +78,27 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [dispatchModalVisible, setDispatchModalVisible] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
   const [refundModalVisible, setRefundModalVisible] = useState(false);
+  const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
-  const [suspendModalVisible, setSuspendModalVisible] = useState(false);
+  const [lockModalVisible, setLockModalVisible] = useState(false);
+  const [purgeModalVisible, setPurgeModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Form States
   const [targetTariffService, setTargetTariffService] = useState(null);
   const [newTariffPrice, setNewTariffPrice] = useState("");
+  const [newAgentPrice, setNewAgentPrice] = useState("");
+  const [newCostPrice, setNewCostPrice] = useState("");
 
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
-  const [notifTargetType, setNotifTargetType] = useState("all");
+  const [notifCategory, setNotifCategory] = useState("ADMIN_BROADCAST");
   const [notifTargetUser, setNotifTargetUser] = useState("");
 
   const [dispatchNetwork, setDispatchNetwork] = useState("MTN");
   const [dispatchPlanType, setDispatchPlanType] = useState("SME");
   const [dispatchPlanCode, setDispatchPlanCode] = useState("1.0GB");
   const [dispatchPrice, setDispatchPrice] = useState("280");
-  const [dispatchCostPrice, setDispatchCostPrice] = useState("245");
-  const [dispatchValidity, setDispatchValidity] = useState("30");
   const [dispatchRecipients, setDispatchRecipients] = useState("");
   const [sendToAll, setSendToAll] = useState(false);
 
@@ -119,13 +109,20 @@ const SuperAdminDashboard = ({ navigation }) => {
 
   const [refundUserId, setRefundUserId] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
-  const [refundTxId, setRefundTxId] = useState("");
+  const [refundTxRef, setRefundTxRef] = useState("");
   const [refundReason, setRefundReason] = useState("");
+
+  const [roleUserId, setRoleUserId] = useState("");
+  const [selectedRole, setSelectedRole] = useState("agent");
 
   const [pwdUserId, setPwdUserId] = useState("");
   const [pwdNew, setPwdNew] = useState("");
+  const [pinNew, setPinNew] = useState("");
 
-  const [suspendUserId, setSuspendUserId] = useState("");
+  const [lockUserId, setLockUserId] = useState("");
+  const [lockReason, setLockReason] = useState("");
+
+  const [purgeDays, setPurgeDays] = useState("90");
 
   const showAlert = (title, message) => {
     if (Platform.OS === "web") {
@@ -162,19 +159,23 @@ const SuperAdminDashboard = ({ navigation }) => {
         return;
       }
 
-      const res = await axios.get(`${BASE_URL}/superadmin/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 12000,
-      });
+      const headers = { Authorization: `Bearer ${token}` };
 
-      if (res.data && (res.data.success || res.data.stats)) {
-        setStats(res.data.stats || {});
-        setPrices(res.data.prices || {});
-        setRecentTx(res.data.recentTransactions || []);
+      const [telemetryRes, txRes] = await Promise.all([
+        axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }),
+        axios.get(`${BASE_URL}/admin/transactions?limit=25`, { headers, timeout: 15000 }),
+      ]);
+
+      if (telemetryRes.data?.stats) {
+        setStats(telemetryRes.data.stats);
+      }
+
+      if (txRes.data?.transactions) {
+        setRecentTx(txRes.data.transactions);
       }
     } catch (err) {
       if (!isBackground) {
-        console.log("Telemetry Error:", err.message);
+        console.log("Telemetry Sync Notice:", err.response?.data?.message || err.message);
       }
     } finally {
       setLoading(false);
@@ -186,7 +187,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     fetchMasterTelemetry();
     const interval = setInterval(() => {
       fetchMasterTelemetry(true);
-    }, 10000);
+    }, 12000);
     return () => clearInterval(interval);
   }, [fetchMasterTelemetry]);
 
@@ -197,19 +198,19 @@ const SuperAdminDashboard = ({ navigation }) => {
 
   const handleLogout = async () => {
     if (Platform.OS === "web") {
-      const confirmLogout = window.confirm("Are you sure you want to log out of the SuperAdmin Console?");
+      const confirmLogout = window.confirm("Are you sure you want to terminate the SuperAdmin Session?");
       if (confirmLogout) {
         await AsyncStorage.clear();
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       }
     } else {
       Alert.alert(
-        "Log Out Session",
-        "Are you sure you want to log out of the SuperAdmin Console?",
+        "SuperAdmin Sign Out",
+        "Terminate active SuperAdmin administrative session?",
         [
           { text: "Cancel", style: "cancel" },
           {
-            text: "Log Out",
+            text: "Sign Out",
             style: "destructive",
             onPress: async () => {
               await AsyncStorage.clear();
@@ -221,26 +222,35 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 1. Update Tariff
+  // 1. Set Global Service Price (Tariff Matrix)
   const handleUpdateTariff = async () => {
     if (!targetTariffService || !newTariffPrice || isNaN(Number(newTariffPrice))) {
-      return showAlert("Validation Error", "Enter a valid numeric price.");
+      return showAlert("Validation Error", "Please provide a valid numeric tariff price.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/superadmin/update-service-price`,
-        { serviceKey: targetTariffService.key, newPrice: Number(newTariffPrice) },
+        `${BASE_URL}/superadmin/pricing/set-global`,
+        {
+          serviceCategory: targetTariffService.categoryKey,
+          serviceId: targetTariffService.key,
+          amount: Number(newTariffPrice),
+          agentPrice: Number(newAgentPrice || newTariffPrice),
+          costPrice: Number(newCostPrice || 0),
+          name: targetTariffService.name,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
         showAlert("Tariff Deployed", res.data.message);
-        setPrices(res.data.updatedPrices || { ...prices, [targetTariffService.key]: Number(newTariffPrice) });
-        setNewTariffPrice("");
+        setPrices((prev) => ({ ...prev, [targetTariffService.key]: Number(newTariffPrice) }));
         setPricingModalVisible(false);
+        setNewTariffPrice("");
+        setNewAgentPrice("");
+        setNewCostPrice("");
       }
     } catch (err) {
       showAlert("Tariff Error", err.response?.data?.message || err.message);
@@ -249,28 +259,28 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. Broadcast Notification
+  // 2. Broadcast Real-Time Notification
   const handleSendBroadcastNotification = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
-      return showAlert("Validation Error", "Title and Message are required.");
+      return showAlert("Validation Error", "Title and Body Message are required.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/superadmin/broadcast-notification`,
+        `${BASE_URL}/notifications/send`,
         {
           title: notifTitle.trim(),
           message: notifMessage.trim(),
-          targetType: notifTargetType,
-          targetUserId: notifTargetUser.trim(),
+          category: notifCategory,
+          recipientId: notifTargetUser.trim() || null,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Broadcast Sent 🎉", res.data.message);
+        showAlert("Broadcast Sent 🚀", res.data.message);
         setNotificationModalVisible(false);
         setNotifTitle("");
         setNotifMessage("");
@@ -283,70 +293,67 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. Dispatch Data
-  const handleExecuteDispatch = async () => {
-    if (!dispatchPlanCode || !dispatchPrice || !dispatchValidity) {
-      return showAlert("Validation Error", "Plan Size, Price, and Validity Days are required.");
+  // 3. Direct Wallet Balance Adjustment
+  const handleExecuteWalletAction = async () => {
+    if (!walletUserId.trim() || !walletAmount || isNaN(Number(walletAmount))) {
+      return showAlert("Validation Error", "Please provide a valid target identifier and numeric amount.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/superadmin/dispatch-data`,
+        `${BASE_URL}/superadmin/wallet/adjust`,
         {
-          network: dispatchNetwork,
-          planType: dispatchPlanType,
-          planCode: dispatchPlanCode.trim(),
-          price: Number(dispatchPrice),
-          costPrice: Number(dispatchCostPrice || dispatchPrice),
-          validityDays: Number(dispatchValidity),
-          recipients: dispatchRecipients.trim(),
-          sendToAllUsers: sendToAll,
+          userId: walletUserId.trim(),
+          amount: Number(walletAmount),
+          reason: walletReason.trim() || "Administrative settlement",
+          actionType: walletActionType,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Batch Dispatched 🎉", res.data.message);
-        setDispatchModalVisible(false);
-        setDispatchRecipients("");
-        setSendToAll(false);
+        showAlert("Ledger Synced", res.data.message);
+        setWalletModalVisible(false);
+        setWalletUserId("");
+        setWalletAmount("");
+        setWalletReason("");
         fetchMasterTelemetry();
       }
     } catch (err) {
-      showAlert("Dispatch Error", err.response?.data?.message || err.message);
+      showAlert("Ledger Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 4. Refund
+  // 4. Executive Refund Override
   const handleExecuteRefund = async () => {
-    if (!refundUserId.trim() || !refundAmount) {
-      return showAlert("Validation Error", "Recipient identifier and amount are required.");
+    if ((!refundUserId.trim() && !refundTxRef.trim()) || !refundAmount) {
+      return showAlert("Validation Error", "Provide beneficiary identifier (or Reference) and refund amount.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/superadmin/process-refund`,
+        `${BASE_URL}/superadmin/refunds/executive-override`,
         {
-          targetUserId: refundUserId.trim(),
+          targetUserId: refundUserId.trim() || null,
+          reference: refundTxRef.trim() || null,
           refundAmount: Number(refundAmount),
-          transactionId: refundTxId.trim(),
-          reason: refundReason.trim(),
+          reason: refundReason.trim() || "Executive SuperAdmin Refund Override",
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Refund Executed", res.data.message);
+        showAlert("Executive Refund Executed", res.data.message);
         setRefundModalVisible(false);
         setRefundUserId("");
+        setRefundTxRef("");
         setRefundAmount("");
-        setRefundTxId("");
         setRefundReason("");
         fetchMasterTelemetry();
       }
@@ -357,91 +364,154 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 5. Wallet Credit / Debit
-  const handleExecuteWalletAction = async () => {
-    if (!walletUserId.trim() || !walletAmount) {
-      return showAlert("Validation Error", "Target User Identifier and numeric amount are required.");
+  // 5. Change User Role
+  const handleExecuteRoleChange = async () => {
+    if (!roleUserId.trim()) {
+      return showAlert("Validation Error", "Target user phone, email, or ID is required.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.post(
-        `${BASE_URL}/superadmin/adjust-wallet`,
+      const res = await axios.patch(
+        `${BASE_URL}/superadmin/users/change-role`,
         {
-          userId: walletUserId.trim(),
-          amount: Number(walletAmount),
-          reason: walletReason.trim(),
-          actionType: walletActionType,
+          userId: roleUserId.trim(),
+          newRole: selectedRole,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Ledger Updated", res.data.message);
-        setWalletModalVisible(false);
-        setWalletUserId("");
-        setWalletAmount("");
+        showAlert("Role Updated", res.data.message);
+        setRoleModalVisible(false);
+        setRoleUserId("");
         fetchMasterTelemetry();
       }
     } catch (err) {
-      showAlert("Ledger Error", err.response?.data?.message || err.message);
+      showAlert("Role Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 6. Password Override
+  // 6. Security Credential Override
   const handleExecutePasswordOverride = async () => {
-    if (!pwdUserId.trim() || !pwdNew || pwdNew.length < 6) {
-      return showAlert("Validation Error", "Target identifier and a 6+ character password are required.");
+    if (!pwdUserId.trim() || (!pwdNew && !pinNew)) {
+      return showAlert("Validation Error", "Target identifier and new password or PIN are required.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/superadmin/override-password`,
-        { userId: pwdUserId.trim(), newPassword: pwdNew.trim() },
+        `${BASE_URL}/superadmin/users/force-reset-security`,
+        {
+          userId: pwdUserId.trim(),
+          newPassword: pwdNew.trim() || null,
+          newPin: pinNew.trim() || null,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Password Overridden", res.data.message);
+        showAlert("Credentials Reset", res.data.message);
         setPasswordModalVisible(false);
         setPwdUserId("");
         setPwdNew("");
+        setPinNew("");
       }
     } catch (err) {
-      showAlert("Override Error", err.response?.data?.message || err.message);
+      showAlert("Security Override Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 7. Suspension
-  const handleExecuteSuspension = async (suspend) => {
-    if (!suspendUserId.trim()) {
+  // 7. Lock / Unlock Account
+  const handleExecuteToggleLock = async (lock) => {
+    if (!lockUserId.trim()) {
       return showAlert("Validation Error", "Target identifier is required.");
     }
 
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.post(
-        `${BASE_URL}/superadmin/toggle-suspension`,
-        { userId: suspendUserId.trim(), suspend },
+      const res = await axios.patch(
+        `${BASE_URL}/superadmin/users/toggle-lock`,
+        {
+          userId: lockUserId.trim(),
+          lock,
+          reason: lockReason.trim() || "Administrative security inspection",
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success) {
-        showAlert("Status Changed", res.data.message);
-        setSuspendModalVisible(false);
-        setSuspendUserId("");
+        showAlert("Security State Changed", res.data.message);
+        setLockModalVisible(false);
+        setLockUserId("");
+        setLockReason("");
         fetchMasterTelemetry();
       }
     } catch (err) {
-      showAlert("Suspension Error", err.response?.data?.message || err.message);
+      showAlert("Account Lock Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 8. Bulk Marketing Data Dispatch
+  const handleExecuteDispatch = async () => {
+    if (!dispatchPlanCode || !dispatchPrice) {
+      return showAlert("Validation Error", "Plan Code and Selling Price are required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.post(
+        `${BASE_URL}/superadmin/vtu/dispatch-bulk`,
+        {
+          network: dispatchNetwork,
+          planType: dispatchPlanType,
+          planCode: dispatchPlanCode.trim(),
+          price: Number(dispatchPrice),
+          recipients: dispatchRecipients.trim(),
+          sendToAllUsers: sendToAll,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.success) {
+        showAlert("Campaign Queued", res.data.message);
+        setDispatchModalVisible(false);
+        setDispatchRecipients("");
+        setSendToAll(false);
+      }
+    } catch (err) {
+      showAlert("Campaign Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 9. Prune Audit Trail
+  const handleExecuteAuditPurge = async () => {
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.delete(`${BASE_URL}/superadmin/logs/expunge`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { retentionDays: Number(purgeDays) },
+      });
+
+      if (res.data?.success) {
+        showAlert("Forensic Clean Complete", res.data.message);
+        setPurgeModalVisible(false);
+      }
+    } catch (err) {
+      showAlert("Purge Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
@@ -462,7 +532,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         <StatusBar barStyle="light-content" backgroundColor="#050811" />
         <ActivityIndicator size="large" color="#00f0ff" />
         <Text style={styles.loaderTitle}>AYAX SUPREME ROOT ENGINE</Text>
-        <Text style={styles.loaderText}>Establishing Real-Time Protocol Nodes...</Text>
+        <Text style={styles.loaderText}>Establishing Real-Time Core Telemetry...</Text>
       </View>
     );
   }
@@ -471,9 +541,13 @@ const SuperAdminDashboard = ({ navigation }) => {
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" backgroundColor="#050811" />
 
-      {/* TOP SUPREME APP BAR WITH LOGOUT ACTION */}
+      {/* TOP SUPREME APP BAR */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.menuIconBtn}
+          onPress={() => toggleSidebar(true)}
+          activeOpacity={0.7}
+        >
           <Feather name="menu" size={24} color="#f8fafc" />
         </TouchableOpacity>
 
@@ -518,8 +592,17 @@ const SuperAdminDashboard = ({ navigation }) => {
           style={[styles.mainNavTab, activeMainTab === "overview" && styles.mainNavTabActive]}
           onPress={() => setActiveMainTab("overview")}
         >
-          <Feather name="grid" size={14} color={activeMainTab === "overview" ? "#00f0ff" : "#64748b"} />
-          <Text style={[styles.mainNavTabText, activeMainTab === "overview" && styles.mainNavTabTextActive]}>
+          <Feather
+            name="grid"
+            size={14}
+            color={activeMainTab === "overview" ? "#00f0ff" : "#64748b"}
+          />
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeMainTab === "overview" && styles.mainNavTabTextActive,
+            ]}
+          >
             Overview
           </Text>
         </TouchableOpacity>
@@ -528,8 +611,17 @@ const SuperAdminDashboard = ({ navigation }) => {
           style={[styles.mainNavTab, activeMainTab === "tariffs" && styles.mainNavTabActive]}
           onPress={() => setActiveMainTab("tariffs")}
         >
-          <MaterialIcons name="tune" size={15} color={activeMainTab === "tariffs" ? "#00f0ff" : "#64748b"} />
-          <Text style={[styles.mainNavTabText, activeMainTab === "tariffs" && styles.mainNavTabTextActive]}>
+          <MaterialIcons
+            name="tune"
+            size={15}
+            color={activeMainTab === "tariffs" ? "#00f0ff" : "#64748b"}
+          />
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeMainTab === "tariffs" && styles.mainNavTabTextActive,
+            ]}
+          >
             Set Tariffs
           </Text>
         </TouchableOpacity>
@@ -538,9 +630,18 @@ const SuperAdminDashboard = ({ navigation }) => {
           style={[styles.mainNavTab, activeMainTab === "history" && styles.mainNavTabActive]}
           onPress={() => setActiveMainTab("history")}
         >
-          <Feather name="activity" size={14} color={activeMainTab === "history" ? "#00f0ff" : "#64748b"} />
-          <Text style={[styles.mainNavTabText, activeMainTab === "history" && styles.mainNavTabTextActive]}>
-            Audit History
+          <Feather
+            name="activity"
+            size={14}
+            color={activeMainTab === "history" ? "#00f0ff" : "#64748b"}
+          />
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeMainTab === "history" && styles.mainNavTabTextActive,
+            ]}
+          >
+            Live Audit Stream
           </Text>
         </TouchableOpacity>
       </View>
@@ -564,51 +665,53 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <Text style={styles.sectionHeaderLabel}>REAL-TIME FINANCIAL TELEMETRY</Text>
                 <View style={styles.liveBadge}>
                   <View style={[styles.livePulseDot, { backgroundColor: "#10b981" }]} />
-                  <Text style={styles.liveBadgeText}>LIVE STREAM</Text>
+                  <Text style={styles.liveBadgeText}>
+                    GATEWAY: {stats?.gatewayBalance ? `₦${stats.gatewayBalance}` : "ONLINE"}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.metricGrid}>
                 <View style={[styles.metricCard, { borderColor: "rgba(16, 185, 129, 0.3)" }]}>
                   <View style={styles.cardHeaderRow}>
-                    <Text style={styles.metricLabel}>Total Inflow (Deposits)</Text>
-                    <Ionicons name="arrow-down-circle" size={18} color="#10b981" />
+                    <Text style={styles.metricLabel}>Total Platform Revenue</Text>
+                    <Ionicons name="cash" size={18} color="#10b981" />
                   </View>
                   <Text style={[styles.metricValue, { color: "#10b981" }]}>
-                    ₦{Number(stats?.totalInflow || 0).toLocaleString()}
+                    ₦{Number(stats?.totalRevenue || 0).toLocaleString()}
                   </Text>
-                  <Text style={styles.metricSub}>{stats?.totalWalletFundingCount || 0} Inflow Events</Text>
-                </View>
-
-                <View style={[styles.metricCard, { borderColor: "rgba(239, 68, 68, 0.3)" }]}>
-                  <View style={styles.cardHeaderRow}>
-                    <Text style={styles.metricLabel}>Total Outflow (Sales)</Text>
-                    <Ionicons name="arrow-up-circle" size={18} color="#f87171" />
-                  </View>
-                  <Text style={[styles.metricValue, { color: "#f87171" }]}>
-                    ₦{Number(stats?.totalOutflow || 0).toLocaleString()}
-                  </Text>
-                  <Text style={styles.metricSub}>{stats?.successfulSalesCount || 0} Dispatches</Text>
+                  <Text style={styles.metricSub}>{stats?.successfulTransactions || 0} Successful Txns</Text>
                 </View>
 
                 <View style={[styles.metricCard, { borderColor: "rgba(0, 240, 255, 0.3)" }]}>
                   <View style={styles.cardHeaderRow}>
-                    <Text style={styles.metricLabel}>Net Capital Ledger</Text>
+                    <Text style={styles.metricLabel}>Wallet Liabilities</Text>
                     <Ionicons name="wallet" size={18} color="#00f0ff" />
                   </View>
                   <Text style={[styles.metricValue, { color: "#00f0ff" }]}>
-                    ₦{Number(stats?.netRevenue || 0).toLocaleString()}
+                    ₦{Number(stats?.totalWalletLiabilities || 0).toLocaleString()}
                   </Text>
-                  <Text style={styles.metricSub}>99.99% Operational</Text>
+                  <Text style={styles.metricSub}>User & Staff Floating Capital</Text>
+                </View>
+
+                <View style={[styles.metricCard, { borderColor: "rgba(239, 68, 68, 0.3)" }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <Text style={styles.metricLabel}>Pending Refunds</Text>
+                    <Ionicons name="alert-circle" size={18} color="#f87171" />
+                  </View>
+                  <Text style={[styles.metricValue, { color: "#f87171" }]}>
+                    {stats?.pendingRefunds || 0}
+                  </Text>
+                  <Text style={styles.metricSub}>{stats?.failedTransactions || 0} Failed Operations</Text>
                 </View>
 
                 <View style={[styles.metricCard, { borderColor: "rgba(168, 85, 247, 0.3)" }]}>
                   <View style={styles.cardHeaderRow}>
-                    <Text style={styles.metricLabel}>Platform Entities</Text>
+                    <Text style={styles.metricLabel}>Platform Users</Text>
                     <Ionicons name="people" size={18} color="#c084fc" />
                   </View>
                   <Text style={[styles.metricValue, { color: "#c084fc" }]}>
-                    {(stats?.totalUsers || 0) + (stats?.totalAgents || 0) + (stats?.totalSupervisors || 0)}
+                    {stats?.totalPlatformAccounts || stats?.totalUsers || 0}
                   </Text>
                   <Text style={styles.metricSub}>
                     {stats?.totalSupervisors || 0} Supervisors • {stats?.totalAgents || 0} Agents
@@ -634,41 +737,26 @@ const SuperAdminDashboard = ({ navigation }) => {
                     Broadcast Push Notification & News
                   </Text>
                   <Text style={styles.tileDescription}>
-                    Send alerts, updates, or maintenance notices to all users or target individuals.
+                    Send instant alerts, announcements, and maintenance updates to all mobile devices.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.commandTile}
+                style={[styles.commandTile, { borderColor: "rgba(16, 185, 129, 0.4)" }]}
                 activeOpacity={0.8}
-                onPress={() => setActiveMainTab("tariffs")}
+                onPress={() => setWalletModalVisible(true)}
               >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#4338ca" }]}>
-                  <MaterialIcons name="tune" size={24} color="#ffffff" />
+                <View style={[styles.tileIconContainer, { backgroundColor: "#059669" }]}>
+                  <Ionicons name="wallet" size={22} color="#ffffff" />
                 </View>
                 <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Set Service Tariffs (All Prices)</Text>
-                  <Text style={styles.tileDescription}>
-                    Individually set pricing for NIMC printing, modifications, validation & BVN.
+                  <Text style={[styles.tileTitle, { color: "#10b981" }]}>
+                    Direct Ledger Injector (Credit / Debit)
                   </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#64748b" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.commandTile}
-                activeOpacity={0.8}
-                onPress={() => setDispatchModalVisible(true)}
-              >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#0369a1" }]}>
-                  <Ionicons name="paper-plane" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Enterprise Data Dispatcher & Margins</Text>
                   <Text style={styles.tileDescription}>
-                    Deploy custom bundles, adjust wholesale prices, validity, and push broadcasts.
+                    Adjust user, agent, or staff wallet balances instantly with immutable audit remarks.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
@@ -684,10 +772,10 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
                 <View style={styles.tileInfo}>
                   <Text style={[styles.tileTitle, { color: "#f87171" }]}>
-                    Disburse Direct Refund (SuperAdmin Only)
+                    Executive Refund Override (SuperAdmin Only)
                   </Text>
                   <Text style={styles.tileDescription}>
-                    Directly disburse automated wallet refunds for failed transactions.
+                    Directly disburse wallet refunds for failed transactions without third-party bottlenecks.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
@@ -696,15 +784,49 @@ const SuperAdminDashboard = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.commandTile}
                 activeOpacity={0.8}
-                onPress={() => setWalletModalVisible(true)}
+                onPress={() => setRoleModalVisible(true)}
               >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#059669" }]}>
-                  <Ionicons name="wallet" size={22} color="#ffffff" />
+                <View style={[styles.tileIconContainer, { backgroundColor: "#7c3aed" }]}>
+                  <MaterialCommunityIcons name="account-convert" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Direct Ledger Injector (Credit / Debit)</Text>
+                  <Text style={styles.tileTitle}>Change User Role & Permissions</Text>
                   <Text style={styles.tileDescription}>
-                    Instantly adjust customer or staff wallet balances with immutable audit notes.
+                    Promote or demote users to Agent, Supervisor, Customer Service, or Admin.
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#64748b" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.commandTile}
+                activeOpacity={0.8}
+                onPress={() => setActiveMainTab("tariffs")}
+              >
+                <View style={[styles.tileIconContainer, { backgroundColor: "#4338ca" }]}>
+                  <MaterialIcons name="tune" size={24} color="#ffffff" />
+                </View>
+                <View style={styles.tileInfo}>
+                  <Text style={styles.tileTitle}>Global Service Pricing & Tariff Engine</Text>
+                  <Text style={styles.tileDescription}>
+                    Individually set pricing for NIMC printing, validation, BVN, and data bundle tariffs.
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#64748b" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.commandTile}
+                activeOpacity={0.8}
+                onPress={() => setDispatchModalVisible(true)}
+              >
+                <View style={[styles.tileIconContainer, { backgroundColor: "#0369a1" }]}>
+                  <Ionicons name="paper-plane" size={22} color="#ffffff" />
+                </View>
+                <View style={styles.tileInfo}>
+                  <Text style={styles.tileTitle}>Bulk Data Marketing & Campaign Dispatcher</Text>
+                  <Text style={styles.tileDescription}>
+                    Deploy custom wholesale bundles, adjust profit margins, and queue bulk dispatches.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
@@ -719,9 +841,9 @@ const SuperAdminDashboard = ({ navigation }) => {
                   <MaterialIcons name="lock-reset" size={24} color="#ffffff" />
                 </View>
                 <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>User & Staff Password Override</Text>
+                  <Text style={styles.tileTitle}>Force-Reset User Password / PIN</Text>
                   <Text style={styles.tileDescription}>
-                    Forcefully reset passwords for any user, supervisor, or agent without OTP delays.
+                    Directly override security credentials for any account without OTP delays.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
@@ -730,15 +852,34 @@ const SuperAdminDashboard = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.commandTile}
                 activeOpacity={0.8}
-                onPress={() => setSuspendModalVisible(true)}
+                onPress={() => setLockModalVisible(true)}
               >
                 <View style={[styles.tileIconContainer, { backgroundColor: "#b91c1c" }]}>
                   <MaterialIcons name="block" size={22} color="#ffffff" />
                 </View>
                 <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Suspend / Activate Staff & Users</Text>
+                  <Text style={styles.tileTitle}>Freeze / Unlock User Wallet & Access</Text>
                   <Text style={styles.tileDescription}>
-                    Freeze compromised accounts or restore service access immediately.
+                    Instantly freeze compromised customer or staff accounts or restore service access.
+                  </Text>
+                </View>
+                <Feather name="chevron-right" size={20} color="#64748b" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.commandTile}
+                activeOpacity={0.8}
+                onPress={() => setPurgeModalVisible(true)}
+              >
+                <View style={[styles.tileIconContainer, { backgroundColor: "#334155" }]}>
+                  <Feather name="trash-2" size={22} color="#f87171" />
+                </View>
+                <View style={styles.tileInfo}>
+                  <Text style={[styles.tileTitle, { color: "#f87171" }]}>
+                    Forensic Log Maintenance & Expunging
+                  </Text>
+                  <Text style={styles.tileDescription}>
+                    Prune and expunge historical system audit records older than 30/60/90 days.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
@@ -749,64 +890,13 @@ const SuperAdminDashboard = ({ navigation }) => {
                 activeOpacity={0.8}
                 onPress={() => navigation?.navigate("LeaderDashboard")}
               >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#7c3aed" }]}>
+                <View style={[styles.tileIconContainer, { backgroundColor: "#d97706" }]}>
                   <FontAwesome5 name="user-tie" size={18} color="#ffffff" />
                 </View>
                 <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Supervisors Network & Targets</Text>
+                  <Text style={styles.tileTitle}>Supervisor Performance & Quota Targets</Text>
                   <Text style={styles.tileDescription}>
                     Assign team sales goals, track monthly quota, and review commissions.
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#64748b" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.commandTile}
-                activeOpacity={0.8}
-                onPress={() => navigation?.navigate("ManageAgents")}
-              >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#d97706" }]}>
-                  <MaterialCommunityIcons name="account-group" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Field Agent Reassignment & Mapping</Text>
-                  <Text style={styles.tileDescription}>
-                    Re-assign agents across supervisor networks and track daily field throughput.
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#64748b" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.commandTile}
-                activeOpacity={0.8}
-                onPress={() => navigation?.navigate("ServiceTracker")}
-              >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#0891b2" }]}>
-                  <Ionicons name="search" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>Live Service & Transaction Tracker</Text>
-                  <Text style={styles.tileDescription}>
-                    Investigate and audit NIN, BVN, Airtime, Electricity, and Cable TV operations.
-                  </Text>
-                </View>
-                <Feather name="chevron-right" size={20} color="#64748b" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.commandTile}
-                activeOpacity={0.8}
-                onPress={() => navigation?.navigate("NimcRequests")}
-              >
-                <View style={[styles.tileIconContainer, { backgroundColor: "#4338ca" }]}>
-                  <Ionicons name="id-card" size={22} color="#ffffff" />
-                </View>
-                <View style={styles.tileInfo}>
-                  <Text style={styles.tileTitle}>NIMC Verification & Modification Queue</Text>
-                  <Text style={styles.tileDescription}>
-                    Review, process, approve, or reject identity modification documents.
                   </Text>
                 </View>
                 <Feather name="chevron-right" size={20} color="#64748b" />
@@ -828,17 +918,27 @@ const SuperAdminDashboard = ({ navigation }) => {
                 nestedScrollEnabled={true}
                 style={{ marginBottom: 12 }}
               >
-                {["All", "NIMC Printing", "NIMC Modification", "NIN Validation", "Identity & BVN", "Utilities Surcharge"].map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[styles.categoryTab, selectedTariffCategory === cat && styles.categoryTabActive]}
-                    onPress={() => setSelectedTariffCategory(cat)}
-                  >
-                    <Text style={[styles.categoryTabText, selectedTariffCategory === cat && styles.categoryTabTextActive]}>
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {["All", "NIMC Printing", "NIMC Modification", "NIN Validation", "BVN Services"].map(
+                  (cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.categoryTab,
+                        selectedTariffCategory === cat && styles.categoryTabActive,
+                      ]}
+                      onPress={() => setSelectedTariffCategory(cat)}
+                    >
+                      <Text
+                        style={[
+                          styles.categoryTabText,
+                          selectedTariffCategory === cat && styles.categoryTabTextActive,
+                        ]}
+                      >
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                )}
               </ScrollView>
 
               {/* Search Bar */}
@@ -863,21 +963,26 @@ const SuperAdminDashboard = ({ navigation }) => {
                       </View>
                       <View style={{ marginLeft: 12, flex: 1 }}>
                         <Text style={styles.tariffTitle}>{svc.name}</Text>
-                        <Text style={styles.tariffCategoryTag}>{svc.category}</Text>
+                        <Text style={styles.tariffCategoryTag}>
+                          {svc.category} • Key: {svc.key}
+                        </Text>
                       </View>
                     </View>
 
                     <View style={styles.tariffCardRight}>
-                      <Text style={styles.tariffPriceValue}>₦{Number(currentPrice).toLocaleString()}</Text>
+                      <Text style={styles.tariffPriceValue}>
+                        ₦{Number(currentPrice).toLocaleString()}
+                      </Text>
                       <TouchableOpacity
                         style={styles.tariffEditBtn}
                         onPress={() => {
                           setTargetTariffService(svc);
                           setNewTariffPrice(currentPrice.toString());
+                          setNewAgentPrice(currentPrice.toString());
                           setPricingModalVisible(true);
                         }}
                       >
-                        <Text style={styles.tariffEditBtnText}>CHANGE</Text>
+                        <Text style={styles.tariffEditBtnText}>CONFIGURE</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -892,7 +997,7 @@ const SuperAdminDashboard = ({ navigation }) => {
           <View style={styles.tabWrapper}>
             <View style={styles.historyTabContainer}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>REAL-TIME TRANSACTION & DEPOSIT AUDIT</Text>
+                <Text style={styles.sectionHeaderLabel}>REAL-TIME TRANSACTION & AUDIT LOGS</Text>
                 <Text style={{ color: "#00f0ff", fontSize: 11, fontWeight: "bold" }}>
                   {recentTx.length} RECORDS
                 </Text>
@@ -900,7 +1005,11 @@ const SuperAdminDashboard = ({ navigation }) => {
 
               {recentTx.length > 0 ? (
                 recentTx.map((tx) => {
-                  const isInflow = tx.type === "wallet_funding" || tx.type === "deposit" || tx.category === "credit";
+                  const isInflow =
+                    tx.category === "CREDIT" ||
+                    tx.type === "wallet_funding" ||
+                    tx.type === "deposit" ||
+                    tx.type === "refund";
                   return (
                     <View key={tx._id || Math.random().toString()} style={styles.historyCard}>
                       <View style={styles.historyCardTop}>
@@ -911,7 +1020,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                             color={isInflow ? "#10b981" : "#f87171"}
                           />
                           <Text style={styles.historyServiceTitle}>
-                            {isInflow ? "Wallet Inflow / Funding" : tx.service || "VTU / Data Order"}
+                            {tx.type ? tx.type.toUpperCase() : "TRANSACTION"}
                           </Text>
                         </View>
                         <Text
@@ -926,18 +1035,25 @@ const SuperAdminDashboard = ({ navigation }) => {
 
                       <View style={styles.historyCardBottom}>
                         <Text style={styles.historyMetaText}>
-                          User: {tx.user?.phone || tx.phone || tx.user?.email || "Platform Node"}
+                          User: {tx.user?.phone || tx.phoneNumber || tx.user?.email || "Platform Node"}
                         </Text>
                         <Text style={styles.historyMetaText}>
-                          Ref: {tx.reference || tx.transactionId || tx._id?.substring(0, 10)}
+                          Ref: {tx.reference || tx.transactionId || "N/A"}
                         </Text>
                         <Text
                           style={[
                             styles.historyStatusText,
-                            { color: tx.status === "failed" ? "#ef4444" : "#10b981" },
+                            {
+                              color:
+                                tx.status === "failed"
+                                  ? "#ef4444"
+                                  : tx.status === "refunded"
+                                  ? "#f59e0b"
+                                  : "#10b981",
+                            },
                           ]}
                         >
-                          {tx.status?.toUpperCase() || "SUCCESSFUL"}
+                          {tx.status?.toUpperCase() || "SUCCESS"}
                         </Text>
                       </View>
                     </View>
@@ -980,7 +1096,11 @@ const SuperAdminDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+            <ScrollView
+              style={styles.sidebarNavList}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled={true}
+            >
               <Text style={styles.sidebarCategory}>CORE NAVIGATION</Text>
 
               <TouchableOpacity
@@ -1016,6 +1136,8 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <Text style={[styles.navItemText, { color: "#00f0ff" }]}>Audit History Stream</Text>
               </TouchableOpacity>
 
+              <Text style={styles.sidebarCategory}>EXECUTIVE CONTROLS</Text>
+
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => {
@@ -1024,20 +1146,18 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="megaphone-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Send Broadcast Alert</Text>
+                <Text style={styles.navItemText}>Broadcast Push Alert</Text>
               </TouchableOpacity>
-
-              <Text style={styles.sidebarCategory}>EXECUTIVE ACTIONS</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setDispatchModalVisible(true);
+                  setWalletModalVisible(true);
                 }}
               >
-                <Feather name="send" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Dispatch Data Bundles</Text>
+                <Ionicons name="wallet-outline" size={18} color="#10b981" />
+                <Text style={[styles.navItemText, { color: "#10b981" }]}>Direct Ledger Injector</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1048,21 +1168,21 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <Ionicons name="refresh-circle-outline" size={20} color="#f87171" />
-                <Text style={[styles.navItemText, { color: "#f87171" }]}>Disburse Refund (Exclusive)</Text>
+                <Text style={[styles.navItemText, { color: "#f87171" }]}>
+                  Executive Refund Override
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setWalletModalVisible(true);
+                  setRoleModalVisible(true);
                 }}
               >
-                <Ionicons name="wallet-outline" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Direct Ledger Injector</Text>
+                <MaterialCommunityIcons name="account-convert" size={18} color="#94a3b8" />
+                <Text style={styles.navItemText}>Change User Role</Text>
               </TouchableOpacity>
-
-              <Text style={styles.sidebarCategory}>SECURITY & ACCESS CONTROL</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -1072,40 +1192,18 @@ const SuperAdminDashboard = ({ navigation }) => {
                 }}
               >
                 <MaterialIcons name="lock-reset" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Override User Password</Text>
+                <Text style={styles.navItemText}>Force-Reset Credentials</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setSuspendModalVisible(true);
+                  setLockModalVisible(true);
                 }}
               >
                 <MaterialIcons name="block" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Suspend / Activate Account</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.navItem}
-                onPress={() => {
-                  toggleSidebar(false);
-                  navigation?.navigate("LeaderDashboard");
-                }}
-              >
-                <FontAwesome5 name="user-tie" size={16} color="#94a3b8" />
-                <Text style={styles.navItemText}>Supervisor Network</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.navItem}
-                onPress={() => {
-                  toggleSidebar(false);
-                  navigation?.navigate("ManageAgents");
-                }}
-              >
-                <MaterialCommunityIcons name="account-group" size={18} color="#94a3b8" />
-                <Text style={styles.navItemText}>Manage Field Agents</Text>
+                <Text style={styles.navItemText}>Lock / Unlock Account</Text>
               </TouchableOpacity>
             </ScrollView>
 
@@ -1117,15 +1215,15 @@ const SuperAdminDashboard = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* MODAL: SET SERVICE TARIFF */}
+      {/* MODAL 1: SET SERVICE TARIFF */}
       <Modal visible={pricingModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Update Service Tariff</Text>
+                <Text style={styles.modalCardTitle}>Configure Global Tariff</Text>
                 <Text style={styles.modalCardSubtitle}>
-                  {targetTariffService ? targetTariffService.name : "Select a service to update"}
+                  {targetTariffService ? targetTariffService.name : "Select service"}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setPricingModalVisible(false)}>
@@ -1134,17 +1232,35 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
 
             {targetTariffService && (
-              <View>
-                <Text style={styles.formFieldLabel}>
-                  NEW TARIFF PRICE FOR {targetTariffService.key.toUpperCase()} (₦)
-                </Text>
+              <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+                <Text style={styles.formFieldLabel}>STANDARD USER PRICE (₦)</Text>
                 <TextInput
                   style={styles.textInputStyle}
-                  placeholder={`Current: ₦${prices[targetTariffService.key] || targetTariffService.defaultFee}`}
+                  placeholder={`Default: ₦${targetTariffService.defaultFee}`}
                   placeholderTextColor="#64748b"
                   keyboardType="numeric"
                   value={newTariffPrice}
                   onChangeText={setNewTariffPrice}
+                />
+
+                <Text style={styles.formFieldLabel}>AGENT DISCOUNTED PRICE (₦)</Text>
+                <TextInput
+                  style={styles.textInputStyle}
+                  placeholder="e.g. 450"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={newAgentPrice}
+                  onChangeText={setNewAgentPrice}
+                />
+
+                <Text style={styles.formFieldLabel}>ESTIMATED COST PRICE (₦)</Text>
+                <TextInput
+                  style={styles.textInputStyle}
+                  placeholder="e.g. 300"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={newCostPrice}
+                  onChangeText={setNewCostPrice}
                 />
 
                 <TouchableOpacity
@@ -1155,74 +1271,51 @@ const SuperAdminDashboard = ({ navigation }) => {
                   {actionLoading ? (
                     <ActivityIndicator color="#ffffff" />
                   ) : (
-                    <Text style={styles.primaryActionBtnText}>SAVE & DEPLOY TARIFF</Text>
+                    <Text style={styles.primaryActionBtnText}>DEPLOY TARIFF GLOBALLY</Text>
                   )}
                 </TouchableOpacity>
-              </View>
+              </ScrollView>
             )}
           </View>
         </View>
       </Modal>
 
-      {/* MODAL: BROADCAST NOTIFICATION */}
+      {/* MODAL 2: BROADCAST NOTIFICATION */}
       <Modal visible={notificationModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Broadcast Notification</Text>
-                <Text style={styles.modalCardSubtitle}>Push real-time alert to mobile users</Text>
+                <Text style={styles.modalCardSubtitle}>Push real-time alerts to mobile app users</Text>
               </View>
               <TouchableOpacity onPress={() => setNotificationModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.toggleRowContainer}>
-              <TouchableOpacity
-                style={[styles.toggleBtn, notifTargetType === "all" && styles.creditActiveToggle]}
-                onPress={() => setNotifTargetType("all")}
-              >
-                <Text style={[styles.toggleBtnText, notifTargetType === "all" && styles.activeToggleText]}>
-                  Broadcast to ALL
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.toggleBtn, notifTargetType === "single" && styles.debitActiveToggle]}
-                onPress={() => setNotifTargetType("single")}
-              >
-                <Text style={[styles.toggleBtnText, notifTargetType === "single" && styles.activeToggleText]}>
-                  Single User
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {notifTargetType === "single" && (
-              <>
-                <Text style={styles.formFieldLabel}>TARGET PHONE, EMAIL, OR ID</Text>
-                <TextInput
-                  style={styles.textInputStyle}
-                  placeholder="e.g. 09033738409 or user@gmail.com"
-                  placeholderTextColor="#64748b"
-                  value={notifTargetUser}
-                  onChangeText={setNotifTargetUser}
-                />
-              </>
-            )}
+            <Text style={styles.formFieldLabel}>TARGET USER (LEAVE EMPTY FOR BROADCAST ALL)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. 09033738409 or user@gmail.com"
+              placeholderTextColor="#64748b"
+              value={notifTargetUser}
+              onChangeText={setNotifTargetUser}
+            />
 
             <Text style={styles.formFieldLabel}>NOTIFICATION TITLE</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. System Maintenance Notice"
+              placeholder="e.g. Urgent System Upgrade Notice"
               placeholderTextColor="#64748b"
               value={notifTitle}
               onChangeText={setNotifTitle}
             />
 
-            <Text style={styles.formFieldLabel}>NOTIFICATION MESSAGE</Text>
+            <Text style={styles.formFieldLabel}>BODY MESSAGE</Text>
             <TextInput
               style={[styles.textInputStyle, { height: 80, textAlignVertical: "top" }]}
-              placeholder="Enter announcement text..."
+              placeholder="Type your official announcement here..."
               placeholderTextColor="#64748b"
               multiline
               value={notifMessage}
@@ -1237,213 +1330,14 @@ const SuperAdminDashboard = ({ navigation }) => {
               {actionLoading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>SEND BROADCAST NOTIFICATION</Text>
+                <Text style={styles.primaryActionBtnText}>DISPATCH BROADCAST NOW</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL: DATA DISPATCHER */}
-      <Modal visible={dispatchModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeaderRow}>
-              <View>
-                <Text style={styles.modalCardTitle}>Dispatch Data Bundle</Text>
-                <Text style={styles.modalCardSubtitle}>Set network, pricing margins, and validity</Text>
-              </View>
-              <TouchableOpacity onPress={() => setDispatchModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true} style={{ maxHeight: 380 }}>
-              <Text style={styles.formFieldLabel}>NETWORK</Text>
-              <View style={styles.pillGrid}>
-                {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
-                  <TouchableOpacity
-                    key={net}
-                    style={[styles.pillBtn, dispatchNetwork === net && styles.activePillBtn]}
-                    onPress={() => setDispatchNetwork(net)}
-                  >
-                    <Text style={[styles.pillBtnText, dispatchNetwork === net && styles.activePillBtnText]}>
-                      {net}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.formFieldLabel}>PLAN TYPE</Text>
-              <View style={styles.pillGrid}>
-                {["SME", "CORPORATE", "GIFTING", "SPECIAL"].map((type) => (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.pillBtn, dispatchPlanType === type && styles.activePillBtn]}
-                    onPress={() => setDispatchPlanType(type)}
-                  >
-                    <Text style={[styles.pillBtnText, dispatchPlanType === type && styles.activePillBtnText]}>
-                      {type}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.formFieldLabel}>DATA SIZE (e.g. 1.0GB)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. 1.0GB"
-                placeholderTextColor="#64748b"
-                value={dispatchPlanCode}
-                onChangeText={setDispatchPlanCode}
-              />
-
-              <View style={styles.dualInputRow}>
-                <View style={{ flex: 1, marginRight: 8 }}>
-                  <Text style={styles.formFieldLabel}>PRICE (₦)</Text>
-                  <TextInput
-                    style={styles.textInputStyle}
-                    placeholder="280"
-                    placeholderTextColor="#64748b"
-                    keyboardType="numeric"
-                    value={dispatchPrice}
-                    onChangeText={setDispatchPrice}
-                  />
-                </View>
-
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.formFieldLabel}>COST (₦)</Text>
-                  <TextInput
-                    style={styles.textInputStyle}
-                    placeholder="245"
-                    placeholderTextColor="#64748b"
-                    keyboardType="numeric"
-                    value={dispatchCostPrice}
-                    onChangeText={setDispatchCostPrice}
-                  />
-                </View>
-              </View>
-
-              <Text style={styles.formFieldLabel}>VALIDITY (DAYS)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="30"
-                placeholderTextColor="#64748b"
-                keyboardType="numeric"
-                value={dispatchValidity}
-                onChangeText={setDispatchValidity}
-              />
-
-              <View style={styles.checkboxWrapper}>
-                <TouchableOpacity
-                  style={[styles.checkboxSquare, sendToAll && styles.checkboxSquareActive]}
-                  onPress={() => setSendToAll(!sendToAll)}
-                >
-                  {sendToAll && <Ionicons name="checkmark" size={16} color="#ffffff" />}
-                </TouchableOpacity>
-                <Text style={styles.checkboxLabel}>Dispatch to ALL active users</Text>
-              </View>
-
-              {!sendToAll && (
-                <>
-                  <Text style={styles.formFieldLabel}>RECIPIENT NUMBERS (Comma-separated)</Text>
-                  <TextInput
-                    style={[styles.textInputStyle, { height: 60, textAlignVertical: "top" }]}
-                    placeholder="09033738409, 08012345678"
-                    placeholderTextColor="#64748b"
-                    multiline
-                    value={dispatchRecipients}
-                    onChangeText={setDispatchRecipients}
-                  />
-                </>
-              )}
-            </ScrollView>
-
-            <TouchableOpacity
-              style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
-              onPress={handleExecuteDispatch}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryActionBtnText}>PROVISION & DISPATCH NOW</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL: REFUND */}
-      <Modal visible={refundModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { borderColor: "#ef4444" }]}>
-            <View style={styles.modalHeaderRow}>
-              <View>
-                <Text style={[styles.modalCardTitle, { color: "#f87171" }]}>Authorize Wallet Refund</Text>
-                <Text style={styles.modalCardSubtitle}>SuperAdmin exclusive fund replenishment</Text>
-              </View>
-              <TouchableOpacity onPress={() => setRefundModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.formFieldLabel}>RECIPIENT PHONE OR EMAIL</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder="e.g. 09033738409 or user@gmail.com"
-              placeholderTextColor="#64748b"
-              value={refundUserId}
-              onChangeText={setRefundUserId}
-            />
-
-            <Text style={styles.formFieldLabel}>REFUND AMOUNT (₦)</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder="e.g. 1500"
-              placeholderTextColor="#64748b"
-              keyboardType="numeric"
-              value={refundAmount}
-              onChangeText={setRefundAmount}
-            />
-
-            <Text style={styles.formFieldLabel}>TRANSACTION REFERENCE (OPTIONAL)</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder="e.g. TX_938472918"
-              placeholderTextColor="#64748b"
-              value={refundTxId}
-              onChangeText={setRefundTxId}
-            />
-
-            <Text style={styles.formFieldLabel}>REFUND REASON</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder="e.g. Network delivery failure"
-              placeholderTextColor="#64748b"
-              value={refundReason}
-              onChangeText={setRefundReason}
-            />
-
-            <TouchableOpacity
-              style={[
-                styles.primaryActionBtn,
-                { backgroundColor: "#dc2626", opacity: actionLoading ? 0.7 : 1 },
-              ]}
-              onPress={handleExecuteRefund}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryActionBtnText}>CONFIRM & DISBURSE REFUND</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL: DIRECT WALLET ADJUSTMENT */}
+      {/* MODAL 3: DIRECT WALLET ADJUSTMENT */}
       <Modal visible={walletModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1462,7 +1356,12 @@ const SuperAdminDashboard = ({ navigation }) => {
                 style={[styles.toggleBtn, walletActionType === "credit" && styles.creditActiveToggle]}
                 onPress={() => setWalletActionType("credit")}
               >
-                <Text style={[styles.toggleBtnText, walletActionType === "credit" && styles.activeToggleText]}>
+                <Text
+                  style={[
+                    styles.toggleBtnText,
+                    walletActionType === "credit" && styles.activeToggleText,
+                  ]}
+                >
                   + Credit
                 </Text>
               </TouchableOpacity>
@@ -1470,7 +1369,12 @@ const SuperAdminDashboard = ({ navigation }) => {
                 style={[styles.toggleBtn, walletActionType === "debit" && styles.debitActiveToggle]}
                 onPress={() => setWalletActionType("debit")}
               >
-                <Text style={[styles.toggleBtnText, walletActionType === "debit" && styles.activeToggleText]}>
+                <Text
+                  style={[
+                    styles.toggleBtnText,
+                    walletActionType === "debit" && styles.activeToggleText,
+                  ]}
+                >
                   - Debit
                 </Text>
               </TouchableOpacity>
@@ -1498,7 +1402,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>AUDIT REMARKS</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. Operational grant / Manual settlement"
+              placeholder="e.g. Manual settlement / Operational grant"
               placeholderTextColor="#64748b"
               value={walletReason}
               onChangeText={setWalletReason}
@@ -1527,13 +1431,145 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL: PASSWORD OVERRIDE */}
+      {/* MODAL 4: EXECUTIVE REFUND OVERRIDE */}
+      <Modal visible={refundModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { borderColor: "#ef4444" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={[styles.modalCardTitle, { color: "#f87171" }]}>
+                  Executive Refund Override
+                </Text>
+                <Text style={styles.modalCardSubtitle}>SuperAdmin exclusive wallet replenishment</Text>
+              </View>
+              <TouchableOpacity onPress={() => setRefundModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.formFieldLabel}>BENEFICIARY PHONE OR EMAIL</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. 09033738409 or user@gmail.com"
+              placeholderTextColor="#64748b"
+              value={refundUserId}
+              onChangeText={setRefundUserId}
+            />
+
+            <Text style={styles.formFieldLabel}>REFUND AMOUNT (₦)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. 1500"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              value={refundAmount}
+              onChangeText={setRefundAmount}
+            />
+
+            <Text style={styles.formFieldLabel}>TRANSACTION REFERENCE (OPTIONAL)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. AYAX-ELEC-1938472918"
+              placeholderTextColor="#64748b"
+              value={refundTxRef}
+              onChangeText={setRefundTxRef}
+            />
+
+            <Text style={styles.formFieldLabel}>AUDIT REASON</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. Manual override on failed gateway response"
+              placeholderTextColor="#64748b"
+              value={refundReason}
+              onChangeText={setRefundReason}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#dc2626", opacity: actionLoading ? 0.7 : 1 },
+              ]}
+              onPress={handleExecuteRefund}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.primaryActionBtnText}>CONFIRM & DISBURSE REFUND</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 5: CHANGE USER ROLE */}
+      <Modal visible={roleModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Change User Role</Text>
+                <Text style={styles.modalCardSubtitle}>Promote or re-assign platform permissions</Text>
+              </View>
+              <TouchableOpacity onPress={() => setRoleModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.formFieldLabel}>TARGET PHONE, EMAIL, OR USER ID</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="Enter User Phone or Email"
+              placeholderTextColor="#64748b"
+              value={roleUserId}
+              onChangeText={setRoleUserId}
+            />
+
+            <Text style={styles.formFieldLabel}>ASSIGN ROLE</Text>
+            <View style={styles.pillGrid}>
+              {["user", "agent", "supervisor", "customer_service", "admin"].map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.pillBtn, selectedRole === r && styles.activePillBtn]}
+                  onPress={() => setSelectedRole(r)}
+                >
+                  <Text
+                    style={[
+                      styles.pillBtnText,
+                      selectedRole === r && styles.activePillBtnText,
+                    ]}
+                  >
+                    {r.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#7c3aed", opacity: actionLoading ? 0.7 : 1 },
+              ]}
+              onPress={handleExecuteRoleChange}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.primaryActionBtnText}>UPDATE PERMISSION ROLE</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 6: SECURITY CREDENTIAL OVERRIDE */}
       <Modal visible={passwordModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Override User Password</Text>
+                <Text style={styles.modalCardTitle}>Override Security Credentials</Text>
                 <Text style={styles.modalCardSubtitle}>Direct administrative credential modification</Text>
               </View>
               <TouchableOpacity onPress={() => setPasswordModalVisible(false)}>
@@ -1550,41 +1586,55 @@ const SuperAdminDashboard = ({ navigation }) => {
               onChangeText={setPwdUserId}
             />
 
-            <Text style={styles.formFieldLabel}>NEW STRONG PASSWORD (MIN 6 CHARS)</Text>
+            <Text style={styles.formFieldLabel}>NEW STRONG PASSWORD (OPTIONAL)</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="Enter New Password"
+              placeholder="Enter New Password (Min 6 Chars)"
               placeholderTextColor="#64748b"
               secureTextEntry
               value={pwdNew}
               onChangeText={setPwdNew}
             />
 
+            <Text style={styles.formFieldLabel}>NEW TRANSACTION PIN (OPTIONAL, e.g. 1997)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="Enter 4-Digit PIN"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              maxLength={4}
+              value={pinNew}
+              onChangeText={setPinNew}
+            />
+
             <TouchableOpacity
-              style={[styles.primaryActionBtn, { backgroundColor: "#4f46e5", opacity: actionLoading ? 0.7 : 1 }]}
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#4f46e5", opacity: actionLoading ? 0.7 : 1 },
+              ]}
               onPress={handleExecutePasswordOverride}
               disabled={actionLoading}
             >
               {actionLoading ? (
                 <ActivityIndicator color="#ffffff" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>SET NEW CREDENTIALS</Text>
+                <Text style={styles.primaryActionBtnText}>SAVE NEW CREDENTIALS</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL: SUSPEND / ACTIVATE ACCOUNT */}
-      <Modal visible={suspendModalVisible} transparent animationType="fade">
+      {/* MODAL 7: LOCK / UNLOCK ACCOUNT */}
+      <Modal visible={lockModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Account Access Control</Text>
-                <Text style={styles.modalCardSubtitle}>Suspend or reactivate staff and user accounts</Text>
+                <Text style={styles.modalCardSubtitle}>Freeze or restore customer / staff accounts</Text>
               </View>
-              <TouchableOpacity onPress={() => setSuspendModalVisible(false)}>
+              <TouchableOpacity onPress={() => setLockModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
@@ -1594,27 +1644,180 @@ const SuperAdminDashboard = ({ navigation }) => {
               style={styles.textInputStyle}
               placeholder="Enter Phone Number or Email"
               placeholderTextColor="#64748b"
-              value={suspendUserId}
-              onChangeText={setSuspendUserId}
+              value={lockUserId}
+              onChangeText={setLockUserId}
+            />
+
+            <Text style={styles.formFieldLabel}>INSPECTION REASON</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. Suspected unauthorized login activity"
+              placeholderTextColor="#64748b"
+              value={lockReason}
+              onChangeText={setLockReason}
             />
 
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 20 }}>
               <TouchableOpacity
-                style={[styles.primaryActionBtn, { flex: 1, marginRight: 6, backgroundColor: "#dc2626" }]}
-                onPress={() => handleExecuteSuspension(true)}
+                style={[
+                  styles.primaryActionBtn,
+                  { flex: 1, marginRight: 6, backgroundColor: "#dc2626" },
+                ]}
+                onPress={() => handleExecuteToggleLock(true)}
                 disabled={actionLoading}
               >
-                <Text style={styles.primaryActionBtnText}>SUSPEND</Text>
+                <Text style={styles.primaryActionBtnText}>FREEZE / LOCK</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.primaryActionBtn, { flex: 1, marginLeft: 6, backgroundColor: "#059669" }]}
-                onPress={() => handleExecuteSuspension(false)}
+                style={[
+                  styles.primaryActionBtn,
+                  { flex: 1, marginLeft: 6, backgroundColor: "#059669" },
+                ]}
+                onPress={() => handleExecuteToggleLock(false)}
                 disabled={actionLoading}
               >
-                <Text style={styles.primaryActionBtnText}>ACTIVATE</Text>
+                <Text style={styles.primaryActionBtnText}>RESTORE / UNLOCK</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 8: BULK DATA MARKETING DISPATCHER */}
+      <Modal visible={dispatchModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Dispatch Bulk Data Campaign</Text>
+                <Text style={styles.modalCardSubtitle}>Provision marketing bundles and discounts</Text>
+              </View>
+              <TouchableOpacity onPress={() => setDispatchModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <Text style={styles.formFieldLabel}>NETWORK</Text>
+              <View style={styles.pillGrid}>
+                {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
+                  <TouchableOpacity
+                    key={net}
+                    style={[styles.pillBtn, dispatchNetwork === net && styles.activePillBtn]}
+                    onPress={() => setDispatchNetwork(net)}
+                  >
+                    <Text
+                      style={[
+                        styles.pillBtnText,
+                        dispatchNetwork === net && styles.activePillBtnText,
+                      ]}
+                    >
+                      {net}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.formFieldLabel}>PLAN SIZE (e.g. 1.0GB)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. 1.0GB"
+                placeholderTextColor="#64748b"
+                value={dispatchPlanCode}
+                onChangeText={setDispatchPlanCode}
+              />
+
+              <Text style={styles.formFieldLabel}>PRICE PER BUNDLE (₦)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="280"
+                placeholderTextColor="#64748b"
+                keyboardType="numeric"
+                value={dispatchPrice}
+                onChangeText={setDispatchPrice}
+              />
+
+              <View style={styles.checkboxWrapper}>
+                <TouchableOpacity
+                  style={[styles.checkboxSquare, sendToAll && styles.checkboxSquareActive]}
+                  onPress={() => setSendToAll(!sendToAll)}
+                >
+                  {sendToAll && <Ionicons name="checkmark" size={16} color="#ffffff" />}
+                </TouchableOpacity>
+                <Text style={styles.checkboxLabel}>Dispatch to ALL active platform users</Text>
+              </View>
+
+              {!sendToAll && (
+                <>
+                  <Text style={styles.formFieldLabel}>RECIPIENT NUMBERS (Comma-separated)</Text>
+                  <TextInput
+                    style={[styles.textInputStyle, { height: 60, textAlignVertical: "top" }]}
+                    placeholder="09033738409, 08012345678"
+                    placeholderTextColor="#64748b"
+                    multiline
+                    value={dispatchRecipients}
+                    onChangeText={setDispatchRecipients}
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleExecuteDispatch}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>QUEUE BULK DISPATCH</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 9: FORENSIC AUDIT EXPUNGE */}
+      <Modal visible={purgeModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { borderColor: "#ef4444" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={[styles.modalCardTitle, { color: "#f87171" }]}>
+                  Forensic Log Maintenance
+                </Text>
+                <Text style={styles.modalCardSubtitle}>Prune immutable database activity records</Text>
+              </View>
+              <TouchableOpacity onPress={() => setPurgeModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.formFieldLabel}>EXPUNGE RECORDS OLDER THAN (DAYS)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. 90"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              value={purgeDays}
+              onChangeText={setPurgeDays}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#dc2626", opacity: actionLoading ? 0.7 : 1 },
+              ]}
+              onPress={handleExecuteAuditPurge}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.primaryActionBtnText}>EXECUTE DATABASE PRUNE</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1624,8 +1827,19 @@ const SuperAdminDashboard = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   mainWrapper: { flex: 1, backgroundColor: "#050811", height: "100%" },
-  loaderContainer: { flex: 1, backgroundColor: "#050811", justifyContent: "center", alignItems: "center" },
-  loaderTitle: { color: "#00f0ff", fontSize: 16, fontWeight: "900", letterSpacing: 1.5, marginTop: 16 },
+  loaderContainer: {
+    flex: 1,
+    backgroundColor: "#050811",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loaderTitle: {
+    color: "#00f0ff",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    marginTop: 16,
+  },
   loaderText: { color: "#64748b", fontSize: 12, fontWeight: "600", marginTop: 6 },
   topBar: {
     backgroundColor: "#0b1120",
@@ -1702,8 +1916,6 @@ const styles = StyleSheet.create({
   mainNavTabTextActive: {
     color: "#00f0ff",
   },
-  
-  // SCROLLING STYLES
   scrollArea: {
     flex: 1,
     width: "100%",
@@ -1716,7 +1928,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
   },
-
   telemetrySection: { padding: 16 },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -1748,7 +1959,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
   },
-  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  cardHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
   metricLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   metricValue: { fontSize: 17, fontWeight: "900", marginVertical: 4 },
   metricSub: { color: "#64748b", fontSize: 10, fontWeight: "600" },
@@ -1763,18 +1979,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1e293b",
   },
-  tileIconContainer: { width: 44, height: 44, borderRadius: 12, justifyContent: "center", alignItems: "center" },
+  tileIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   tileInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
   tileTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
   tileDescription: { color: "#64748b", fontSize: 11, marginTop: 2, lineHeight: 15 },
-  
-  // TARIFF TAB STYLES
   tariffTabContainer: { padding: 16 },
-  categoryTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: "#0f172a", marginRight: 8, borderWidth: 1, borderColor: "#1e293b" },
+  categoryTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: "#0f172a",
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
   categoryTabActive: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
   categoryTabText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   categoryTabTextActive: { color: "#ffffff" },
-  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#0b1120", paddingHorizontal: 12, borderRadius: 10, height: 44, borderWidth: 1, borderColor: "#1e293b", marginBottom: 14 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0b1120",
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    height: 44,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    marginBottom: 14,
+  },
   searchInput: { flex: 1, color: "#fff", fontSize: 12 },
   tariffCard: {
     backgroundColor: "#0b1120",
@@ -1788,15 +2026,28 @@ const styles = StyleSheet.create({
     borderColor: "#1e293b",
   },
   tariffCardLeft: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 10 },
-  tariffIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: "#0f172a", justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: "#1e293b" },
+  tariffIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
   tariffTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
   tariffCategoryTag: { color: "#64748b", fontSize: 10, marginTop: 2 },
   tariffCardRight: { alignItems: "flex-end" },
   tariffPriceValue: { color: "#00f0ff", fontSize: 15, fontWeight: "900" },
-  tariffEditBtn: { backgroundColor: "#0284c7", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginTop: 6 },
+  tariffEditBtn: {
+    backgroundColor: "#0284c7",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 6,
+  },
   tariffEditBtnText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
-
-  // HISTORY TAB STYLES
   historyTabContainer: { padding: 16 },
   historyCard: {
     backgroundColor: "#0b1120",
@@ -1810,13 +2061,33 @@ const styles = StyleSheet.create({
   historyTypeRow: { flexDirection: "row", alignItems: "center" },
   historyServiceTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800", marginLeft: 8 },
   historyAmountText: { fontSize: 14, fontWeight: "900" },
-  historyCardBottom: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, borderTopWidth: 1, borderTopColor: "#172033", paddingTop: 8 },
+  historyCardBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#172033",
+    paddingTop: 8,
+  },
   historyMetaText: { color: "#64748b", fontSize: 11 },
   historyStatusText: { fontSize: 10, fontWeight: "900" },
-  emptyFeed: { backgroundColor: "#0b1120", padding: 35, borderRadius: 14, alignItems: "center", borderWidth: 1, borderColor: "#1e293b" },
-
-  // SIDEBAR STYLES
-  sidebarBackdrop: { position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0, 0, 0, 0.8)", zIndex: 100 },
+  emptyFeed: {
+    backgroundColor: "#0b1120",
+    padding: 35,
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  sidebarBackdrop: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    zIndex: 100,
+  },
   sidebarContainer: {
     position: "absolute",
     top: 0,
@@ -1840,37 +2111,124 @@ const styles = StyleSheet.create({
   sidebarBrandText: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
   sidebarRoleText: { color: "#00f0ff", fontSize: 11, fontWeight: "700" },
   sidebarNavList: { flex: 1, marginTop: 15 },
-  sidebarCategory: { color: "#475569", fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 18, marginBottom: 8 },
-  navItem: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 8, borderRadius: 8 },
+  sidebarCategory: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  navItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
   navItemText: { color: "#cbd5e1", fontSize: 13, fontWeight: "700", marginLeft: 12 },
-  logoutBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 18, borderTopWidth: 1, borderTopColor: "#1e293b" },
+  logoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 18,
+    borderTopWidth: 1,
+    borderTopColor: "#1e293b",
+  },
   logoutBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "800", marginLeft: 10 },
-
-  // MODAL STYLES
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.85)", justifyContent: "center", alignItems: "center", padding: 16 },
-  modalCard: { backgroundColor: "#0b1120", borderRadius: 20, padding: 20, width: "100%", maxWidth: 440, borderWidth: 1, borderColor: "#1e293b" },
-  modalHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14, borderBottomWidth: 1, borderBottomColor: "#1e293b", paddingBottom: 10 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: "#0b1120",
+    borderRadius: 20,
+    padding: 20,
+    width: "100%",
+    maxWidth: 440,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+    paddingBottom: 10,
+  },
   modalCardTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
   modalCardSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
-  formFieldLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
-  pillGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  pillBtn: { flex: 1, paddingVertical: 8, alignItems: "center", backgroundColor: "#0f172a", marginHorizontal: 2, borderRadius: 8, borderWidth: 1, borderColor: "#1e293b" },
+  formFieldLabel: {
+    color: "#94a3b8",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.8,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  pillGrid: { flexDirection: "row", flexWrap: "wrap", marginBottom: 4 },
+  pillBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+    margin: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
   activePillBtn: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
   pillBtnText: { color: "#94a3b8", fontSize: 11, fontWeight: "800" },
   activePillBtnText: { color: "#ffffff" },
-  textInputStyle: { backgroundColor: "#0f172a", borderWidth: 1, borderColor: "#1e293b", borderRadius: 10, paddingHorizontal: 12, height: 44, color: "#f8fafc", fontSize: 13, fontWeight: "600" },
-  dualInputRow: { flexDirection: "row", justifyContent: "space-between" },
+  textInputStyle: {
+    backgroundColor: "#0f172a",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 44,
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   checkboxWrapper: { flexDirection: "row", alignItems: "center", marginTop: 14, marginBottom: 6 },
-  checkboxSquare: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: "#00f0ff", justifyContent: "center", alignItems: "center", marginRight: 8 },
+  checkboxSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: "#00f0ff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
   checkboxSquareActive: { backgroundColor: "#0284c7" },
   checkboxLabel: { color: "#f8fafc", fontSize: 11, fontWeight: "700" },
-  toggleRowContainer: { flexDirection: "row", backgroundColor: "#0f172a", padding: 3, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: "#1e293b" },
+  toggleRowContainer: {
+    flexDirection: "row",
+    backgroundColor: "#0f172a",
+    padding: 3,
+    borderRadius: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
   toggleBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: 8 },
   creditActiveToggle: { backgroundColor: "#059669" },
   debitActiveToggle: { backgroundColor: "#dc2626" },
   toggleBtnText: { color: "#94a3b8", fontSize: 11, fontWeight: "800" },
   activeToggleText: { color: "#ffffff" },
-  primaryActionBtn: { backgroundColor: "#0284c7", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 18 },
+  primaryActionBtn: {
+    backgroundColor: "#0284c7",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 18,
+  },
   primaryActionBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
 });
 
