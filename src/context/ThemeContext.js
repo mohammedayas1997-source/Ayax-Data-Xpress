@@ -1,49 +1,32 @@
-import React, { createContext, useEffect, useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useState, useContext } from "react";
 
-export const ThemeContext = createContext({
-  isDarkMode: false,
-  toggleTheme: () => {},
-  setIsDarkMode: () => {},
-});
+export const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
 
-  useEffect(() => {
-    loadTheme();
-  }, []);
-
-  const loadTheme = async () => {
-    try {
-      const savedTheme = await AsyncStorage.getItem("darkMode");
-      if (savedTheme !== null) {
-        setIsDarkMode(JSON.parse(savedTheme));
-      }
-    } catch (error) {
-      console.log("Error loading theme:", error);
-    }
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev);
   };
 
-  const toggleTheme = async () => {
-    try {
-      const value = !isDarkMode;
-      setIsDarkMode(value);
-      await AsyncStorage.setItem("darkMode", JSON.stringify(value));
-    } catch (error) {
-      console.log("Error toggling theme:", error);
-    }
+  const theme = {
+    isDarkMode,
+    colors: {
+      background: isDarkMode ? "#050811" : "#f8fafc",
+      card: isDarkMode ? "#0b1120" : "#ffffff",
+      text: isDarkMode ? "#f8fafc" : "#0f172a",
+      subText: "#64748b",
+      primary: "#00f0ff",
+      border: isDarkMode ? "#1e293b" : "#e2e8f0",
+    },
+    toggleTheme,
   };
 
   return (
-    <ThemeContext.Provider
-      value={{
-        isDarkMode,
-        setIsDarkMode,
-        toggleTheme,
-      }}
-    >
+    <ThemeContext.Provider value={theme}>
       {children}
     </ThemeContext.Provider>
   );
 };
+
+export const useTheme = () => useContext(ThemeContext);
