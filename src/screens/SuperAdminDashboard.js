@@ -26,12 +26,11 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
-const isWeb = Platform.OS === "web";
 const isLargeScreen = width >= 1024;
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const ALL_SYSTEM_SERVICES = [
-  // NIMC Printing Services
+  // NIMC Printing
   { key: "standardSlip", categoryKey: "nimc", name: "NIMC Standard Slip", category: "NIMC Printing", icon: "file-alt", defaultFee: 500 },
   { key: "premiumCard", categoryKey: "nimc", name: "NIMC Premium Card", category: "NIMC Printing", icon: "id-card", defaultFee: 1500 },
   { key: "basicSlip", categoryKey: "nimc", name: "NIMC Basic Slip", category: "NIMC Printing", icon: "print", defaultFee: 300 },
@@ -39,13 +38,13 @@ const ALL_SYSTEM_SERVICES = [
   { key: "phone", categoryKey: "nimc", name: "NIMC Phone Search", category: "NIMC Printing", icon: "phone-alt", defaultFee: 500 },
   { key: "trackingId", categoryKey: "nimc", name: "Tracking ID Search", category: "NIMC Printing", icon: "barcode", defaultFee: 500 },
 
-  // NIMC Modification Services
+  // NIMC Modification
   { key: "mod_name", categoryKey: "nimc", name: "Modification: Name Correction", category: "NIMC Modification", icon: "user-edit", defaultFee: 2500 },
   { key: "mod_phone", categoryKey: "nimc", name: "Modification: Phone Update", category: "NIMC Modification", icon: "mobile-alt", defaultFee: 2000 },
   { key: "mod_dob", categoryKey: "nimc", name: "Modification: Date of Birth", category: "NIMC Modification", icon: "calendar-alt", defaultFee: 3000 },
   { key: "mod_address", categoryKey: "nimc", name: "Modification: Address Details", category: "NIMC Modification", icon: "map-marker-alt", defaultFee: 1500 },
 
-  // NIN Validation Services
+  // NIN Validation
   { key: "val_noRecord", categoryKey: "nimc", name: "Validation: No Record", category: "NIN Validation", icon: "search-minus", defaultFee: 1300 },
   { key: "val_sim", categoryKey: "nimc", name: "Validation: SIM Card Bypass", category: "NIN Validation", icon: "sim-card", defaultFee: 1300 },
   { key: "val_vnin", categoryKey: "nimc", name: "Validation: vNIN Linkage", category: "NIN Validation", icon: "shield-alt", defaultFee: 1300 },
@@ -62,6 +61,7 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [prices, setPrices] = useState({});
   const [recentTx, setRecentTx] = useState([]);
+  const [dataPlansList, setDataPlansList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -72,7 +72,7 @@ const SuperAdminDashboard = ({ navigation }) => {
 
   // Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sidebarWidth = isLargeScreen ? 280 : Math.min(width * 0.85, 340);
+  const sidebarWidth = isLargeScreen ? 310 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
   // Master Modals
@@ -85,6 +85,8 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [lockModalVisible, setLockModalVisible] = useState(false);
   const [purgeModalVisible, setPurgeModalVisible] = useState(false);
+  const [targetModalVisible, setTargetModalVisible] = useState(false);
+  const [planManagerModalVisible, setPlanManagerModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
   // Form States
@@ -125,6 +127,21 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [lockUserId, setLockUserId] = useState("");
   const [lockReason, setLockReason] = useState("");
 
+  const [targetSupervisorId, setTargetSupervisorId] = useState("");
+  const [targetAgentGoal, setTargetAgentGoal] = useState("10");
+  const [targetDataGoal, setTargetDataGoal] = useState("500");
+  const [targetMonth, setTargetMonth] = useState("");
+
+  // Data Plan Manager State
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [planNetwork, setPlanNetwork] = useState("MTN");
+  const [planName, setPlanName] = useState("");
+  const [planCode, setPlanCode] = useState("");
+  const [planUserPrice, setPlanUserPrice] = useState("");
+  const [planAgentPrice, setPlanAgentPrice] = useState("");
+  const [planCostPrice, setPlanCostPrice] = useState("");
+  const [planValidity, setPlanValidity] = useState("30");
+
   const [purgeDays, setPurgeDays] = useState("90");
 
   const showAlert = (title, message) => {
@@ -164,17 +181,23 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [telemetryRes, txRes] = await Promise.all([
+      const [telemetryRes, txRes, plansRes] = await Promise.all([
         axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }),
-        axios.get(`${BASE_URL}/admin/transactions?limit=25`, { headers, timeout: 15000 }),
+        axios.get(`${BASE_URL}/admin/transactions?limit=30`, { headers, timeout: 15000 }),
+        axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } })),
       ]);
 
       if (telemetryRes.data?.stats) {
         setStats(telemetryRes.data.stats);
+        if (telemetryRes.data.prices) setPrices(telemetryRes.data.prices);
       }
 
       if (txRes.data?.transactions) {
         setRecentTx(txRes.data.transactions);
+      }
+
+      if (plansRes.data?.data) {
+        setDataPlansList(plansRes.data.data);
       }
     } catch (err) {
       if (!isBackground) {
@@ -272,7 +295,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/notifications/send`,
+        `${BASE_URL}/superadmin/broadcast-notification`,
         {
           title: notifTitle.trim(),
           message: notifMessage.trim(),
@@ -464,7 +487,115 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 8. Bulk Marketing Data Dispatch
+  // 8. Assign Supervisor Targets
+  const handleAssignTarget = async () => {
+    if (!targetSupervisorId.trim() || !targetAgentGoal || !targetDataGoal) {
+      return showAlert("Validation Error", "Supervisor identifier and goals are required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.post(
+        `${BASE_URL}/admin/assign-target`,
+        {
+          supervisorId: targetSupervisorId.trim(),
+          agentGoal: Number(targetAgentGoal),
+          dataGoal: Number(targetDataGoal),
+          month: targetMonth.trim() || undefined,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data?.success) {
+        showAlert("Target Deployed 🎯", res.data.message);
+        setTargetModalVisible(false);
+        setTargetSupervisorId("");
+      }
+    } catch (err) {
+      showAlert("Target Assignment Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 9. Save or Edit Data Plan Package
+  const handleSaveDataPlan = async () => {
+    if (!planCode.trim() || !planUserPrice || isNaN(Number(planUserPrice))) {
+      return showAlert("Validation Error", "Plan Code and User Selling Price are required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const planPayload = {
+        network: planNetwork,
+        name: planName.trim() || `${planNetwork} ${planCode}`,
+        planCode: planCode.trim(),
+        userPrice: Number(planUserPrice),
+        agentPrice: Number(planAgentPrice || planUserPrice),
+        costPrice: Number(planCostPrice || 0),
+        validity: planValidity.trim() || "30",
+        isActive: true,
+      };
+
+      let res;
+      if (editingPlanId) {
+        res = await axios.put(`${BASE_URL}/admin/plans/${editingPlanId}`, planPayload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        res = await axios.post(`${BASE_URL}/admin/set-plan`, planPayload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+
+      if (res.data?.success) {
+        showAlert("Plan Matrix Saved", res.data.message || "Data plan updated successfully.");
+        setPlanManagerModalVisible(false);
+        setEditingPlanId(null);
+        setPlanName("");
+        setPlanCode("");
+        setPlanUserPrice("");
+        setPlanAgentPrice("");
+        setPlanCostPrice("");
+        fetchMasterTelemetry();
+      }
+    } catch (err) {
+      showAlert("Plan Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 10. Delete Data Plan
+  const handleDeleteDataPlan = async (planId) => {
+    if (!planId) return;
+    const confirmDelete = Platform.OS === "web"
+      ? window.confirm("Are you sure you want to delete this data plan permanently?")
+      : true;
+
+    if (!confirmDelete) return;
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.delete(`${BASE_URL}/admin/plans/${planId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.data?.success) {
+        showAlert("Plan Expunged", "Data package deleted successfully.");
+        fetchMasterTelemetry();
+      }
+    } catch (err) {
+      showAlert("Delete Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // 11. Bulk Marketing Data Dispatch
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice) {
       return showAlert("Validation Error", "Plan Code and Selling Price are required.");
@@ -499,7 +630,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 9. Prune Audit Trail
+  // 12. Prune Audit Trail
   const handleExecuteAuditPurge = async () => {
     setActionLoading(true);
     try {
@@ -552,6 +683,13 @@ const SuperAdminDashboard = ({ navigation }) => {
         break;
       case "dispatch":
         setDispatchModalVisible(true);
+        break;
+      case "target":
+        setTargetModalVisible(true);
+        break;
+      case "plans":
+        setEditingPlanId(null);
+        setPlanManagerModalVisible(true);
         break;
       case "purge":
         setPurgeModalVisible(true);
@@ -662,6 +800,25 @@ const SuperAdminDashboard = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={[styles.mainNavTab, activeMainTab === "plans" && styles.mainNavTabActive]}
+          onPress={() => setActiveMainTab("plans")}
+        >
+          <Ionicons
+            name="wifi"
+            size={15}
+            color={activeMainTab === "plans" ? "#00f0ff" : "#64748b"}
+          />
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeMainTab === "plans" && styles.mainNavTabTextActive,
+            ]}
+          >
+            Data Packages
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.mainNavTab, activeMainTab === "history" && styles.mainNavTabActive]}
           onPress={() => setActiveMainTab("history")}
         >
@@ -676,7 +833,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               activeMainTab === "history" && styles.mainNavTabTextActive,
             ]}
           >
-            Live Audit Stream
+            Audit Trail
           </Text>
         </TouchableOpacity>
       </View>
@@ -820,6 +977,43 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <TouchableOpacity
                   style={styles.commandTile}
                   activeOpacity={0.8}
+                  onPress={() => setTargetModalVisible(true)}
+                >
+                  <View style={[styles.tileIconContainer, { backgroundColor: "#d97706" }]}>
+                    <FontAwesome5 name="bullseye" size={20} color="#ffffff" />
+                  </View>
+                  <View style={styles.tileInfo}>
+                    <Text style={styles.tileTitle}>Assign Supervisor & Agent Targets</Text>
+                    <Text style={styles.tileDescription}>
+                      Assign monthly sales quotas, data volume goals, and team targets.
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#64748b" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.commandTile}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setEditingPlanId(null);
+                    setPlanManagerModalVisible(true);
+                  }}
+                >
+                  <View style={[styles.tileIconContainer, { backgroundColor: "#0284c7" }]}>
+                    <Ionicons name="wifi" size={22} color="#ffffff" />
+                  </View>
+                  <View style={styles.tileInfo}>
+                    <Text style={styles.tileTitle}>Create & Modify Data Packages</Text>
+                    <Text style={styles.tileDescription}>
+                      Set selling prices, cost prices, agent discounts, and network bundle codes.
+                    </Text>
+                  </View>
+                  <Feather name="chevron-right" size={20} color="#64748b" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.commandTile}
+                  activeOpacity={0.8}
                   onPress={() => setRoleModalVisible(true)}
                 >
                   <View style={[styles.tileIconContainer, { backgroundColor: "#7c3aed" }]}>
@@ -845,24 +1039,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                   <View style={styles.tileInfo}>
                     <Text style={styles.tileTitle}>Global Service Pricing & Tariff Engine</Text>
                     <Text style={styles.tileDescription}>
-                      Individually set pricing for NIMC printing, validation, BVN, and data bundle tariffs.
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={20} color="#64748b" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.commandTile}
-                  activeOpacity={0.8}
-                  onPress={() => setDispatchModalVisible(true)}
-                >
-                  <View style={[styles.tileIconContainer, { backgroundColor: "#0369a1" }]}>
-                    <Ionicons name="paper-plane" size={22} color="#ffffff" />
-                  </View>
-                  <View style={styles.tileInfo}>
-                    <Text style={styles.tileTitle}>Bulk Data Marketing & Campaign Dispatcher</Text>
-                    <Text style={styles.tileDescription}>
-                      Deploy custom wholesale bundles, adjust profit margins, and queue bulk dispatches.
+                      Individually set pricing for NIMC printing, validation, BVN, and utilities.
                     </Text>
                   </View>
                   <Feather name="chevron-right" size={20} color="#64748b" />
@@ -897,42 +1074,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                     <Text style={styles.tileTitle}>Freeze / Unlock User Wallet & Access</Text>
                     <Text style={styles.tileDescription}>
                       Instantly freeze compromised customer or staff accounts or restore service access.
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={20} color="#64748b" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.commandTile}
-                  activeOpacity={0.8}
-                  onPress={() => setPurgeModalVisible(true)}
-                >
-                  <View style={[styles.tileIconContainer, { backgroundColor: "#334155" }]}>
-                    <Feather name="trash-2" size={22} color="#f87171" />
-                  </View>
-                  <View style={styles.tileInfo}>
-                    <Text style={[styles.tileTitle, { color: "#f87171" }]}>
-                      Forensic Log Maintenance & Expunging
-                    </Text>
-                    <Text style={styles.tileDescription}>
-                      Prune and expunge historical system audit records older than 30/60/90 days.
-                    </Text>
-                  </View>
-                  <Feather name="chevron-right" size={20} color="#64748b" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.commandTile}
-                  activeOpacity={0.8}
-                  onPress={() => navigation?.navigate("LeaderDashboard")}
-                >
-                  <View style={[styles.tileIconContainer, { backgroundColor: "#d97706" }]}>
-                    <FontAwesome5 name="user-tie" size={18} color="#ffffff" />
-                  </View>
-                  <View style={styles.tileInfo}>
-                    <Text style={styles.tileTitle}>Supervisor Performance & Quota Targets</Text>
-                    <Text style={styles.tileDescription}>
-                      Assign team sales goals, track monthly quota, and review commissions.
                     </Text>
                   </View>
                   <Feather name="chevron-right" size={20} color="#64748b" />
@@ -1028,7 +1169,89 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 3: AUDIT HISTORY */}
+          {/* TAB 3: DATA PACKAGES MANAGER */}
+          {activeMainTab === "plans" && (
+            <View style={styles.tabWrapper}>
+              <View style={styles.tariffTabContainer}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderLabel}>DATA BUNDLES & TARIFF PACKAGES</Text>
+                  <TouchableOpacity
+                    style={styles.addPlanHeaderBtn}
+                    onPress={() => {
+                      setEditingPlanId(null);
+                      setPlanName("");
+                      setPlanCode("");
+                      setPlanUserPrice("");
+                      setPlanAgentPrice("");
+                      setPlanCostPrice("");
+                      setPlanManagerModalVisible(true);
+                    }}
+                  >
+                    <Ionicons name="add-circle" size={16} color="#ffffff" />
+                    <Text style={styles.addPlanHeaderText}>NEW PLAN</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {dataPlansList.length > 0 ? (
+                  dataPlansList.map((plan) => (
+                    <View key={plan._id || plan.planCode} style={styles.planCard}>
+                      <View style={styles.planCardLeft}>
+                        <View style={[styles.networkBadge, { backgroundColor: plan.network === "MTN" ? "#f59e0b" : "#0284c7" }]}>
+                          <Text style={styles.networkBadgeText}>{plan.network || "VTU"}</Text>
+                        </View>
+                        <View style={{ marginLeft: 12, flex: 1 }}>
+                          <Text style={styles.planCardTitle}>{plan.name || plan.planCode}</Text>
+                          <Text style={styles.planCardSubtitle}>
+                            Code: {plan.planCode} • Cost: ₦{plan.costPrice || 0} • Validity: {plan.validity || "30"} Days
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.planCardRight}>
+                        <Text style={styles.planCardUserPrice}>₦{Number(plan.userPrice || plan.price || 0).toLocaleString()}</Text>
+                        <Text style={styles.planCardAgentPrice}>Agent: ₦{Number(plan.agentPrice || plan.userPrice || 0).toLocaleString()}</Text>
+
+                        <View style={styles.planActionBtnsRow}>
+                          <TouchableOpacity
+                            style={styles.planMiniEditBtn}
+                            onPress={() => {
+                              setEditingPlanId(plan._id);
+                              setPlanNetwork(plan.network || "MTN");
+                              setPlanName(plan.name || "");
+                              setPlanCode(plan.planCode || "");
+                              setPlanUserPrice(String(plan.userPrice || plan.price || ""));
+                              setPlanAgentPrice(String(plan.agentPrice || ""));
+                              setPlanCostPrice(String(plan.costPrice || ""));
+                              setPlanValidity(String(plan.validity || "30"));
+                              setPlanManagerModalVisible(true);
+                            }}
+                          >
+                            <Feather name="edit-2" size={13} color="#00f0ff" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.planMiniDeleteBtn}
+                            onPress={() => handleDeleteDataPlan(plan._id)}
+                          >
+                            <Feather name="trash-2" size={13} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.emptyFeed}>
+                    <Ionicons name="wifi-outline" size={40} color="#475569" />
+                    <Text style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>
+                      No active data plans configured. Tap "NEW PLAN" to deploy.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* TAB 4: AUDIT HISTORY */}
           {activeMainTab === "history" && (
             <View style={styles.tabWrapper}>
               <View style={styles.historyTabContainer}>
@@ -1109,7 +1332,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* SIDEBAR OVERLAY WITH ALL COMMAND MODULES */}
+      {/* FULL SIDEBAR WITH ALL COMMAND MODULES */}
       {sidebarOpen && (
         <TouchableOpacity
           style={styles.sidebarBackdrop}
@@ -1167,6 +1390,21 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
                 <Text style={[styles.navItemText, activeMainTab === "tariffs" && { color: "#00f0ff" }]}>
                   Set Service Tariffs
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.navItem, activeMainTab === "plans" && styles.navItemActive]}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setActiveMainTab("plans");
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(2, 132, 199, 0.2)" }]}>
+                  <Ionicons name="wifi" size={17} color="#38bdf8" />
+                </View>
+                <Text style={[styles.navItemText, activeMainTab === "plans" && { color: "#00f0ff" }]}>
+                  Data Package Tariffs
                 </Text>
               </TouchableOpacity>
 
@@ -1231,7 +1469,17 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <Text style={styles.navItemText}>Bulk Data Dispatcher</Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>USER & SECURITY MANAGEMENT</Text>
+              <Text style={styles.sidebarCategory}>FIELD & USER MANAGEMENT</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => openActionModal("target")}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(217, 119, 6, 0.2)" }]}>
+                  <FontAwesome5 name="bullseye" size={16} color="#fbbf24" />
+                </View>
+                <Text style={styles.navItemText}>Assign Supervisor Targets</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -1261,19 +1509,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   <MaterialIcons name="block" size={18} color="#fca5a5" />
                 </View>
                 <Text style={styles.navItemText}>Freeze / Unlock Account</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.navItem}
-                onPress={() => {
-                  toggleSidebar(false);
-                  navigation?.navigate("LeaderDashboard");
-                }}
-              >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(217, 119, 6, 0.2)" }]}>
-                  <FontAwesome5 name="user-tie" size={15} color="#fbbf24" />
-                </View>
-                <Text style={styles.navItemText}>Supervisor Quotas & Targets</Text>
               </TouchableOpacity>
 
               <Text style={styles.sidebarCategory}>DATABASE MAINTENANCE</Text>
@@ -1366,7 +1601,203 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: BROADCAST NOTIFICATION */}
+      {/* MODAL 2: ASSIGN SUPERVISOR / AGENT TARGET */}
+      <Modal visible={targetModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Assign Monthly Targets</Text>
+                <Text style={styles.modalCardSubtitle}>Set quota targets for field supervisors & agents</Text>
+              </View>
+              <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.formFieldLabel}>SUPERVISOR ID, PHONE, OR EMAIL</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. 09033738409 or sup@gmail.com"
+              placeholderTextColor="#64748b"
+              value={targetSupervisorId}
+              onChangeText={setTargetSupervisorId}
+            />
+
+            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.formFieldLabel}>AGENT GOAL (COUNT)</Text>
+                <TextInput
+                  style={styles.textInputStyle}
+                  placeholder="e.g. 10"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={targetAgentGoal}
+                  onChangeText={setTargetAgentGoal}
+                />
+              </View>
+
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Text style={styles.formFieldLabel}>DATA GOAL (GB)</Text>
+                <TextInput
+                  style={styles.textInputStyle}
+                  placeholder="e.g. 500"
+                  placeholderTextColor="#64748b"
+                  keyboardType="numeric"
+                  value={targetDataGoal}
+                  onChangeText={setTargetDataGoal}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.formFieldLabel}>TARGET MONTH (OPTIONAL)</Text>
+            <TextInput
+              style={styles.textInputStyle}
+              placeholder="e.g. August 2026"
+              placeholderTextColor="#64748b"
+              value={targetMonth}
+              onChangeText={setTargetMonth}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.primaryActionBtn,
+                { backgroundColor: "#d97706", opacity: actionLoading ? 0.7 : 1 },
+              ]}
+              onPress={handleAssignTarget}
+              disabled={actionLoading}
+            >
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.primaryActionBtnText}>DEPLOY MONTHLY TARGET</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 3: DATA PLAN MANAGER (CREATE / EDIT) */}
+      <Modal visible={planManagerModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>
+                  {editingPlanId ? "Edit Data Package" : "Create Data Package"}
+                </Text>
+                <Text style={styles.modalCardSubtitle}>Configure selling price, agent rate & plan codes</Text>
+              </View>
+              <TouchableOpacity onPress={() => setPlanManagerModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <Text style={styles.formFieldLabel}>NETWORK</Text>
+              <View style={styles.pillGrid}>
+                {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
+                  <TouchableOpacity
+                    key={net}
+                    style={[styles.pillBtn, planNetwork === net && styles.activePillBtn]}
+                    onPress={() => setPlanNetwork(net)}
+                  >
+                    <Text style={[styles.pillBtnText, planNetwork === net && styles.activePillBtnText]}>
+                      {net}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.formFieldLabel}>PLAN CODE / IDENTIFIER (e.g. 1.0GB)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. 1.0GB or MTN_SME_1GB"
+                placeholderTextColor="#64748b"
+                value={planCode}
+                onChangeText={setPlanCode}
+              />
+
+              <Text style={styles.formFieldLabel}>PLAN NAME (OPTIONAL)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. MTN SME 1GB Data Bundle"
+                placeholderTextColor="#64748b"
+                value={planName}
+                onChangeText={setPlanName}
+              />
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.formFieldLabel}>USER PRICE (₦)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="280"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                    value={planUserPrice}
+                    onChangeText={setPlanUserPrice}
+                  />
+                </View>
+
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.formFieldLabel}>AGENT PRICE (₦)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="265"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                    value={planAgentPrice}
+                    onChangeText={setPlanAgentPrice}
+                  />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <Text style={styles.formFieldLabel}>COST PRICE (₦)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="245"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                    value={planCostPrice}
+                    onChangeText={setPlanCostPrice}
+                  />
+                </View>
+
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.formFieldLabel}>VALIDITY (DAYS)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="30"
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                    value={planValidity}
+                    onChangeText={setPlanValidity}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleSaveDataPlan}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>
+                    {editingPlanId ? "UPDATE DATA PACKAGE" : "SAVE & PUBLISH PLAN"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 4: BROADCAST NOTIFICATION */}
       <Modal visible={notificationModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1423,7 +1854,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: DIRECT WALLET ADJUSTMENT */}
+      {/* MODAL 5: DIRECT WALLET ADJUSTMENT */}
       <Modal visible={walletModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1517,7 +1948,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 4: EXECUTIVE REFUND OVERRIDE */}
+      {/* MODAL 6: EXECUTIVE REFUND OVERRIDE */}
       <Modal visible={refundModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { borderColor: "#ef4444" }]}>
@@ -1588,7 +2019,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 5: CHANGE USER ROLE */}
+      {/* MODAL 7: CHANGE USER ROLE */}
       <Modal visible={roleModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1649,7 +2080,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 6: SECURITY CREDENTIAL OVERRIDE */}
+      {/* MODAL 8: SECURITY CREDENTIAL OVERRIDE */}
       <Modal visible={passwordModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1711,7 +2142,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 7: LOCK / UNLOCK ACCOUNT */}
+      {/* MODAL 9: LOCK / UNLOCK ACCOUNT */}
       <Modal visible={lockModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1770,7 +2201,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 8: BULK DATA MARKETING DISPATCHER */}
+      {/* MODAL 10: BULK DATA MARKETING DISPATCHER */}
       <Modal visible={dispatchModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1864,7 +2295,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 9: FORENSIC AUDIT EXPUNGE */}
+      {/* MODAL 11: FORENSIC AUDIT EXPUNGE */}
       <Modal visible={purgeModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { borderColor: "#ef4444" }]}>
@@ -1984,7 +2415,7 @@ const styles = StyleSheet.create({
   },
   mainNavTab: {
     flex: 1,
-    maxWidth: isLargeScreen ? 200 : undefined,
+    maxWidth: isLargeScreen ? 180 : undefined,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2089,6 +2520,15 @@ const styles = StyleSheet.create({
   tileTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
   tileDescription: { color: "#64748b", fontSize: 11, marginTop: 2, lineHeight: 15 },
   tariffTabContainer: { padding: isLargeScreen ? 24 : 16 },
+  addPlanHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0284c7",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addPlanHeaderText: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 4 },
   categoryTab: {
     paddingHorizontal: 14,
     paddingVertical: 7,
@@ -2147,6 +2587,47 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   tariffEditBtnText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
+  planCard: {
+    backgroundColor: "#0b1120",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  planCardLeft: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 10 },
+  networkBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  networkBadgeText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900" },
+  planCardTitle: { color: "#f8fafc", fontSize: 13.5, fontWeight: "800" },
+  planCardSubtitle: { color: "#64748b", fontSize: 10.5, marginTop: 3 },
+  planCardRight: { alignItems: "flex-end" },
+  planCardUserPrice: { color: "#00f0ff", fontSize: 15, fontWeight: "900" },
+  planCardAgentPrice: { color: "#10b981", fontSize: 11, fontWeight: "700", marginTop: 2 },
+  planActionBtnsRow: { flexDirection: "row", marginTop: 6 },
+  planMiniEditBtn: {
+    backgroundColor: "rgba(0, 240, 255, 0.1)",
+    padding: 6,
+    borderRadius: 6,
+    marginRight: 6,
+    borderWidth: 1,
+    borderColor: "rgba(0, 240, 255, 0.3)",
+  },
+  planMiniDeleteBtn: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    padding: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
   historyTabContainer: { padding: isLargeScreen ? 24 : 16 },
   historyCard: {
     backgroundColor: "#0b1120",
