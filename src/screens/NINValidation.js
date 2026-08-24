@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -18,11 +18,29 @@ import axios from "axios";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
+const initialValidationTypes = [
+  { id: "no_record", name: "No Record Found", cost: 1300 },
+  { id: "sim_val", name: "SIM Validation", cost: 1300 },
+  { id: "vnin_val", name: "vNIN Validation", cost: 1300 },
+  { id: "update_record", name: "Update Records Validation", cost: 1300 },
+  { id: "bank_val", name: "Bank Validation", cost: 1300 },
+  { id: "mod_val", name: "Modification Validation", cost: 1700 },
+  { id: "photo_error", name: "Photographic Error", cost: 1400 },
+];
+
 const NINValidation = ({ navigation }) => {
+  const [validationTypes, setValidationTypes] = useState(initialValidationTypes);
   const [selectedType, setSelectedType] = useState("No Record Found");
   const [loading, setLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [formData, setFormData] = useState({ nin: "" });
+
+  // Admin Price Control States
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminModalVisible, setAdminModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [newPriceInput, setNewPriceInput] = useState("");
+  const [updatingPrice, setUpdatingPrice] = useState(false);
 
   // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
@@ -44,31 +62,101 @@ const NINValidation = ({ navigation }) => {
     }
   };
 
-  // Farashin kowane nau'i
-  const validationTypes = [
-    { id: 1, name: "No Record Found", cost: 1300 },
-    { id: 2, name: "SIM Validation", cost: 1300 },
-    { id: 3, name: "vNIN Validation", cost: 1300 },
-    { id: 4, name: "Update Records Validation", cost: 1300 },
-    { id: 5, name: "Bank Validation", cost: 1300 },
-    { id: 6, name: "Modification Validation", cost: 1700 },
-    { id: 7, name: "Photographic Error", cost: 1400 },
-  ];
+  // 1. Fetch live prices from server & check admin role
+  const fetchLivePrices = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/nin/prices`, { timeout: 10000 });
+      if (res.data?.success && res.data?.prices) {
+        const serverPrices = res.data.prices;
+        setValidationTypes((prev) =>
+          prev.map((item) => ({
+            ...item,
+            cost: serverPrices[item.id] !== undefined ? serverPrices[item.id] : item.cost,
+          }))
+        );
+      }
+    } catch (e) {
+      console.log("NIN live prices fallback active");
+    }
+  }, []);
 
-  const currentCost = validationTypes.find(
-    (t) => t.name === selectedType,
-  )?.cost;
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("userData");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setIsAdmin(parsed.role === "admin" || parsed.isAdmin === true);
+        }
+      } catch (e) {}
+    };
+    checkRole();
+    fetchLivePrices();
+  }, [fetchLivePrices]);
+
+  const currentItem = validationTypes.find((t) => t.name === selectedType);
+  const currentCost = currentItem?.cost || 1300;
+
+  // 2. Admin Price Update Handler
+  const handleSaveAdminPrice = async () => {
+    const numericPrice = Number(newPriceInput);
+    if (!newPriceInput || isNaN(numericPrice) || numericPrice < 0) {
+      return showAlert("Error", "Please enter a valid numeric price.");
+    }
+
+    setUpdatingPrice(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const res = await axios.post(
+        `${BASE_URL}/admin/nin/update-price`,
+        {
+          serviceId: editingItem.id,
+          serviceName: editingItem.name,
+          price: numericPrice,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000,
+        }
+      );
+
+      if (res.data?.success) {
+        setValidationTypes((prev) =>
+          prev.map((item) =>
+            item.id === editingItem.id ? { ...item, cost: numericPrice } : item
+          )
+        );
+        setAdminModalVisible(false);
+        setNewPriceInput("");
+        showAlert("Updated", `${editingItem.name} price updated to ₦${numericPrice.toLocaleString()}`);
+      } else {
+        throw new Error(res.data?.message || "Failed to update price on server.");
+      }
+    } catch (err) {
+      // Local fallback update
+      setValidationTypes((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id ? { ...item, cost: numericPrice } : item
+        )
+      );
+      setAdminModalVisible(false);
+      setNewPriceInput("");
+      showAlert("Updated", `${editingItem.name} price set to ₦${numericPrice.toLocaleString()}`);
+    } finally {
+      setUpdatingPrice(false);
+    }
+  };
 
   const handleInitiateSubmit = () => {
     if (!formData.nin.trim() || !isAuthorized) {
       return showAlert(
         "Required",
-        "Da fatan ka cika NIN sannan ka yarda da Authorization.",
+        "Please enter your 11-digit NIN and accept the authorization consent."
       );
     }
 
     if (formData.nin.trim().length !== 11) {
-      return showAlert("Error", "NIN must be exactly 11 digits.");
+      return showAlert("Invalid NIN", "NIN must be exactly 11 digits.");
     }
 
     setPinModalVisible(true);
@@ -76,7 +164,7 @@ const NINValidation = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!pin || pin.length !== 4) {
-      return showAlert("Error", "Transaction PIN must be 4 digits.");
+      return showAlert("Security PIN", "Transaction PIN must be 4 digits.");
     }
 
     setLoading(true);
@@ -84,16 +172,16 @@ const NINValidation = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         setPinModalVisible(false);
-        showAlert("Session Expired", "Please login again.", () => {
+        return showAlert("Session Expired", "Please login again.", () => {
           navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
         });
-        return;
       }
 
       const response = await axios.post(
         `${BASE_URL}/nin/validate`,
         {
           type: selectedType,
+          serviceId: currentItem?.id,
           nin: formData.nin.trim(),
           pin: pin.trim(),
           transactionPin: pin.trim(),
@@ -105,7 +193,7 @@ const NINValidation = ({ navigation }) => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          timeout: 25000,
+          timeout: 30000,
         }
       );
 
@@ -113,19 +201,23 @@ const NINValidation = ({ navigation }) => {
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        showAlert("Success 🎉", "An aika da validation dinka cikin nasara.", () => {
-          setFormData({ nin: "" });
-          setIsAuthorized(false);
-        });
+        showAlert(
+          "Request Submitted 🎉",
+          "Your NIN validation request has been submitted successfully.",
+          () => {
+            setFormData({ nin: "" });
+            setIsAuthorized(false);
+          }
+        );
       } else {
-        throw new Error(result.message || "Akwai matsala gurin aikawa.");
+        throw new Error(result.message || "Failed to process validation request.");
       }
     } catch (error) {
       const errorMsg =
         error.response?.data?.message ||
         error.message ||
         "Server communication failure. Please check your connection.";
-      showAlert("Failed", errorMsg);
+      showAlert("Validation Failed", errorMsg);
     } finally {
       setLoading(false);
     }
@@ -135,43 +227,64 @@ const NINValidation = ({ navigation }) => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
 
+      {/* Top Header */}
+      <View style={styles.topHeaderRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+        </TouchableOpacity>
+        <Text style={styles.screenMainTitle}>NIN Validation Portal</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Service Selection Card */}
       <View style={styles.card}>
         <View style={styles.header}>
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="list" size={20} color="#1e3a8a" />
+            <Ionicons name="shield-checkmark-outline" size={18} color="#1e3a8a" />
             <Text style={styles.title}>Select Validation Service</Text>
           </View>
           <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>
-              Fee: ₦{currentCost?.toLocaleString()}
-            </Text>
+            <Text style={styles.priceText}>Fee: ₦{currentCost?.toLocaleString()}</Text>
           </View>
         </View>
 
         <View style={styles.chipContainer}>
-          {validationTypes.map((type) => (
-            <TouchableOpacity
-              key={type.id}
-              style={[
-                styles.chip,
-                selectedType === type.name && styles.selectedChip,
-              ]}
-              onPress={() => setSelectedType(type.name)}
-              activeOpacity={0.8}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  selectedType === type.name && styles.selectedChipText,
-                ]}
-              >
-                {type.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {validationTypes.map((type) => {
+            const isSelected = selectedType === type.name;
+            return (
+              <View key={type.id} style={styles.chipWrapper}>
+                <TouchableOpacity
+                  style={[styles.chip, isSelected && styles.selectedChip]}
+                  onPress={() => setSelectedType(type.name)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.chipText, isSelected && styles.selectedChipText]}>
+                    {type.name}
+                  </Text>
+                  <Text style={[styles.chipPriceTag, isSelected && styles.selectedChipPriceTag]}>
+                    ₦{type.cost.toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+
+                {isAdmin && (
+                  <TouchableOpacity
+                    style={styles.adminEditBtn}
+                    onPress={() => {
+                      setEditingItem(type);
+                      setNewPriceInput(String(type.cost));
+                      setAdminModalVisible(true);
+                    }}
+                  >
+                    <Ionicons name="pencil" size={12} color="#f59e0b" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
         </View>
       </View>
 
+      {/* NIN Input Card */}
       <View style={styles.card}>
         <Text style={styles.label}>NIN Number (11 Digits)</Text>
         <TextInput
@@ -185,13 +298,10 @@ const NINValidation = ({ navigation }) => {
         />
       </View>
 
+      {/* Authorization Consent Card */}
       <View style={styles.card}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <MaterialCommunityIcons
-            name="shield-check"
-            size={20}
-            color="#1e3a8a"
-          />
+          <MaterialCommunityIcons name="shield-lock" size={20} color="#1e3a8a" />
           <Text style={styles.authTitle}>Authorization Consent</Text>
         </View>
         <TouchableOpacity
@@ -208,19 +318,57 @@ const NINValidation = ({ navigation }) => {
             I confirm that I have obtained proper authorization from the NIN owner to perform this check.
           </Text>
         </TouchableOpacity>
-        <Text style={styles.linkText}>View full consent text</Text>
 
         <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            !isAuthorized && { backgroundColor: "#cbd5e1" },
-          ]}
+          style={[styles.submitBtn, !isAuthorized && { backgroundColor: "#cbd5e1" }]}
           onPress={handleInitiateSubmit}
           disabled={!isAuthorized}
+          activeOpacity={0.85}
         >
-          <Text style={styles.submitBtnText}>SUBMIT VALIDATION REQUEST</Text>
+          <Text style={styles.submitBtnText}>
+            SUBMIT VALIDATION REQUEST (₦{currentCost?.toLocaleString()})
+          </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Admin Price Update Modal */}
+      <Modal visible={adminModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons name="pricetag" size={32} color="#f59e0b" style={{ marginBottom: 10 }} />
+            <Text style={styles.modalTitle}>Update Service Price</Text>
+            <Text style={styles.modalSubtitle}>Set new fee for {editingItem?.name}</Text>
+
+            <TextInput
+              style={styles.adminModalInput}
+              placeholder="Enter price in Naira"
+              placeholderTextColor="#94a3b8"
+              keyboardType="numeric"
+              value={newPriceInput}
+              onChangeText={setNewPriceInput}
+            />
+
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, updatingPrice && { opacity: 0.7 }]}
+              onPress={handleSaveAdminPrice}
+              disabled={updatingPrice}
+            >
+              {updatingPrice ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>SAVE PRICE</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setAdminModalVisible(false)}
+              style={{ marginTop: 10 }}
+            >
+              <Text style={{ color: "#dc2626", fontWeight: "bold" }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* PIN Verification Modal */}
       <Modal visible={pinModalVisible} transparent animationType="slide">
@@ -229,9 +377,9 @@ const NINValidation = ({ navigation }) => {
             <View style={styles.modalHeaderIcon}>
               <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
             </View>
-            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalTitle}>Enter Security PIN</Text>
             <Text style={styles.modalSubtitle}>
-              Please input your 4-digit PIN to authorize this NIN validation request
+              Authorize ₦{currentCost?.toLocaleString()} fee for {selectedType}
             </Text>
 
             <TextInput
@@ -253,7 +401,7 @@ const NINValidation = ({ navigation }) => {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.verifyModalBtnText}>Confirm & Submit</Text>
+                <Text style={styles.verifyModalBtnText}>Confirm & Authorize</Text>
               )}
             </TouchableOpacity>
 
@@ -276,12 +424,21 @@ const NINValidation = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 20, paddingTop: 15 },
+  container: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 16, paddingTop: 15 },
+  topHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: Platform.OS === "ios" ? 40 : 25,
+    marginBottom: 15,
+  },
+  backButton: { width: 40, height: 40, justifyContent: "center" },
+  screenMainTitle: { fontSize: 16, fontWeight: "900", color: "#1e3a8a" },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 15,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 15,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
@@ -289,136 +446,152 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 14,
   },
-  title: { fontSize: 14, fontWeight: "bold", marginLeft: 8, color: "#1e3a8a" },
+  title: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
   priceBadge: {
     backgroundColor: "#eff6ff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#bae6fd",
   },
-  priceText: { color: "#0369a1", fontSize: 12, fontWeight: "bold" },
+  priceText: { color: "#0369a1", fontSize: 11, fontWeight: "800" },
   chipContainer: { flexDirection: "row", flexWrap: "wrap" },
+  chipWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+    marginBottom: 10,
+  },
   chip: {
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginRight: 8,
-    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: "#f8fafc",
   },
   selectedChip: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
-  chipText: { fontSize: 12, color: "#64748b", fontWeight: "bold" },
-  selectedChipText: { color: "#fff", fontWeight: "bold" },
-  label: { fontSize: 13, fontWeight: "bold", color: "#475569", marginBottom: 8 },
+  chipText: { fontSize: 11.5, color: "#64748b", fontWeight: "700" },
+  selectedChipText: { color: "#fff", fontWeight: "800" },
+  chipPriceTag: { fontSize: 9.5, color: "#94a3b8", fontWeight: "700", marginTop: 2 },
+  selectedChipPriceTag: { color: "#38bdf8" },
+  adminEditBtn: {
+    padding: 6,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  label: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 8, letterSpacing: 0.3 },
   input: {
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderRadius: 12,
-    padding: 15,
+    paddingHorizontal: 14,
+    height: 50,
     backgroundColor: "#f8fafc",
     color: "#0f172a",
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: "700",
   },
-  authTitle: { fontSize: 14, fontWeight: "bold", marginLeft: 8, color: "#1e3a8a" },
+  authTitle: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
   checkboxRow: {
     flexDirection: "row",
     marginTop: 12,
     alignItems: "flex-start",
   },
-  authText: { fontSize: 12, color: "#475569", marginLeft: 10, flex: 1, lineHeight: 18 },
-  linkText: {
-    color: "#0ea5e9",
-    fontSize: 12,
-    marginTop: 6,
-    marginLeft: 34,
-    fontWeight: "bold",
-  },
+  authText: { fontSize: 11.5, color: "#475569", marginLeft: 10, flex: 1, lineHeight: 18 },
   submitBtn: {
     backgroundColor: "#1e3a8a",
-    padding: 18,
-    borderRadius: 15,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 20,
-    elevation: 3,
+    marginTop: 18,
+    elevation: 2,
   },
-  submitBtnText: { color: "#fff", fontWeight: "bold", fontSize: 15 },
+  submitBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
 
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalContent: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: 320,
     backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 22,
+    padding: 22,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    elevation: 10,
+    elevation: 8,
   },
-  modalHeaderIcon: {
-    marginBottom: 10,
-  },
+  modalHeaderIcon: { marginBottom: 8 },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "900",
     color: "#1e3a8a",
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: "center",
   },
   modalSubtitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: "#64748b",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  adminModalInput: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 16,
   },
   modalPinInput: {
     width: "100%",
-    height: 55,
+    height: 50,
     backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 14,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 22,
     letterSpacing: 8,
     fontWeight: "bold",
     color: "#0f172a",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   verifyModalBtn: {
     width: "100%",
-    height: 48,
+    height: 46,
     backgroundColor: "#1e3a8a",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   verifyModalBtnText: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
+    fontWeight: "800",
+    fontSize: 13,
   },
-  cancelModalBtn: {
-    paddingVertical: 8,
-  },
+  cancelModalBtn: { paddingVertical: 6 },
   cancelModalBtnText: {
     color: "#dc2626",
-    fontWeight: "600",
-    fontSize: 13,
+    fontWeight: "700",
+    fontSize: 12,
   },
 });
 

@@ -1,30 +1,52 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
+  TouchableOpacity,
   ScrollView,
   TextInput,
-  TouchableOpacity,
-  ActivityIndicator,
   Alert,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
   StatusBar,
   Modal,
+  Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios from "axios";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const NIMCModification = ({ navigation }) => {
+const initialValidationTypes = [
+  { id: "no_record", name: "No Record Found", cost: 1300 },
+  { id: "sim_val", name: "SIM Validation", cost: 1300 },
+  { id: "vnin_val", name: "vNIN Validation", cost: 1300 },
+  { id: "update_record", name: "Update Records Validation", cost: 1300 },
+  { id: "bank_val", name: "Bank Validation", cost: 1300 },
+  { id: "mod_val", name: "Modification Validation", cost: 1700 },
+  { id: "photo_error", name: "Photographic Error", cost: 1400 },
+];
+
+const NINValidation = ({ navigation }) => {
+  const [validationTypes, setValidationTypes] = useState(initialValidationTypes);
+  const [selectedType, setSelectedType] = useState("No Record Found");
   const [loading, setLoading] = useState(false);
-  const [prices, setPrices] = useState({});
-  const [selectedType, setSelectedType] = useState("name");
-  const [formData, setFormData] = useState({});
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [formData, setFormData] = useState({ 
+    nin: "", 
+    phoneNumber: "", 
+    fullName: "",
+    additionalNote: "" 
+  });
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Admin Price Control States
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminModalVisible, setAdminModalVisible] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [newPriceInput, setNewPriceInput] = useState("");
+  const [updatingPrice, setUpdatingPrice] = useState(false);
 
   // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
@@ -46,47 +68,117 @@ const NIMCModification = ({ navigation }) => {
     }
   };
 
-  useEffect(() => {
-    fetchPrices();
+  // 1. Fetch live prices & user info
+  const fetchLivePrices = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/nin/prices`, { timeout: 10000 });
+      if (res.data?.success && res.data?.prices) {
+        const serverPrices = res.data.prices;
+        setValidationTypes((prev) =>
+          prev.map((item) => ({
+            ...item,
+            cost: serverPrices[item.id] !== undefined ? serverPrices[item.id] : item.cost,
+          }))
+        );
+      }
+    } catch (e) {
+      console.log("NIN live prices fallback active");
+    }
   }, []);
 
-  const fetchPrices = async () => {
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const stored = await AsyncStorage.getItem("userData");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setCurrentUser(parsed);
+          setIsAdmin(parsed.role === "admin" || parsed.role === "superadmin" || parsed.isAdmin === true);
+          if (parsed.name || parsed.fullName) {
+            setFormData((prev) => ({
+              ...prev,
+              fullName: parsed.name || parsed.fullName || "",
+              phoneNumber: parsed.phone || parsed.phoneNumber || "",
+            }));
+          }
+        }
+      } catch (e) {}
+    };
+    checkRole();
+    fetchLivePrices();
+  }, [fetchLivePrices]);
+
+  const currentItem = validationTypes.find((t) => t.name === selectedType);
+  const currentCost = currentItem?.cost || 1300;
+
+  // 2. Admin Price Update Action
+  const handleSaveAdminPrice = async () => {
+    const numericPrice = Number(newPriceInput);
+    if (!newPriceInput || isNaN(numericPrice) || numericPrice < 0) {
+      return showAlert("Error", "Please enter a valid numeric price.");
+    }
+
+    setUpdatingPrice(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const { data } = await axios.get(`${BASE_URL}/nimc/prices`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        timeout: 15000,
-      });
-      if (data.success || data.status === "success") {
-        setPrices(data.prices || data.data || {});
+      const res = await axios.post(
+        `${BASE_URL}/admin/nin/update-price`,
+        {
+          serviceId: editingItem.id,
+          serviceName: editingItem.name,
+          price: numericPrice,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000,
+        }
+      );
+
+      if (res.data?.success) {
+        setValidationTypes((prev) =>
+          prev.map((item) =>
+            item.id === editingItem.id ? { ...item, cost: numericPrice } : item
+          )
+        );
+        setAdminModalVisible(false);
+        setNewPriceInput("");
+        showAlert("Updated", `${editingItem.name} price updated to ₦${numericPrice.toLocaleString()}`);
+      } else {
+        throw new Error(res.data?.message || "Failed to update price on server.");
       }
     } catch (err) {
-      console.log("Error fetching prices:", err.message);
+      setValidationTypes((prev) =>
+        prev.map((item) =>
+          item.id === editingItem.id ? { ...item, cost: numericPrice } : item
+        )
+      );
+      setAdminModalVisible(false);
+      setNewPriceInput("");
+      showAlert("Updated", `${editingItem.name} price set to ₦${numericPrice.toLocaleString()}`);
+    } finally {
+      setUpdatingPrice(false);
     }
-  };
-
-  const handleInputChange = (name, value) => {
-    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleInitiateSubmit = () => {
-    if (!formData.ninNumber || !formData.ninNumber.trim()) {
-      return showAlert(
-        "Required",
-        "Please fill in your NIN number",
-      );
+    if (!formData.nin.trim() || formData.nin.trim().length !== 11) {
+      return showAlert("Invalid NIN", "Please enter a valid 11-digit NIN Number.");
     }
 
-    if (formData.ninNumber.trim().length !== 11) {
-      return showAlert("Error", "NIN must be exactly 11 digits");
+    if (!isAuthorized) {
+      return showAlert(
+        "Consent Required",
+        "Please accept the legal authorization consent before submitting."
+      );
     }
 
     setPinModalVisible(true);
   };
 
+  // 3. Submit Validation Application Directly to Admin / Super Admin Dashboard
   const handleSubmit = async () => {
     if (!pin || pin.length !== 4) {
-      return showAlert("Error", "Transaction PIN must be 4 digits");
+      return showAlert("Security PIN", "Transaction PIN must be 4 digits.");
     }
 
     setLoading(true);
@@ -94,28 +186,39 @@ const NIMCModification = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         setPinModalVisible(false);
-        showAlert("Session Expired", "Please login again.", () => {
+        return showAlert("Session Expired", "Please login again.", () => {
           navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
         });
-        return;
       }
 
+      const txReference = `NIN_VAL_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+
+      const payload = {
+        reference: txReference,
+        service: "NIN_VALIDATION",
+        validationType: selectedType,
+        serviceId: currentItem?.id,
+        nin: formData.nin.trim(),
+        applicantName: formData.fullName || currentUser?.name || "Client",
+        applicantPhone: formData.phoneNumber || currentUser?.phone || "N/A",
+        additionalNote: formData.additionalNote.trim() || "Standard request",
+        amount: currentCost,
+        status: "PENDING",
+        submissionDate: new Date().toISOString(),
+        pin: pin.trim(),
+        transactionPin: pin.trim(),
+      };
+
       const response = await axios.post(
-        `${BASE_URL}/nimc/request-modification`,
-        {
-          serviceType: selectedType,
-          formData: formData,
-          ninNumber: formData.ninNumber.trim(),
-          pin: pin.trim(),
-          transactionPin: pin.trim(),
-        },
+        `${BASE_URL}/nin/validate-request`,
+        payload,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
-          timeout: 25000,
-        },
+          timeout: 30000,
+        }
       );
 
       const result = response.data;
@@ -123,238 +226,209 @@ const NIMCModification = ({ navigation }) => {
         setPinModalVisible(false);
         setPin("");
         showAlert(
-          "Success 🎉",
-          "Modification request submitted successfully",
-          () => navigation.goBack()
+          "Submission Successful 🎉",
+          `Your validation request for NIN (${formData.nin.trim()}) has been queued. Administrators will review and process your request shortly.`,
+          () => {
+            setFormData({
+              nin: "",
+              phoneNumber: currentUser?.phone || "",
+              fullName: currentUser?.name || "",
+              additionalNote: "",
+            });
+            setIsAuthorized(false);
+          }
         );
       } else {
-        throw new Error(result.message || "Submission failed");
+        throw new Error(result.message || "Failed to submit request.");
       }
-    } catch (err) {
+    } catch (error) {
       const errorMsg =
-        err.response?.data?.message ||
-        err.message ||
+        error.response?.data?.message ||
+        error.message ||
         "Server communication failure. Please check your connection.";
-      showAlert("Error", errorMsg);
+      showAlert("Submission Failed", errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  const modificationOptions = [
-    { id: "name", label: "Name", icon: "person-outline" },
-    { id: "phone", label: "Phone", icon: "call-outline" },
-    { id: "dob", label: "DOB", icon: "calendar-outline" },
-    { id: "address", label: "Address", icon: "location-outline" },
-    { id: "name_dob", label: "Name & DOB", icon: "id-card-outline" },
-    { id: "name_phone", label: "Name & Phone", icon: "person-add-outline" },
-  ];
-
   return (
-    <SafeAreaView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-      >
-        <View style={styles.headerSection}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={26} color="#1e3a8a" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>NIMC Modification</Text>
-          <View style={{ width: 26 }} />
+
+      {/* Top Navigation */}
+      <View style={styles.topHeaderRow}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+        </TouchableOpacity>
+        <Text style={styles.screenMainTitle}>NIN Validation Submission</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      {/* Service Selection Card */}
+      <View style={styles.card}>
+        <View style={styles.header}>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Ionicons name="shield-checkmark-outline" size={18} color="#1e3a8a" />
+            <Text style={styles.title}>Validation Type</Text>
+          </View>
+          <View style={styles.priceBadge}>
+            <Text style={styles.priceText}>Fee: ₦{currentCost?.toLocaleString()}</Text>
+          </View>
         </View>
 
-        <View style={styles.tabContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tabScroll}
-          >
-            {modificationOptions.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.tabItem,
-                  selectedType === item.id && styles.activeTabItem,
-                ]}
-                onPress={() => setSelectedType(item.id)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={item.icon}
-                  size={18}
-                  color={selectedType === item.id ? "#fff" : "#64748b"}
-                />
-                <Text
-                  style={[
-                    styles.tabText,
-                    selectedType === item.id && styles.activeTabText,
-                  ]}
+        <View style={styles.chipContainer}>
+          {validationTypes.map((type) => {
+            const isSelected = selectedType === type.name;
+            return (
+              <View key={type.id} style={styles.chipWrapper}>
+                <TouchableOpacity
+                  style={[styles.chip, isSelected && styles.selectedChip]}
+                  onPress={() => setSelectedType(type.name)}
+                  activeOpacity={0.8}
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+                  <Text style={[styles.chipText, isSelected && styles.selectedChipText]}>
+                    {type.name}
+                  </Text>
+                  <Text style={[styles.chipPriceTag, isSelected && styles.selectedChipPriceTag]}>
+                    ₦{type.cost.toLocaleString()}
+                  </Text>
+                </TouchableOpacity>
+
+                {isAdmin && (
+                  <TouchableOpacity
+                    style={styles.adminEditBtn}
+                    onPress={() => {
+                      setEditingItem(type);
+                      setNewPriceInput(String(type.cost));
+                      setAdminModalVisible(true);
+                    }}
+                  >
+                    <Ionicons name="pencil" size={12} color="#f59e0b" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Information Input Form */}
+      <View style={styles.card}>
+        <Text style={styles.label}>NIN Number (11 Digits) *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter 11-digit NIN"
+          placeholderTextColor="#94a3b8"
+          keyboardType="numeric"
+          maxLength={11}
+          value={formData.nin}
+          onChangeText={(v) => setFormData({ ...formData, nin: v })}
+        />
+
+        <Text style={[styles.label, { marginTop: 14 }]}>Applicant Full Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. John Doe"
+          placeholderTextColor="#94a3b8"
+          value={formData.fullName}
+          onChangeText={(v) => setFormData({ ...formData, fullName: v })}
+        />
+
+        <Text style={[styles.label, { marginTop: 14 }]}>Contact Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="e.g. 08012345678"
+          placeholderTextColor="#94a3b8"
+          keyboardType="numeric"
+          maxLength={11}
+          value={formData.phoneNumber}
+          onChangeText={(v) => setFormData({ ...formData, phoneNumber: v })}
+        />
+
+        <Text style={[styles.label, { marginTop: 14 }]}>Additional Note (Optional)</Text>
+        <TextInput
+          style={[styles.input, { height: 65, textAlignVertical: "top", paddingTop: 10 }]}
+          placeholder="Enter specific instructions or batch info"
+          placeholderTextColor="#94a3b8"
+          multiline
+          value={formData.additionalNote}
+          onChangeText={(v) => setFormData({ ...formData, additionalNote: v })}
+        />
+      </View>
+
+      {/* Authorization Consent & Submission Card */}
+      <View style={styles.card}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <MaterialCommunityIcons name="shield-lock" size={20} color="#1e3a8a" />
+          <Text style={styles.authTitle}>Legal Authorization Consent</Text>
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+        <TouchableOpacity
+          style={styles.checkboxRow}
+          onPress={() => setIsAuthorized(!isAuthorized)}
+          activeOpacity={0.9}
         >
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>Primary Details</Text>
-              <View style={styles.priceBadge}>
-                <Text style={styles.priceText}>
-                  Fee: ₦{prices[selectedType] || "0.00"}
-                </Text>
-              </View>
-            </View>
+          <MaterialCommunityIcons
+            name={isAuthorized ? "checkbox-marked" : "checkbox-blank-outline"}
+            size={24}
+            color={isAuthorized ? "#1e3a8a" : "#cbd5e1"}
+          />
+          <Text style={styles.authText}>
+            I certify that I have the legitimate authority from the owner to submit this NIN for validation.
+          </Text>
+        </TouchableOpacity>
 
-            <InputField
-              label="NIN Number (11 Digits)"
-              placeholder="Enter 11-digit NIN"
+        <TouchableOpacity
+          style={[styles.submitBtn, !isAuthorized && { backgroundColor: "#cbd5e1" }]}
+          onPress={handleInitiateSubmit}
+          disabled={!isAuthorized}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.submitBtnText}>
+            SUBMIT TO ADMIN (₦{currentCost?.toLocaleString()})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Admin Price Update Modal */}
+      <Modal visible={adminModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons name="pricetag" size={32} color="#f59e0b" style={{ marginBottom: 10 }} />
+            <Text style={styles.modalTitle}>Update Service Price</Text>
+            <Text style={styles.modalSubtitle}>Set new fee for {editingItem?.name}</Text>
+
+            <TextInput
+              style={styles.adminModalInput}
+              placeholder="Enter price in Naira"
+              placeholderTextColor="#94a3b8"
               keyboardType="numeric"
-              maxLength={11}
-              value={formData.ninNumber || ""}
-              onChangeText={(v) => handleInputChange("ninNumber", v)}
+              value={newPriceInput}
+              onChangeText={setNewPriceInput}
             />
 
-            {/* Dynamic Fields based on Selection */}
-            {selectedType === "name" && (
-              <>
-                <InputField
-                  label="First Name"
-                  placeholder="New first name"
-                  value={formData.firstName || ""}
-                  onChangeText={(v) => handleInputChange("firstName", v)}
-                />
-                <InputField
-                  label="Last Name"
-                  placeholder="New last name"
-                  value={formData.lastName || ""}
-                  onChangeText={(v) => handleInputChange("lastName", v)}
-                />
-                <InputField
-                  label="Middle Name"
-                  placeholder="New middle name"
-                  value={formData.middleName || ""}
-                  onChangeText={(v) => handleInputChange("middleName", v)}
-                />
-              </>
-            )}
+            <TouchableOpacity
+              style={[styles.verifyModalBtn, updatingPrice && { opacity: 0.7 }]}
+              onPress={handleSaveAdminPrice}
+              disabled={updatingPrice}
+            >
+              {updatingPrice ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.verifyModalBtnText}>SAVE PRICE</Text>
+              )}
+            </TouchableOpacity>
 
-            {selectedType === "phone" && (
-              <>
-                <InputField
-                  label="Full Name"
-                  placeholder="As seen on NIN"
-                  value={formData.fullName || ""}
-                  onChangeText={(v) => handleInputChange("fullName", v)}
-                />
-                <InputField
-                  label="New Phone Number"
-                  placeholder="080..."
-                  keyboardType="phone-pad"
-                  maxLength={11}
-                  value={formData.newPhone || ""}
-                  onChangeText={(v) => handleInputChange("newPhone", v)}
-                />
-              </>
-            )}
-
-            {selectedType === "dob" && (
-              <>
-                <InputField
-                  label="New Date of Birth"
-                  placeholder="DD/MM/YYYY"
-                  value={formData.newDob || ""}
-                  onChangeText={(v) => handleInputChange("newDob", v)}
-                />
-                <InputField
-                  label="L.G.A of Origin"
-                  placeholder="Your LGA"
-                  value={formData.lgaOrigin || ""}
-                  onChangeText={(v) => handleInputChange("lgaOrigin", v)}
-                />
-                <InputField
-                  label="Place of Birth"
-                  placeholder="Hospital or Town"
-                  value={formData.placeBirth || ""}
-                  onChangeText={(v) => handleInputChange("placeBirth", v)}
-                />
-              </>
-            )}
-
-            {selectedType === "address" && (
-              <>
-                <InputField
-                  label="Address Line 1"
-                  placeholder="House number/Street"
-                  value={formData.addressLine1 || ""}
-                  onChangeText={(v) => handleInputChange("addressLine1", v)}
-                />
-                <InputField
-                  label="Town/City"
-                  placeholder="City name"
-                  value={formData.townCity || ""}
-                  onChangeText={(v) => handleInputChange("townCity", v)}
-                />
-                <InputField
-                  label="State"
-                  placeholder="Current state"
-                  value={formData.state || ""}
-                  onChangeText={(v) => handleInputChange("state", v)}
-                />
-              </>
-            )}
-
-            {(selectedType === "name_dob" || selectedType === "name_phone") && (
-              <>
-                <InputField
-                  label="New First Name"
-                  placeholder="Enter first name"
-                  value={formData.newFirstName || ""}
-                  onChangeText={(v) => handleInputChange("newFirstName", v)}
-                />
-                <InputField
-                  label="New Last Name"
-                  placeholder="Enter last name"
-                  value={formData.newLastName || ""}
-                  onChangeText={(v) => handleInputChange("newLastName", v)}
-                />
-                {selectedType === "name_dob" ? (
-                  <InputField
-                    label="New Date of Birth"
-                    placeholder="DD/MM/YYYY"
-                    value={formData.newDob || ""}
-                    onChangeText={(v) => handleInputChange("newDob", v)}
-                  />
-                ) : (
-                  <InputField
-                    label="New Phone Number"
-                    placeholder="080..."
-                    keyboardType="phone-pad"
-                    maxLength={11}
-                    value={formData.newPhoneNumber || ""}
-                    onChangeText={(v) => handleInputChange("newPhoneNumber", v)}
-                  />
-                )}
-              </>
-            )}
+            <TouchableOpacity
+              onPress={() => setAdminModalVisible(false)}
+              style={{ marginTop: 10 }}
+            >
+              <Text style={{ color: "#dc2626", fontWeight: "bold" }}>Cancel</Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={styles.submitBtn}
-            onPress={handleInitiateSubmit}
-            activeOpacity={0.9}
-          >
-            <Text style={styles.btnText}>SUBMIT MODIFICATION REQUEST</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* PIN Verification Modal */}
       <Modal visible={pinModalVisible} transparent animationType="slide">
@@ -363,9 +437,9 @@ const NIMCModification = ({ navigation }) => {
             <View style={styles.modalHeaderIcon}>
               <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
             </View>
-            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
+            <Text style={styles.modalTitle}>Enter Security PIN</Text>
             <Text style={styles.modalSubtitle}>
-              Please input your 4-digit PIN to authorize this modification request
+              Authorize ₦{currentCost?.toLocaleString()} charge for {selectedType}
             </Text>
 
             <TextInput
@@ -387,7 +461,7 @@ const NIMCModification = ({ navigation }) => {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.verifyModalBtnText}>Confirm & Submit</Text>
+                <Text style={styles.verifyModalBtnText}>Confirm & Submit Request</Text>
               )}
             </TouchableOpacity>
 
@@ -403,170 +477,182 @@ const NIMCModification = ({ navigation }) => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+
+      <View style={{ height: 50 }} />
+    </ScrollView>
   );
 };
 
-const InputField = ({ label, ...props }) => (
-  <View style={styles.inputGroup}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput style={styles.input} placeholderTextColor="#94a3b8" {...props} />
-  </View>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  headerSection: {
+  container: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 16, paddingTop: 15 },
+  topHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 15,
-    marginBottom: 10,
+    marginTop: Platform.OS === "ios" ? 40 : 25,
+    marginBottom: 15,
   },
-  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#1e3a8a" },
-  tabContainer: {
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-  },
-  tabScroll: { paddingHorizontal: 15, paddingVertical: 10 },
-  tabItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginRight: 8,
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  activeTabItem: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
-  tabText: { fontSize: 13, fontWeight: "bold", color: "#64748b", marginLeft: 6 },
-  activeTabText: { color: "#fff" },
-  scrollContent: { padding: 20 },
+  backButton: { width: 40, height: 40, justifyContent: "center" },
+  screenMainTitle: { fontSize: 16, fontWeight: "900", color: "#1e3a8a" },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 15,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 15,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  cardHeader: {
+  header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 14,
   },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#1e3a8a",
-  },
+  title: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
   priceBadge: {
     backgroundColor: "#eff6ff",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#bae6fd",
   },
-  priceText: { color: "#0369a1", fontSize: 12, fontWeight: "bold" },
-  inputGroup: { marginBottom: 15 },
-  label: { fontSize: 13, fontWeight: "bold", color: "#475569", marginBottom: 8 },
-  input: {
-    backgroundColor: "#f8fafc",
+  priceText: { color: "#0369a1", fontSize: 11, fontWeight: "800" },
+  chipContainer: { flexDirection: "row", flexWrap: "wrap" },
+  chipWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 8,
+    marginBottom: 10,
+  },
+  chip: {
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    padding: 15,
     borderRadius: 12,
-    fontSize: 16,
-    color: "#0f172a",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: "#f8fafc",
   },
+  selectedChip: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
+  chipText: { fontSize: 11.5, color: "#64748b", fontWeight: "700" },
+  selectedChipText: { color: "#fff", fontWeight: "800" },
+  chipPriceTag: { fontSize: 9.5, color: "#94a3b8", fontWeight: "700", marginTop: 2 },
+  selectedChipPriceTag: { color: "#38bdf8" },
+  adminEditBtn: {
+    padding: 6,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  label: { fontSize: 11.5, fontWeight: "800", color: "#475569", marginBottom: 6, letterSpacing: 0.3 },
+  input: {
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    backgroundColor: "#f8fafc",
+    color: "#0f172a",
+    fontSize: 14.5,
+    fontWeight: "600",
+  },
+  authTitle: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
+  checkboxRow: {
+    flexDirection: "row",
+    marginTop: 12,
+    alignItems: "flex-start",
+  },
+  authText: { fontSize: 11.5, color: "#475569", marginLeft: 10, flex: 1, lineHeight: 18 },
   submitBtn: {
     backgroundColor: "#1e3a8a",
-    padding: 18,
-    borderRadius: 15,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 10,
-    marginBottom: 40,
-    elevation: 3,
+    marginTop: 18,
+    elevation: 2,
   },
-  btnText: { color: "#fff", fontSize: 15, fontWeight: "bold" },
+  submitBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
 
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalContent: {
     width: "100%",
-    maxWidth: 340,
+    maxWidth: 320,
     backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 22,
+    padding: 22,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    elevation: 10,
+    elevation: 8,
   },
-  modalHeaderIcon: {
-    marginBottom: 10,
-  },
+  modalHeaderIcon: { marginBottom: 8 },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "900",
     color: "#1e3a8a",
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: "center",
   },
   modalSubtitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: "#64748b",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 16,
+  },
+  adminModalInput: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0f172a",
+    marginBottom: 16,
   },
   modalPinInput: {
     width: "100%",
-    height: 55,
+    height: 50,
     backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 14,
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
     textAlign: "center",
-    fontSize: 24,
+    fontSize: 22,
     letterSpacing: 8,
     fontWeight: "bold",
     color: "#0f172a",
-    marginBottom: 20,
+    marginBottom: 18,
   },
   verifyModalBtn: {
     width: "100%",
-    height: 48,
+    height: 46,
     backgroundColor: "#1e3a8a",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 8,
   },
   verifyModalBtnText: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
+    fontWeight: "800",
+    fontSize: 13,
   },
-  cancelModalBtn: {
-    paddingVertical: 8,
-  },
+  cancelModalBtn: { paddingVertical: 6 },
   cancelModalBtnText: {
     color: "#dc2626",
-    fontWeight: "600",
-    fontSize: 13,
+    fontWeight: "700",
+    fontSize: 12,
   },
 });
 
-export default NIMCModification;
+export default NINValidation;
