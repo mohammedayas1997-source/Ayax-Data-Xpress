@@ -45,7 +45,7 @@ const ElectricityScreen = ({ navigation }) => {
   const [customerAddress, setCustomerAddress] = useState("");
 
   // Dynamic Service Fee state
-  const [fee, setFee] = useState(100);
+  const [fee, setFee] = useState(0);
   const [loadingFee, setLoadingFee] = useState(false);
 
   // Verification & Purchasing States
