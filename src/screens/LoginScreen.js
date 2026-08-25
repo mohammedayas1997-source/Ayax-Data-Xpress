@@ -27,7 +27,7 @@ const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState("");
+  const [identifierInput, setIdentifierInput] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -39,10 +39,10 @@ const LoginScreen = ({ navigation }) => {
     checkBiometricStatus();
   }, []);
 
-  // Precise Navigation Dispatcher
-  const routeUserByRole = (rawRole, rawEmail = "") => {
+  // Precise Navigation Dispatcher na Dukkan Roles
+  const routeUserByRole = (rawRole, rawIdentifier = "") => {
     const role = String(rawRole || "").trim().toLowerCase();
-    const identifier = String(rawEmail || email || "").trim().toLowerCase();
+    const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
 
     console.log("[Dispatcher] Routing Account:", { role, identifier });
 
@@ -66,10 +66,26 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    if (role === "supervisor" || role === "leader") {
+    if (role === "leader") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "LeaderDashboard" }],
+      });
+      return;
+    }
+
+    if (role === "supervisor") {
       navigation.reset({
         index: 0,
         routes: [{ name: "SupervisorDashboard" }],
+      });
+      return;
+    }
+
+    if (role === "support" || role === "customer_service") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "SupportActivities" }],
       });
       return;
     }
@@ -87,6 +103,7 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
+    // Default Customer App View
     navigation.reset({
       index: 0,
       routes: [{ name: "Main" }],
@@ -97,7 +114,7 @@ const LoginScreen = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const storedUserData = await AsyncStorage.getItem("userData");
-      const savedEmail = await AsyncStorage.getItem("savedEmail");
+      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
 
       if (token) {
         const user = storedUserData ? JSON.parse(storedUserData) : {};
@@ -105,15 +122,15 @@ const LoginScreen = ({ navigation }) => {
 
         if (
           detectedRole === "superadmin" ||
-          savedEmail === "mohammed.ayas@ayaxdata.online" ||
-          savedEmail === "09033738409"
+          savedIdentifier === "mohammed.ayas@ayaxdata.online" ||
+          savedIdentifier === "09033738409"
         ) {
-          routeUserByRole("superadmin", savedEmail);
+          routeUserByRole("superadmin", savedIdentifier);
           return;
         }
 
         if (detectedRole) {
-          routeUserByRole(detectedRole, savedEmail);
+          routeUserByRole(detectedRole, savedIdentifier);
         }
       }
     } catch (e) {
@@ -136,7 +153,7 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const openWhatsApp = () => {
-    Linking.openURL("whatsapp://send?phone=+2349061244444&text=Hello Ayax Xpress Support");
+    Linking.openURL("whatsapp://send?phone=+2349033738409&text=Hello Ayax Xpress Support");
   };
 
   const openEmail = () => {
@@ -144,13 +161,14 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const makeCall = () => {
-    Linking.openURL("tel:+2349061244444");
+    Linking.openURL("tel:+2349033738409");
   };
 
   const handleLogin = async () => {
     setErrorMessage("");
 
-    if (!email.trim() || !password) {
+    const cleanInput = identifierInput.trim();
+    if (!cleanInput || !password) {
       setErrorMessage("Please provide your email address/phone and password.");
       return;
     }
@@ -158,13 +176,25 @@ const LoginScreen = ({ navigation }) => {
     setLoading(true);
 
     try {
-      const identifier = email.trim().toLowerCase();
+      const isPhone = /^[0-9+]+$/.test(cleanInput);
 
-      const response = await axios.post(`${BASE_URL}/auth/login`, {
-        email: identifier,
-        phone: identifier,
-        password: password,
-      });
+      // Shirya payload yadda zai dace da kowane irin backend login query
+      const payload = {
+        password: password.trim(),
+        identifier: cleanInput,
+        emailOrPhone: cleanInput,
+        phone: isPhone ? cleanInput : undefined,
+        email: !isPhone ? cleanInput.toLowerCase() : undefined,
+      };
+
+      // Tabbatar an tura ko wanne field idan backend yana neman daya tak
+      if (isPhone) {
+        payload.email = cleanInput; // fallback
+      } else {
+        payload.phone = cleanInput; // fallback
+      }
+
+      const response = await axios.post(`${BASE_URL}/auth/login`, payload);
 
       const resData = response.data || {};
       const token = resData.token || resData.accessToken || resData.data?.token || "";
@@ -174,27 +204,27 @@ const LoginScreen = ({ navigation }) => {
         userPayload?.role ||
         resData.role ||
         resData.data?.role ||
-        ""
+        "user"
       )
         .trim()
         .toLowerCase();
 
-      if (identifier === "mohammed.ayas@ayaxdata.online" || identifier === "09033738409") {
+      if (cleanInput === "mohammed.ayas@ayaxdata.online" || cleanInput === "09033738409") {
         userRole = "superadmin";
       }
 
       if (!token) {
-        setErrorMessage("Authentication token missing from server.");
+        setErrorMessage("Authentication token missing from server response.");
         setLoading(false);
         return;
       }
 
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
-      await AsyncStorage.setItem("savedEmail", identifier);
+      await AsyncStorage.setItem("savedIdentifier", cleanInput);
       await AsyncStorage.setItem("savedPassword", password);
 
-      routeUserByRole(userRole, identifier);
+      routeUserByRole(userRole, cleanInput);
     } catch (error) {
       console.log("Login Error:", error?.response?.data || error.message);
 
@@ -220,25 +250,29 @@ const LoginScreen = ({ navigation }) => {
 
       if (!result.success) return;
 
-      const savedEmail = await AsyncStorage.getItem("savedEmail");
+      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
       const savedPassword = await AsyncStorage.getItem("savedPassword");
 
-      if (!savedEmail || !savedPassword) {
+      if (!savedIdentifier || !savedPassword) {
         setErrorMessage("Please login using password once before enabling biometrics.");
         return;
       }
 
       setLoading(true);
+      const isPhone = /^[0-9+]+$/.test(savedIdentifier);
+
       const response = await axios.post(`${BASE_URL}/auth/login`, {
-        email: savedEmail,
-        phone: savedEmail,
+        identifier: savedIdentifier,
+        emailOrPhone: savedIdentifier,
+        email: savedIdentifier,
+        phone: savedIdentifier,
         password: savedPassword,
       });
 
       const resData = response.data || {};
       const token = resData.token || resData.accessToken || resData.data?.token || "";
       const userPayload = resData.user || resData.data?.user || resData.data || {};
-      
+
       let userRole = (
         userPayload?.role ||
         resData.role ||
@@ -248,7 +282,7 @@ const LoginScreen = ({ navigation }) => {
         .trim()
         .toLowerCase();
 
-      if (savedEmail === "mohammed.ayas@ayaxdata.online" || savedEmail === "09033738409") {
+      if (savedIdentifier === "mohammed.ayas@ayaxdata.online" || savedIdentifier === "09033738409") {
         userRole = "superadmin";
       }
 
@@ -261,7 +295,7 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
 
-      routeUserByRole(userRole, savedEmail);
+      routeUserByRole(userRole, savedIdentifier);
     } catch (error) {
       setErrorMessage("Biometric authentication failed. Please enter password.");
     } finally {
@@ -312,9 +346,9 @@ const LoginScreen = ({ navigation }) => {
                 style={styles.input}
                 placeholder="Email or 08012345678"
                 placeholderTextColor="#94a3b8"
-                value={email}
+                value={identifierInput}
                 onChangeText={(text) => {
-                  setEmail(text);
+                  setIdentifierInput(text);
                   if (errorMessage) setErrorMessage("");
                 }}
                 keyboardType="email-address"
@@ -442,7 +476,7 @@ const LoginScreen = ({ navigation }) => {
                 <Ionicons name="mail" size={24} color="#EA4335" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.phoneNumber}>+234 906 124 4444</Text>
+            <Text style={styles.phoneNumber}>+234 903 373 8409</Text>
           </View>
         </View>
       </ScrollView>
