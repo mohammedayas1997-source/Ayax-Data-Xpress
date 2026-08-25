@@ -41,74 +41,61 @@ const LoginScreen = ({ navigation }) => {
 
   // Precise Navigation Dispatcher na Dukkan Roles
   const routeUserByRole = (rawRole, rawIdentifier = "") => {
-    const role = String(rawRole || "").trim().toLowerCase();
-    const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
+  const role = String(rawRole || "").trim().toLowerCase();
+  const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
 
-    console.log("[Dispatcher] Routing Account:", { role, identifier });
+  // 1. SuperAdmin
+  if (
+    role === "superadmin" ||
+    identifier === "mohammed.ayas@ayaxdata.online" ||
+    identifier === "09033738409"
+  ) {
+    navigation.reset({ index: 0, routes: [{ name: "SuperAdminDashboard" }] });
+    return;
+  }
 
-    if (
-      role === "superadmin" ||
-      identifier === "mohammed.ayas@ayaxdata.online" ||
-      identifier === "09033738409"
-    ) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "SuperAdminDashboard" }],
-      });
-      return;
-    }
+  // 2. National Sales Director (NSD)
+  if (role === "national_sales_director" || role === "super_leader") {
+    navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] }); // ko NsdDashboard
+    return;
+  }
 
-    if (role === "admin") {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "AdminDashboard" }],
-      });
-      return;
-    }
+  // 3. Operations Admin
+  if (role === "admin") {
+    navigation.reset({ index: 0, routes: [{ name: "AdminDashboard" }] });
+    return;
+  }
 
-    if (role === "leader") {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "LeaderDashboard" }],
-      });
-      return;
-    }
+  // 4. State Manager (SM)
+  if (role === "state_manager" || role === "leader") {
+    navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
+    return;
+  }
 
-    if (role === "supervisor") {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "SupervisorDashboard" }],
-      });
-      return;
-    }
+  // 5. Field Supervisor (FS)
+  if (role === "supervisor" || role === "field_supervisor") {
+    navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
+    return;
+  }
 
-    if (role === "support" || role === "customer_service") {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "SupportActivities" }],
-      });
-      return;
-    }
+  // 6. Customer Support
+  if (role === "support" || role === "customer_service") {
+    navigation.reset({ index: 0, routes: [{ name: "SupportActivities" }] });
+    return;
+  }
 
-    if (role === "agent") {
-      navigation.reset({
-        index: 0,
-        routes: [
-          {
-            name: "Main",
-            state: { routes: [{ name: "AgentDashboard" }] },
-          },
-        ],
-      });
-      return;
-    }
-
-    // Default Customer App View
+  // 7. Agent
+  if (role === "agent") {
     navigation.reset({
       index: 0,
-      routes: [{ name: "Main" }],
+      routes: [{ name: "Main", state: { routes: [{ name: "AgentDashboard" }] } }],
     });
-  };
+    return;
+  }
+
+  // 8. Default Customer
+  navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+};
 
   const checkLoginStatus = async () => {
     try {

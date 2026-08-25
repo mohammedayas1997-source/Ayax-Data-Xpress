@@ -32,7 +32,7 @@ const isLargeScreen = width >= 1024;
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const LeaderDashboard = ({ navigation }) => {
-  const [leaderState, setLeaderState] = useState("Kano");
+  const [managerState, setManagerState] = useState("Kano");
   const [supervisors, setSupervisors] = useState([]);
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
@@ -75,7 +75,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Current State LGA Matrix
-  const currentLgaList = NIGERIA_STATES_LGAS[leaderState] || [
+  const currentLgaList = NIGERIA_STATES_LGAS[managerState] || [
     "Central", "North", "South", "East", "West"
   ];
 
@@ -116,7 +116,7 @@ const LeaderDashboard = ({ navigation }) => {
       if (storedUserData) {
         const parsed = JSON.parse(storedUserData);
         if (parsed.state && ALL_NIGERIAN_STATES.includes(parsed.state)) {
-          setLeaderState(parsed.state);
+          setManagerState(parsed.state);
         }
       }
 
@@ -151,7 +151,7 @@ const LeaderDashboard = ({ navigation }) => {
         await AsyncStorage.clear();
         navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
       } else if (!isBackground) {
-        console.error("Dashboard Fetch Error:", error.message);
+        console.error("State Operations Sync Error:", error.message);
       }
     } finally {
       setLoading(false);
@@ -187,7 +187,7 @@ const LeaderDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data?.success || res.status === 200) {
-        showAlert("Success", `Supervisor successfully ${action}ed.`);
+        showAlert("Success", `Field Supervisor successfully ${action}ed.`);
         fetchDashboardData();
       }
     } catch (e) {
@@ -208,14 +208,14 @@ const LeaderDashboard = ({ navigation }) => {
           agentGoal: Number(targetAgentGoal),
           dataGoal: Number(targetDataGoal),
           month: targetMonth.trim(),
-          state: leaderState,
+          state: managerState,
           lga: targetRecipient.lga,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Target Deployed 🎯", `Target allocated for ${targetRecipient.name || targetRecipient.phone}`);
+        showAlert("Target Deployed 🎯", `Target quota allocated for ${targetRecipient.name || targetRecipient.phone}`);
         setTargetModalVisible(false);
         setTargetRecipient(null);
         fetchDashboardData();
@@ -241,7 +241,7 @@ const LeaderDashboard = ({ navigation }) => {
           name: newSupName.trim(),
           phone: newSupPhone.trim(),
           email: newSupEmail.trim() || undefined,
-          state: leaderState,
+          state: managerState,
           lga: newSupLga,
           role: "supervisor",
         },
@@ -249,7 +249,7 @@ const LeaderDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Supervisor Enrolled 🎉", `Assigned to ${newSupLga} LGA, ${leaderState} State.`);
+        showAlert("Field Supervisor Appointed 🎉", `Assigned to ${newSupLga} LGA, ${managerState} State.`);
         setEnrollModalVisible(false);
         setNewSupName("");
         setNewSupPhone("");
@@ -266,7 +266,7 @@ const LeaderDashboard = ({ navigation }) => {
 
   const handleBroadcastAlert = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
-      return showAlert("Validation Error", "Title and Body Message are required.");
+      return showAlert("Validation Error", "Directive Title and Body Message are required.");
     }
 
     setActionLoading(true);
@@ -277,14 +277,14 @@ const LeaderDashboard = ({ navigation }) => {
         {
           title: notifTitle.trim(),
           message: notifMessage.trim(),
-          category: "LEADER_DIRECTIVE",
-          state: leaderState,
+          category: "STATE_DIRECTIVE",
+          state: managerState,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Broadcast Dispatched 🚀", "Notice delivered to all State Coordinators.");
+        showAlert("Directive Dispatched 🚀", "Notice delivered to all Field Supervisors.");
         setNotifModalVisible(false);
         setNotifTitle("");
         setNotifMessage("");
@@ -320,8 +320,8 @@ const LeaderDashboard = ({ navigation }) => {
       <View style={styles.loaderContainer}>
         <StatusBar barStyle="light-content" backgroundColor="#060c18" />
         <ActivityIndicator size="large" color="#d4af37" />
-        <Text style={styles.loaderTitle}>{leaderState.toUpperCase()} COMMAND ENGINE</Text>
-        <Text style={styles.loaderText}>Establishing Real-Time Multi-Supervisor Field Telemetry...</Text>
+        <Text style={styles.loaderTitle}>{managerState.toUpperCase()} STATE OPERATIONS</Text>
+        <Text style={styles.loaderText}>Syncing Real-Time Field Supervisors & Agents Matrix...</Text>
       </View>
     );
   }
@@ -339,9 +339,9 @@ const LeaderDashboard = ({ navigation }) => {
         <View style={styles.topBrandGroup}>
           <View style={styles.stateBadge}>
             <View style={styles.livePulseDot} />
-            <Text style={styles.stateBadgeText}>{leaderState.toUpperCase()} STATE LEADER</Text>
+            <Text style={styles.stateBadgeText}>{managerState.toUpperCase()} STATE MANAGER (SM)</Text>
           </View>
-          <Text style={styles.topBrandTitle}>{currentLgaList.length} LGAS COMMAND DESK</Text>
+          <Text style={styles.topBrandTitle}>{currentLgaList.length} LGAS OPERATIONS DESK</Text>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -393,7 +393,7 @@ const LeaderDashboard = ({ navigation }) => {
             color={activeTab === "supervisors" ? "#d4af37" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "supervisors" && styles.mainNavTabTextActive]}>
-            Supervisors ({filteredSupervisors.length})
+            Field Supervisors ({filteredSupervisors.length})
           </Text>
         </TouchableOpacity>
 
@@ -439,7 +439,7 @@ const LeaderDashboard = ({ navigation }) => {
           {/* TOP SUMMARY STATS */}
           <View style={styles.telemetrySection}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderLabel}>{leaderState.toUpperCase()} REAL-TIME FIELD METRICS</Text>
+              <Text style={styles.sectionHeaderLabel}>{managerState.toUpperCase()} FIELD PERFORMANCE METRICS</Text>
               <View style={styles.geoIndicatorBadge}>
                 <Ionicons name="location" size={13} color="#d4af37" />
                 <Text style={styles.geoIndicatorText}>{selectedLga}</Text>
@@ -449,7 +449,7 @@ const LeaderDashboard = ({ navigation }) => {
             <View style={styles.metricGrid}>
               <View style={[styles.metricCard, { borderColor: "rgba(212, 175, 55, 0.35)" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>LGA Supervisors</Text>
+                  <Text style={styles.metricLabel}>Field Supervisors (FS)</Text>
                   <FontAwesome5 name="user-tie" size={15} color="#d4af37" />
                 </View>
                 <Text style={[styles.metricValue, { color: "#d4af37" }]}>{stats.totalSupervisors}</Text>
@@ -462,18 +462,18 @@ const LeaderDashboard = ({ navigation }) => {
                   <Ionicons name="people" size={17} color="#38bdf8" />
                 </View>
                 <Text style={[styles.metricValue, { color: "#38bdf8" }]}>{stats.totalAgents}</Text>
-                <Text style={styles.metricSub}>Retail Network Active</Text>
+                <Text style={styles.metricSub}>Active Resellers Network</Text>
               </View>
 
               <View style={[styles.metricCard, { borderColor: "rgba(16, 185, 129, 0.35)" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>Total Data Sold</Text>
+                  <Text style={styles.metricLabel}>Total State Volume</Text>
                   <Ionicons name="server" size={16} color="#10b981" />
                 </View>
                 <Text style={[styles.metricValue, { color: "#10b981" }]}>
                   {Number(stats.overallDataSold || 0).toLocaleString()} GB
                 </Text>
-                <Text style={styles.metricSub}>State Total Volume</Text>
+                <Text style={styles.metricSub}>State Retail Delivery</Text>
               </View>
 
               <View style={[styles.metricCard, { borderColor: "rgba(192, 132, 252, 0.35)" }]}>
@@ -489,7 +489,7 @@ const LeaderDashboard = ({ navigation }) => {
 
           {/* HORIZONTAL LGA FILTER */}
           <View style={styles.lgaFilterContainer}>
-            <Text style={styles.sectionHeaderLabel}>FILTER BY LOCAL GOVERNMENT AREA</Text>
+            <Text style={styles.sectionHeaderLabel}>TERRITORY FILTER (BY LOCAL GOVERNMENT)</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled={true} style={{ marginTop: 8 }}>
               {["All LGAs", ...currentLgaList].map((lga) => (
                 <TouchableOpacity
@@ -510,7 +510,7 @@ const LeaderDashboard = ({ navigation }) => {
             <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
-              placeholder={`Search ${leaderState} Supervisors, Agents, or LGA...`}
+              placeholder={`Search ${managerState} Field Supervisors, Agents, or LGA...`}
               placeholderTextColor="#64748b"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -522,7 +522,7 @@ const LeaderDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: LOCAL GOVERNMENTS STATUS MATRIX (MULTI-SUPERVISOR SUPPORT) */}
+          {/* TAB 1: LOCAL GOVERNMENTS STATUS MATRIX */}
           {activeTab === "lgas" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -559,7 +559,7 @@ const LeaderDashboard = ({ navigation }) => {
                               { color: supsInLga.length > 0 ? "#10b981" : "#ef4444" },
                             ]}
                           >
-                            {supsInLga.length} Sups
+                            {supsInLga.length} FS
                           </Text>
                         </View>
                       </View>
@@ -567,7 +567,7 @@ const LeaderDashboard = ({ navigation }) => {
                       {supsInLga.length > 0 ? (
                         <>
                           <Text style={styles.lgaSupervisorCount}>
-                            👥 {supsInLga.length} Supervisor(s) Active
+                            👥 {supsInLga.length} Field Supervisor(s) Active
                           </Text>
                           <Text style={styles.lgaStatsSummary}>
                             {agentsInLga.length} Agents • {totalLgaData} GB Sold
@@ -591,12 +591,12 @@ const LeaderDashboard = ({ navigation }) => {
                               setEnrollModalVisible(true);
                             }}
                           >
-                            <Text style={styles.lgaAppointBtnText}>+ Add More Supervisors</Text>
+                            <Text style={styles.lgaAppointBtnText}>+ Add Field Supervisor</Text>
                           </TouchableOpacity>
                         </>
                       ) : (
                         <View style={{ alignItems: "center", paddingVertical: 10 }}>
-                          <Text style={styles.lgaUnassignedText}>No Active Supervisor</Text>
+                          <Text style={styles.lgaUnassignedText}>No Supervisor Appointed</Text>
                           <TouchableOpacity
                             style={styles.lgaAppointBtn}
                             onPress={() => {
@@ -615,11 +615,11 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: SUPERVISORS LIST */}
+          {/* TAB 2: FIELD SUPERVISORS LIST */}
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>SUPERVISORS MATRIX ({filteredSupervisors.length})</Text>
+                <Text style={styles.sectionHeaderLabel}>FIELD SUPERVISORS MATRIX ({filteredSupervisors.length})</Text>
                 <TouchableOpacity style={styles.actionPillBtn} onPress={() => setEnrollModalVisible(true)}>
                   <Ionicons name="person-add" size={13} color="#0a1224" />
                   <Text style={styles.actionPillBtnText}>ENROLL</Text>
@@ -629,7 +629,7 @@ const LeaderDashboard = ({ navigation }) => {
               {filteredSupervisors.length > 0 ? (
                 filteredSupervisors.map((item) => {
                   const supId = item._id || item.id;
-                  const supName = item.name || `${item.firstName || ""} ${item.surname || ""}` || "Supervisor Lead";
+                  const supName = item.name || `${item.firstName || ""} ${item.surname || ""}` || "Field Supervisor";
                   const supLga = item.lga || "Unassigned LGA";
 
                   return (
@@ -644,7 +644,7 @@ const LeaderDashboard = ({ navigation }) => {
                             <View style={styles.locationTagRow}>
                               <Ionicons name="location-sharp" size={12} color="#38bdf8" />
                               <Text style={styles.locationTagText}>
-                                {leaderState} • {supLga} LGA
+                                {managerState} • {supLga} LGA
                               </Text>
                             </View>
                           </View>
@@ -712,7 +712,7 @@ const LeaderDashboard = ({ navigation }) => {
               ) : (
                 <View style={styles.emptyFeed}>
                   <FontAwesome5 name="user-slash" size={34} color="#475569" />
-                  <Text style={styles.emptyFeedText}>No supervisors registered in this LGA.</Text>
+                  <Text style={styles.emptyFeedText}>No Field Supervisors registered in this LGA.</Text>
                 </View>
               )}
             </View>
@@ -722,7 +722,7 @@ const LeaderDashboard = ({ navigation }) => {
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>GRASSROOT AGENTS ({filteredAgents.length})</Text>
+                <Text style={styles.sectionHeaderLabel}>GRASSROOT RETAIL AGENTS ({filteredAgents.length})</Text>
                 <Text style={{ color: "#d4af37", fontSize: 11, fontWeight: "bold" }}>FIELD RESELLERS</Text>
               </View>
 
@@ -733,7 +733,7 @@ const LeaderDashboard = ({ navigation }) => {
                       <View style={{ flex: 1 }}>
                         <Text style={styles.agentNameText}>{ag.name || "Retail Agent"}</Text>
                         <Text style={styles.agentSupervisorTag}>
-                          Supervisor: {ag.assignedSupervisorName || "LGA Lead"} ({ag.lga || "LGA"})
+                          Supervisor: {ag.assignedSupervisorName || "LGA Supervisor"} ({ag.lga || "LGA"})
                         </Text>
                         <Text style={styles.agentLocationTag}>📞 {ag.phone || "No phone"}</Text>
                       </View>
@@ -792,7 +792,7 @@ const LeaderDashboard = ({ navigation }) => {
                       </Text>
                     </View>
                     <Text style={styles.logDetailsText}>{log.details || log.action || "Field operation recorded."}</Text>
-                    <Text style={styles.logActorText}>Actor: {log.user?.phone || log.actorRole || "Leader Node"}</Text>
+                    <Text style={styles.logActorText}>Actor: {log.user?.phone || log.actorRole || "State Desk"}</Text>
                   </View>
                 ))
               ) : (
@@ -813,7 +813,7 @@ const LeaderDashboard = ({ navigation }) => {
             }}
           >
             <MaterialIcons name="file-download" size={20} color="#0a1224" />
-            <Text style={styles.downloadReportBtnText}>GENERATE {leaderState.toUpperCase()} AUDIT REPORT</Text>
+            <Text style={styles.downloadReportBtnText}>GENERATE {managerState.toUpperCase()} AUDIT REPORT</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -833,8 +833,8 @@ const LeaderDashboard = ({ navigation }) => {
               <View style={styles.sidebarBrandRow}>
                 <MaterialCommunityIcons name="shield-star" size={26} color="#d4af37" />
                 <View style={{ marginLeft: 10 }}>
-                  <Text style={styles.sidebarBrandText}>{leaderState} Leader</Text>
-                  <Text style={styles.sidebarRoleText}>Territory Operations Hub</Text>
+                  <Text style={styles.sidebarBrandText}>{managerState} State Manager</Text>
+                  <Text style={styles.sidebarRoleText}>State Operations Hub</Text>
                 </View>
               </View>
               <TouchableOpacity onPress={() => toggleSidebar(false)}>
@@ -868,7 +868,7 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
                   <FontAwesome5 name="user-tie" size={14} color="#38bdf8" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "supervisors" && { color: "#d4af37" }]}>Supervisors Network</Text>
+                <Text style={[styles.navItemText, activeTab === "supervisors" && { color: "#d4af37" }]}>Field Supervisors (FS)</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -909,7 +909,7 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "rgba(212, 175, 55, 0.15)" }]}>
                   <Ionicons name="person-add-outline" size={16} color="#d4af37" />
                 </View>
-                <Text style={styles.navItemText}>Appoint Supervisor</Text>
+                <Text style={styles.navItemText}>Appoint Field Supervisor</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -922,13 +922,13 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
                   <Ionicons name="megaphone-outline" size={16} color="#38bdf8" />
                 </View>
-                <Text style={styles.navItemText}>Broadcast Directive</Text>
+                <Text style={styles.navItemText}>Broadcast State Directive</Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
               <Feather name="log-out" size={17} color="#ef4444" />
-              <Text style={styles.logoutBtnText}>Exit Leader Session</Text>
+              <Text style={styles.logoutBtnText}>Exit Manager Session</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
@@ -984,14 +984,14 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ENROLL SUPERVISOR (CAN ASSIGN MULTIPLE PER LGA) */}
+      {/* MODAL 2: ENROLL FIELD SUPERVISOR */}
       <Modal visible={enrollModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Appoint LGA Supervisor</Text>
-                <Text style={styles.modalCardSubtitle}>Add field coordinators in {leaderState}</Text>
+                <Text style={styles.modalCardTitle}>Appoint Field Supervisor (FS)</Text>
+                <Text style={styles.modalCardSubtitle}>Deploy LGA field coordinator in {managerState}</Text>
               </View>
               <TouchableOpacity onPress={() => setEnrollModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -1036,7 +1036,7 @@ const LeaderDashboard = ({ navigation }) => {
               <Text style={styles.formFieldLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
               <TextInput
                 style={styles.textInputStyle}
-                placeholder="e.g. sup@ayaxdata.online"
+                placeholder="e.g. fs@ayaxdata.online"
                 placeholderTextColor="#64748b"
                 keyboardType="email-address"
                 value={newSupEmail}
@@ -1065,8 +1065,8 @@ const LeaderDashboard = ({ navigation }) => {
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Broadcast Team Directive</Text>
-                <Text style={styles.modalCardSubtitle}>Push real-time alert across {leaderState}</Text>
+                <Text style={styles.modalCardTitle}>Broadcast State Directive</Text>
+                <Text style={styles.modalCardSubtitle}>Push real-time alert across {managerState}</Text>
               </View>
               <TouchableOpacity onPress={() => setNotifModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -1076,7 +1076,7 @@ const LeaderDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>DIRECTIVE TITLE</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. Month-End Performance Review"
+              placeholder="e.g. Month-End Field Performance Review"
               placeholderTextColor="#64748b"
               value={notifTitle}
               onChangeText={setNotifTitle}
