@@ -37,7 +37,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
-  // State Manager's Target Overview (Wanda NSD ya tura masa)
+  // State Manager's Target Overview
   const [myStateTarget, setMyStateTarget] = useState({
     dataGoal: 5000,
     airtimeGoal: 500000,
@@ -74,7 +74,7 @@ const LeaderDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal 1: Inspection Modal (Danna Kan Supervisor domin ganin Agents dinsa)
+  // Modal 1: Inspection Modal
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
@@ -263,7 +263,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Deploy Target (Single / Bulk / Edit)
+  // Deploy Target (Supervisor ko Agent)
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -377,7 +377,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Enroll Supervisor
+  // Enroll Supervisor (tare da Email)
   const handleEnrollSupervisor = async () => {
     if (!newSupName.trim() || !newSupPhone.trim() || !newSupLga) {
       return showAlert("Validation Error", "Name, Phone Number, and LGA are required.");
@@ -745,7 +745,7 @@ const LeaderDashboard = ({ navigation }) => {
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Targets ({selectedSupIds.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>Deploy Targets ({selectedSupIds.length} FS)</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -909,7 +909,7 @@ const LeaderDashboard = ({ navigation }) => {
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Quota ({selectedAgentIds.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Quotas ({selectedAgentIds.length} Agents)</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -940,7 +940,7 @@ const LeaderDashboard = ({ navigation }) => {
                         <View style={{ flex: 1 }}>
                           <Text style={styles.agentNameText}>{ag.name || "Retail Agent"}</Text>
                           <Text style={styles.agentSupervisorTag}>
-                            FS: {ag.assignedSupervisorName || "LGA Supervisor"} ({ag.lga || "LGA"})
+                            FS Lead: {ag.assignedSupervisorName || "LGA Supervisor"} ({ag.lga || "LGA"})
                           </Text>
                           <Text style={styles.agentLocationTag}>📞 {ag.phone || "No phone"}</Text>
                         </View>
@@ -1413,7 +1413,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: ENROLL FIELD SUPERVISOR */}
+      {/* MODAL 3: ENROLL FIELD SUPERVISOR (WITH EMAIL FIELD) */}
       <Modal visible={enrollModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1460,6 +1460,18 @@ const LeaderDashboard = ({ navigation }) => {
                 keyboardType="phone-pad"
                 value={newSupPhone}
                 onChangeText={setNewSupPhone}
+              />
+
+              {/* EMAIL FIELD */}
+              <Text style={styles.formFieldLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. supervisor@ayaxdata.online"
+                placeholderTextColor="#94a3b8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={newSupEmail}
+                onChangeText={setNewSupEmail}
               />
 
               <Text style={styles.formFieldLabel}>LOGIN PASSWORD</Text>
@@ -1604,7 +1616,7 @@ const styles = StyleSheet.create({
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
 
-  // Executive Target Card Styles (NSD Target)
+  // Executive Target Card Styles
   executiveTargetCard: {
     backgroundColor: "#ffffff",
     marginHorizontal: isLargeScreen ? 24 : 16,
