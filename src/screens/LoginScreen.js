@@ -54,9 +54,14 @@ const LoginScreen = ({ navigation }) => {
     return;
   }
 
-  // 2. National Sales Director (NSD)
-  if (role === "national_sales_director" || role === "super_leader") {
-    navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] }); // ko NsdDashboard
+  // 2. National Sales Director (NSD) -> WANNAN SHINE GYARAN!
+  if (
+    role === "national_sales_director" ||
+    role === "super_leader" ||
+    identifier === "nsd@ayaxdata.online" ||
+    identifier === "08099990000"
+  ) {
+    navigation.reset({ index: 0, routes: [{ name: "NsdDashboard" }] });
     return;
   }
 
@@ -66,7 +71,7 @@ const LoginScreen = ({ navigation }) => {
     return;
   }
 
-  // 4. State Manager (SM)
+  // 4. State Manager (SM) -> Shi kadai zai bude LeaderDashboard
   if (role === "state_manager" || role === "leader") {
     navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
     return;
@@ -78,13 +83,7 @@ const LoginScreen = ({ navigation }) => {
     return;
   }
 
-  // 6. Customer Support
-  if (role === "support" || role === "customer_service") {
-    navigation.reset({ index: 0, routes: [{ name: "SupportActivities" }] });
-    return;
-  }
-
-  // 7. Agent
+  // 6. Retail Agent
   if (role === "agent") {
     navigation.reset({
       index: 0,
@@ -93,7 +92,13 @@ const LoginScreen = ({ navigation }) => {
     return;
   }
 
-  // 8. Default Customer
+  // 7. Customer Support
+  if (role === "support" || role === "customer_service") {
+    navigation.reset({ index: 0, routes: [{ name: "SupportActivities" }] });
+    return;
+  }
+
+  // 8. Normal Customer
   navigation.reset({ index: 0, routes: [{ name: "Main" }] });
 };
 

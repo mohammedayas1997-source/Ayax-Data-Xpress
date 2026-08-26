@@ -38,6 +38,7 @@ import CreateSupervisorScreen from "./src/screens/CreateSupervisorScreen";
 import ManageAgentsScreen from "./src/screens/ManageAgentsScreen";
 import UserManagement from "./src/screens/superadmin/UserManagement";
 import SuperAdminDashboard from "./src/screens/SuperAdminDashboard";
+import NsdDashboard from "./src/screens/NsdDashboard";
 import NIMCModificationScreen from "./src/screens/Services/NIMCModificationScreen";
 import NIMCRequests from "./src/screens/Admin/NIMCRequests";
 import NIMCHistory from "./src/screens/User/NIMCHistory";
@@ -132,6 +133,11 @@ function AppContent() {
         <Stack.Screen
           name="SuperAdminDashboard"
           component={SuperAdminDashboard}
+        />
+        <Stack.Screen 
+          name="NsdDashboard" 
+          component={NsdDashboard} 
+          options={{ headerShown: false }} 
         />
         <Stack.Screen name="SupportDashboard" component={SupportDashboard} />
         <Stack.Screen name="NIMCRequests" component={NIMCRequests} />
