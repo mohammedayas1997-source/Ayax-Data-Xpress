@@ -25,7 +25,7 @@ import {
 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { ALL_NIGERIAN_STATES, NIGERIA_STATES_LGAS } from "../utils/nigeriaGeoData";
+import { ALL_NIGERIAN_STATES } from "../utils/nigeriaGeoData";
 
 const { width } = Dimensions.get("window");
 const isLargeScreen = width >= 1024;
@@ -44,9 +44,8 @@ const NsdDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Tabs & Filtration
-  const [activeTab, setActiveTab] = useState("states"); // 'states', 'managers', 'logs'
-  const [selectedRegion, setSelectedRegion] = useState("All");
+  // Tabs & Search
+  const [activeTab, setActiveTab] = useState("states"); // 'states', 'managers', 'history'
   const [searchQuery, setSearchQuery] = useState("");
 
   // Sidebar Drawer
@@ -54,21 +53,28 @@ const NsdDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Target Modal States
+  // Modal 1: Drill-down State Hierarchy (Duba Supervisors da Ayyukan Jihar)
+  const [stateInspectModalVisible, setStateInspectModalVisible] = useState(false);
+  const [inspectedState, setInspectedState] = useState(null);
+  const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
+  const [inspectLoading, setInspectLoading] = useState(false);
+
+  // Modal 2: Target Deployment Modal
   const [targetModalVisible, setTargetModalVisible] = useState(false);
   const [targetStateItem, setTargetStateItem] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("10000");
   const [targetSupervisorGoal, setTargetSupervisorGoal] = useState("20");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Appoint State Manager Modal
+  // Modal 3: Appoint State Manager Modal
   const [appointModalVisible, setAppointModalVisible] = useState(false);
   const [newSmName, setNewSmName] = useState("");
   const [newSmPhone, setNewSmPhone] = useState("");
   const [newSmEmail, setNewSmEmail] = useState("");
   const [newSmState, setNewSmState] = useState("Kano");
+  const [newSmPassword, setNewSmPassword] = useState("Password123@");
 
-  // Broadcast Modal
+  // Modal 4: Broadcast Directive
   const [broadcastModalVisible, setBroadcastModalVisible] = useState(false);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
@@ -99,6 +105,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
+  // 1. DAWO DA TELEMETRY NA KASA BAKI DAYA
   const fetchNationalTelemetry = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -152,59 +159,93 @@ const NsdDashboard = ({ navigation }) => {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.clear();
-    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-  };
-
-  // 1. DAKATARWA KO KUNNA STATE MANAGER (SUSPEND / UNSUSPEND)
-  const handleToggleManagerSuspension = (leaderId, managerName, isSuspended) => {
-    if (!leaderId) {
-      showAlert("Notice", "No State Manager assigned to this state yet.");
-      return;
-    }
-
-    const action = isSuspended ? "Unsuspend (Reactivate)" : "Suspend (Deactivate)";
-    const confirmMessage = `Are you sure you want to ${action} ${managerName}? ${
-      isSuspended ? "They will regain full management access." : "They will be locked out immediately."
-    }`;
+    const doLogout = async () => {
+      await AsyncStorage.clear();
+      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+    };
 
     if (Platform.OS === "web") {
-      if (window.confirm(confirmMessage)) {
-        executeSuspension(leaderId);
+      if (window.confirm("Terminate National Sales Director executive session?")) {
+        doLogout();
       }
     } else {
-      Alert.alert(`Confirm Action`, confirmMessage, [
+      Alert.alert("Executive Sign Out", "Terminate active National Directorate session?", [
         { text: "Cancel", style: "cancel" },
-        {
-          text: `Yes, ${action}`,
-          style: isSuspended ? "default" : "destructive",
-          onPress: () => executeSuspension(leaderId),
-        },
+        { text: "Log Out", style: "destructive", onPress: doLogout },
       ]);
     }
   };
 
-  const executeSuspension = async (leaderId) => {
+  // 2. DUBA KASAN STATE MANAGER (SUPERVISORS & AGENTS INSPECTION)
+  const handleInspectStateHierarchy = async (stateItem) => {
+    setInspectedState(stateItem);
+    setStateInspectModalVisible(true);
+    setInspectLoading(true);
+
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Binciko supervisors na wannan jihar
+      const res = await axios.get(
+        `${BASE_URL}/leader/dashboard?state=${encodeURIComponent(stateItem.state)}`,
+        { headers, timeout: 15000 }
+      );
+
+      const stateSupervisors = res.data?.data?.supervisors || res.data?.supervisors || [];
+      setInspectedSupervisors(stateSupervisors);
+    } catch (err) {
+      setInspectedSupervisors([]);
+    } finally {
+      setInspectLoading(false);
+    }
+  };
+
+  // 3. DAKATARWA KO KUNNAWA (SUSPEND / UNSUSPEND)
+  const handleToggleStaffSuspension = (staffId, staffName, isSuspended) => {
+    if (!staffId) return;
+
+    const action = isSuspended ? "Reactivate (Unsuspend)" : "Suspend (Deactivate)";
+    const confirmMessage = `Are you sure you want to ${action} ${staffName}?`;
+
+    const proceed = () => {
+      executeSuspension(staffId);
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(confirmMessage)) proceed();
+    } else {
+      Alert.alert("Confirm Action", confirmMessage, [
+        { text: "Cancel", style: "cancel" },
+        { text: `Yes, ${action}`, style: isSuspended ? "default" : "destructive", onPress: proceed },
+      ]);
+    }
+  };
+
+  const executeSuspension = async (staffId) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.patch(
-        `${BASE_URL}/leader/toggle-status/${leaderId}`,
+        `${BASE_URL}/super-leader/toggle-status/${staffId}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data?.success || res.status === 200) {
-        showAlert("Updated", "State Manager operational status has been updated.");
+        showAlert("Status Updated", "Staff operational access has been modified.");
         fetchNationalTelemetry();
+        if (stateInspectModalVisible && inspectedState) {
+          handleInspectStateHierarchy(inspectedState);
+        }
       }
     } catch (e) {
-      showAlert("Action Failed", e.response?.data?.message || "Could not execute status update.");
+      showAlert("Action Failed", e.response?.data?.message || "Could not update status.");
     }
   };
 
-  // 2. TURA NATIONAL TARGET GA STATE MANAGER
+  // 4. DEPLOY TARGET GA STATE MANAGER
   const handleDeployNationalTarget = async () => {
     if (!targetStateItem?.leaderId) {
-      showAlert("Error", "Cannot assign target: No active State Manager appointed for this state.");
+      showAlert("Notice", "No State Manager assigned to this state.");
       return;
     }
 
@@ -224,19 +265,19 @@ const NsdDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Target Deployed 🎯", `National target allocated for ${targetStateItem.state} State Manager.`);
+        showAlert("Target Deployed 🎯", `Assigned ${targetDataGoal} GB goal to ${targetStateItem.state} State.`);
         setTargetModalVisible(false);
         setTargetStateItem(null);
         fetchNationalTelemetry();
       }
     } catch (err) {
-      showAlert("Deployment Error", err.response?.data?.message || err.message);
+      showAlert("Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 3. APPOINT NEW STATE MANAGER
+  // 5. APPOINT STATE MANAGER
   const handleAppointStateManager = async () => {
     if (!newSmName.trim() || !newSmPhone.trim() || !newSmState) {
       showAlert("Validation Error", "Name, Phone Number, and State are required.");
@@ -252,13 +293,14 @@ const NsdDashboard = ({ navigation }) => {
           name: newSmName.trim(),
           phone: newSmPhone.trim(),
           email: newSmEmail.trim() || undefined,
+          password: newSmPassword.trim() || "Password123@",
           state: newSmState,
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Appointment Confirmed 🎉", `${newSmName} is now State Manager for ${newSmState} State.`);
+        showAlert("Appointed 🎉", `${newSmName} is now State Manager for ${newSmState}.`);
         setAppointModalVisible(false);
         setNewSmName("");
         setNewSmPhone("");
@@ -266,16 +308,16 @@ const NsdDashboard = ({ navigation }) => {
         fetchNationalTelemetry();
       }
     } catch (err) {
-      showAlert("Appointment Error", err.response?.data?.message || err.message);
+      showAlert("Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
-  // 4. BROADCAST NATIONAL DIRECTIVE
+  // 6. BROADCAST DIRECTIVE
   const handleBroadcastDirective = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
-      showAlert("Validation Error", "Directive Title and Message Body are required.");
+      showAlert("Validation Error", "Directive Title and Body are required.");
       return;
     }
 
@@ -293,24 +335,25 @@ const NsdDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Broadcast Sent 🚀", "Directive delivered to all 36 State Managers.");
+        showAlert("Dispatched 🚀", "Directive pushed to all field personnel.");
         setBroadcastModalVisible(false);
         setNotifTitle("");
         setNotifMessage("");
       }
     } catch (err) {
-      showAlert("Broadcast Error", err.response?.data?.message || err.message);
+      showAlert("Error", err.response?.data?.message || err.message);
     } finally {
       setActionLoading(false);
     }
   };
 
   const filteredStates = statesData.filter((item) => {
-    const matchSearch =
-      (item.state || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.leaderName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.leaderPhone || "").includes(searchQuery);
-    return matchSearch;
+    const q = searchQuery.toLowerCase();
+    return (
+      (item.state || "").toLowerCase().includes(q) ||
+      (item.leaderName || "").toLowerCase().includes(q) ||
+      (item.leaderPhone || "").includes(q)
+    );
   });
 
   if (loading) {
@@ -319,7 +362,7 @@ const NsdDashboard = ({ navigation }) => {
         <StatusBar barStyle="light-content" backgroundColor="#060c18" />
         <ActivityIndicator size="large" color="#d4af37" />
         <Text style={styles.loaderTitle}>NATIONAL SALES DIRECTOR (NSD)</Text>
-        <Text style={styles.loaderText}>Establishing 36 States & FCT Telemetry Command...</Text>
+        <Text style={styles.loaderText}>Establishing Real-Time 36 States Executive Link...</Text>
       </View>
     );
   }
@@ -337,9 +380,9 @@ const NsdDashboard = ({ navigation }) => {
         <View style={styles.topBrandGroup}>
           <View style={styles.stateBadge}>
             <View style={styles.livePulseDot} />
-            <Text style={styles.stateBadgeText}>NATIONAL COMMAND DESK</Text>
+            <Text style={styles.stateBadgeText}>NATIONAL SALES DIRECTORATE</Text>
           </View>
-          <Text style={styles.topBrandTitle}>36 STATES & FCT OPERATIONS</Text>
+          <Text style={styles.topBrandTitle}>36 STATES & FCT EXECUTIVE DESK</Text>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -377,7 +420,7 @@ const NsdDashboard = ({ navigation }) => {
             color={activeTab === "states" ? "#d4af37" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "states" && styles.mainNavTabTextActive]}>
-            States Matrix ({ALL_NIGERIAN_STATES.length})
+            36 States & FCT Matrix ({ALL_NIGERIAN_STATES.length})
           </Text>
         </TouchableOpacity>
 
@@ -396,21 +439,21 @@ const NsdDashboard = ({ navigation }) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.mainNavTab, activeTab === "logs" && styles.mainNavTabActive]}
-          onPress={() => setActiveTab("logs")}
+          style={[styles.mainNavTab, activeTab === "history" && styles.mainNavTabActive]}
+          onPress={() => setActiveTab("history")}
         >
           <Feather
             name="activity"
             size={14}
-            color={activeTab === "logs" ? "#d4af37" : "#64748b"}
+            color={activeTab === "history" ? "#d4af37" : "#64748b"}
           />
-          <Text style={[styles.mainNavTabText, activeTab === "logs" && styles.mainNavTabTextActive]}>
-            National Live Feed
+          <Text style={[styles.mainNavTabText, activeTab === "history" && styles.mainNavTabTextActive]}>
+            Live Operations Feed
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* DASHBOARD BODY */}
+      {/* DASHBOARD SCROLL AREA */}
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContentContainer}
@@ -420,44 +463,44 @@ const NsdDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* NATIONAL SUMMARY METRICS */}
+          {/* NATIONAL FIELD METRICS */}
           <View style={styles.telemetrySection}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderLabel}>NIGERIA NATIONAL FIELD PERFORMANCE</Text>
+              <Text style={styles.sectionHeaderLabel}>NIGERIA EXECUTIVE TELEMETRY</Text>
               <View style={styles.geoIndicatorBadge}>
                 <Ionicons name="shield-checkmark" size={13} color="#d4af37" />
-                <Text style={styles.geoIndicatorText}>NSD EXECUTIVE</Text>
+                <Text style={styles.geoIndicatorText}>REAL-TIME LIVE SYNC</Text>
               </View>
             </View>
 
             <View style={styles.metricGrid}>
               <View style={[styles.metricCard, { borderColor: "rgba(212, 175, 55, 0.35)" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>Active State Managers</Text>
-                  <FontAwesome5 name="user-tie" size={15} color="#d4af37" />
+                  <Text style={styles.metricLabel}>Appointed State Managers</Text>
+                  <FontAwesome5 name="user-tie" size={14} color="#d4af37" />
                 </View>
                 <Text style={[styles.metricValue, { color: "#d4af37" }]}>
                   {nationalStats.activeManagers} / {ALL_NIGERIAN_STATES.length}
                 </Text>
-                <Text style={styles.metricSub}>Appointed State Directors</Text>
+                <Text style={styles.metricSub}>36 States & FCT Coverage</Text>
               </View>
 
               <View style={[styles.metricCard, { borderColor: "rgba(56, 189, 248, 0.35)" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>Field Supervisors</Text>
-                  <MaterialCommunityIcons name="account-group" size={18} color="#38bdf8" />
+                  <Text style={styles.metricLabel}>Field Supervisors (FS)</Text>
+                  <MaterialCommunityIcons name="account-group" size={17} color="#38bdf8" />
                 </View>
                 <Text style={[styles.metricValue, { color: "#38bdf8" }]}>{nationalStats.totalSupervisors}</Text>
-                <Text style={styles.metricSub}>LGA Coordinators</Text>
+                <Text style={styles.metricSub}>LGA Network Leads</Text>
               </View>
 
               <View style={[styles.metricCard, { borderColor: "rgba(16, 185, 129, 0.35)" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>Grassroot Agents</Text>
+                  <Text style={styles.metricLabel}>Retail Agents</Text>
                   <Ionicons name="people" size={16} color="#10b981" />
                 </View>
                 <Text style={[styles.metricValue, { color: "#10b981" }]}>{nationalStats.totalAgents}</Text>
-                <Text style={styles.metricSub}>Retail Outlets Active</Text>
+                <Text style={styles.metricSub}>Grassroot Resellers</Text>
               </View>
 
               <View style={[styles.metricCard, { borderColor: "rgba(192, 132, 252, 0.35)" }]}>
@@ -478,7 +521,7 @@ const NsdDashboard = ({ navigation }) => {
             <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
-              placeholder="Search State, State Manager name, or phone number..."
+              placeholder="Search State, Manager name, phone, or region..."
               placeholderTextColor="#64748b"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -490,11 +533,11 @@ const NsdDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: 36 STATES DEPLOYMENT MATRIX */}
+          {/* TAB 1: 36 STATES DEPLOYMENT GRID */}
           {activeTab === "states" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>ALL 36 STATES & FCT STATUS MATRIX</Text>
+                <Text style={styles.sectionHeaderLabel}>NIGERIA REGIONAL MATRICES ({filteredStates.length})</Text>
                 <TouchableOpacity style={styles.actionPillBtn} onPress={() => setAppointModalVisible(true)}>
                   <Ionicons name="person-add" size={13} color="#0a1224" />
                   <Text style={styles.actionPillBtnText}>APPOINT SM</Text>
@@ -503,19 +546,36 @@ const NsdDashboard = ({ navigation }) => {
 
               <View style={styles.stateGridContainer}>
                 {filteredStates.map((st) => (
-                  <View key={st.state} style={styles.stateCard}>
+                  <TouchableOpacity
+                    key={st.state}
+                    style={styles.stateCard}
+                    activeOpacity={0.85}
+                    onPress={() => handleInspectStateHierarchy(st)}
+                  >
                     <View style={styles.stateCardHeader}>
                       <Text style={styles.stateNameTitle}>{st.state.toUpperCase()}</Text>
                       <View
                         style={[
                           styles.stateStatusBadge,
-                          { backgroundColor: st.hasLeader ? "rgba(16, 185, 129, 0.15)" : "rgba(239, 68, 68, 0.15)" },
+                          {
+                            backgroundColor: st.hasLeader
+                              ? st.isSuspended
+                                ? "rgba(239, 68, 68, 0.15)"
+                                : "rgba(16, 185, 129, 0.15)"
+                              : "rgba(100, 116, 139, 0.15)",
+                          },
                         ]}
                       >
                         <Text
                           style={[
                             styles.stateStatusBadgeText,
-                            { color: st.hasLeader ? "#10b981" : "#ef4444" },
+                            {
+                              color: st.hasLeader
+                                ? st.isSuspended
+                                  ? "#ef4444"
+                                  : "#10b981"
+                                : "#94a3b8",
+                            },
                           ]}
                         >
                           {st.hasLeader ? (st.isSuspended ? "SUSPENDED" : "ACTIVE") : "VACANT"}
@@ -525,44 +585,16 @@ const NsdDashboard = ({ navigation }) => {
 
                     {st.hasLeader ? (
                       <>
-                        <Text style={styles.managerNameText}>
+                        <Text style={styles.managerNameText} numberOfLines={1}>
                           👤 {st.leaderName}
                         </Text>
-                        <Text style={styles.managerSubDetails}>
-                          📞 {st.leaderPhone}
-                        </Text>
+                        <Text style={styles.managerSubDetails}>📞 {st.leaderPhone}</Text>
                         <Text style={styles.stateStatsSummary}>
                           {st.lgasTotal} LGAs • {st.supervisorsCount || 0} FS • {st.agentsCount || 0} Agents
                         </Text>
 
-                        <View style={styles.stateCardActions}>
-                          <TouchableOpacity
-                            style={[
-                              styles.stateActionBtnSmall,
-                              { backgroundColor: st.isSuspended ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)" },
-                            ]}
-                            onPress={() => handleToggleManagerSuspension(st.leaderId, st.leaderName, st.isSuspended)}
-                          >
-                            <MaterialIcons
-                              name={st.isSuspended ? "play-circle-filled" : "pause-circle-filled"}
-                              size={16}
-                              color={st.isSuspended ? "#22c55e" : "#ef4444"}
-                            />
-                            <Text style={[styles.stateActionBtnTextSmall, { color: st.isSuspended ? "#22c55e" : "#ef4444" }]}>
-                              {st.isSuspended ? "Activate" : "Suspend"}
-                            </Text>
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={[styles.stateActionBtnSmall, { backgroundColor: "rgba(212, 175, 55, 0.15)" }]}
-                            onPress={() => {
-                              setTargetStateItem(st);
-                              setTargetModalVisible(true);
-                            }}
-                          >
-                            <FontAwesome5 name="bullseye" size={13} color="#d4af37" />
-                            <Text style={[styles.stateActionBtnTextSmall, { color: "#d4af37" }]}>Target</Text>
-                          </TouchableOpacity>
+                        <View style={styles.inspectPill}>
+                          <Text style={styles.inspectPillText}>🔍 Click to Inspect Team & LGAs</Text>
                         </View>
                       </>
                     ) : (
@@ -570,7 +602,8 @@ const NsdDashboard = ({ navigation }) => {
                         <Text style={styles.stateVacantText}>No State Manager Appointed</Text>
                         <TouchableOpacity
                           style={styles.stateAppointBtn}
-                          onPress={() => {
+                          onPress={(e) => {
+                            e.stopPropagation();
                             setNewSmState(st.state);
                             setAppointModalVisible(true);
                           }}
@@ -579,13 +612,13 @@ const NsdDashboard = ({ navigation }) => {
                         </TouchableOpacity>
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
           )}
 
-          {/* TAB 2: STATE MANAGERS LIST & SUSPENSION CONTROLS */}
+          {/* TAB 2: STATE MANAGERS LIST & DIRECT ACTIONS */}
           {activeTab === "managers" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -593,7 +626,12 @@ const NsdDashboard = ({ navigation }) => {
               </View>
 
               {statesData.filter((s) => s.hasLeader).map((sm) => (
-                <View key={sm.state} style={styles.managerCard}>
+                <TouchableOpacity
+                  key={sm.state}
+                  style={styles.managerCard}
+                  activeOpacity={0.9}
+                  onPress={() => handleInspectStateHierarchy(sm)}
+                >
                   <View style={styles.managerCardHeader}>
                     <View style={styles.managerMainInfo}>
                       <View style={styles.managerAvatar}>
@@ -602,18 +640,21 @@ const NsdDashboard = ({ navigation }) => {
                       <View style={{ marginLeft: 12, flex: 1 }}>
                         <Text style={styles.managerCardName}>{sm.leaderName}</Text>
                         <Text style={styles.managerCardState}>
-                          📍 {sm.state} State • {sm.leaderPhone}
+                          📍 {sm.state} State Manager • {sm.leaderPhone}
                         </Text>
                       </View>
                     </View>
 
                     <TouchableOpacity
-                      onPress={() => handleToggleManagerSuspension(sm.leaderId, sm.leaderName, sm.isSuspended)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleToggleStaffSuspension(sm.leaderId, sm.leaderName, sm.isSuspended);
+                      }}
                       style={styles.suspendIconButton}
                     >
                       <MaterialIcons
                         name={sm.isSuspended ? "play-circle-filled" : "pause-circle-filled"}
-                        size={30}
+                        size={32}
                         color={sm.isSuspended ? "#22c55e" : "#ef4444"}
                       />
                     </TouchableOpacity>
@@ -621,15 +662,15 @@ const NsdDashboard = ({ navigation }) => {
 
                   <View style={styles.statsSummaryRow}>
                     <View style={styles.summaryBox}>
-                      <Text style={styles.summaryBoxLabel}>Supervisors</Text>
+                      <Text style={styles.summaryBoxLabel}>Supervisors (FS)</Text>
                       <Text style={styles.summaryBoxValue}>{sm.supervisorsCount || 0}</Text>
                     </View>
                     <View style={styles.summaryBox}>
-                      <Text style={styles.summaryBoxLabel}>Agents</Text>
+                      <Text style={styles.summaryBoxLabel}>Agents Network</Text>
                       <Text style={styles.summaryBoxValue}>{sm.agentsCount || 0}</Text>
                     </View>
                     <View style={styles.summaryBox}>
-                      <Text style={styles.summaryBoxLabel}>Monthly Quota</Text>
+                      <Text style={styles.summaryBoxLabel}>Target Quota</Text>
                       <Text style={[styles.summaryBoxValue, { color: "#d4af37" }]}>
                         {sm.stateDataGoal || 5000} GB
                       </Text>
@@ -639,15 +680,19 @@ const NsdDashboard = ({ navigation }) => {
                   <View style={styles.managerActionRow}>
                     <TouchableOpacity
                       style={styles.managerActionBtn}
-                      onPress={() => Linking.openURL(`tel:${sm.leaderPhone}`)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        Linking.openURL(`tel:${sm.leaderPhone}`);
+                      }}
                     >
                       <Ionicons name="call" size={14} color="#38bdf8" />
-                      <Text style={[styles.managerActionBtnText, { color: "#38bdf8" }]}>Call SM</Text>
+                      <Text style={[styles.managerActionBtnText, { color: "#38bdf8" }]}>Direct Call</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.managerActionBtn}
-                      onPress={() => {
+                      onPress={(e) => {
+                        e.stopPropagation();
                         setTargetStateItem(sm);
                         setTargetModalVisible(true);
                       }}
@@ -658,59 +703,55 @@ const NsdDashboard = ({ navigation }) => {
 
                     <TouchableOpacity
                       style={styles.managerActionBtn}
-                      onPress={() => handleToggleManagerSuspension(sm.leaderId, sm.leaderName, sm.isSuspended)}
+                      onPress={() => handleInspectStateHierarchy(sm)}
                     >
-                      <MaterialIcons
-                        name={sm.isSuspended ? "check-circle" : "block"}
-                        size={15}
-                        color={sm.isSuspended ? "#22c55e" : "#ef4444"}
-                      />
-                      <Text
-                        style={[
-                          styles.managerActionBtnText,
-                          { color: sm.isSuspended ? "#22c55e" : "#ef4444" },
-                        ]}
-                      >
-                        {sm.isSuspended ? "Activate Account" : "Suspend Account"}
-                      </Text>
+                      <Feather name="external-link" size={14} color="#94a3b8" />
+                      <Text style={[styles.managerActionBtnText, { color: "#94a3b8" }]}>Inspect Field Team</Text>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           )}
 
-          {/* TAB 3: NATIONAL AUDIT FEED */}
-          {activeTab === "logs" && (
+          {/* TAB 3: LIVE OPERATIONS AUDIT FEED */}
+          {activeTab === "history" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>NATIONAL OPERATIONS AUDIT FEED</Text>
-                <Text style={{ color: "#10b981", fontSize: 11, fontWeight: "bold" }}>LIVE REAL-TIME</Text>
+                <Text style={styles.sectionHeaderLabel}>NATIONAL LIVE AUDIT STREAM</Text>
+                <Text style={{ color: "#10b981", fontSize: 11, fontWeight: "bold" }}>REAL-TIME FEED</Text>
               </View>
 
-              {activityLogs.map((log) => (
-                <View key={log._id || Math.random().toString()} style={styles.logCard}>
-                  <View style={styles.logCardTop}>
-                    <View style={styles.logCategoryBadge}>
-                      <Text style={styles.logCategoryText}>{log.category || "NATIONAL_EVENT"}</Text>
+              {activityLogs.length > 0 ? (
+                activityLogs.map((log) => (
+                  <View key={log._id || Math.random().toString()} style={styles.logCard}>
+                    <View style={styles.logCardTop}>
+                      <View style={styles.logCategoryBadge}>
+                        <Text style={styles.logCategoryText}>{log.category || "FIELD_ACTION"}</Text>
+                      </View>
+                      <Text style={styles.logTimestamp}>
+                        {log.createdAt ? new Date(log.createdAt).toLocaleTimeString() : "Live"}
+                      </Text>
                     </View>
-                    <Text style={styles.logTimestamp}>
-                      {log.createdAt ? new Date(log.createdAt).toLocaleTimeString() : "Live"}
-                    </Text>
+                    <Text style={styles.logDetailsText}>{log.details || log.action || "Field operation recorded."}</Text>
+                    <Text style={styles.logActorText}>Actor: {log.user?.phone || log.actorRole || "NSD Node"}</Text>
                   </View>
-                  <Text style={styles.logDetailsText}>{log.details || log.action || "Field operation recorded."}</Text>
-                  <Text style={styles.logActorText}>Actor: {log.user?.phone || log.actorRole || "NSD Node"}</Text>
+                ))
+              ) : (
+                <View style={styles.emptyFeed}>
+                  <Feather name="activity" size={36} color="#475569" />
+                  <Text style={styles.emptyFeedText}>No real-time audit logs recorded yet.</Text>
                 </View>
-              ))}
+              )}
             </View>
           )}
 
-          {/* NATIONAL FULL REPORT EXPORT */}
+          {/* FULL REPORT CSV EXPORT */}
           <TouchableOpacity
             style={styles.downloadReportBtn}
             onPress={async () => {
               const token = await AsyncStorage.getItem("userToken");
-              Linking.openURL(`${BASE_URL}/leader/download-full-report?token=${token}`);
+              Linking.openURL(`${BASE_URL}/super-leader/download-report?token=${token}`);
             }}
           >
             <MaterialIcons name="file-download" size={20} color="#0a1224" />
@@ -743,8 +784,8 @@ const NsdDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-              <Text style={styles.sidebarCategory}>NATIONAL MATRICES</Text>
+            <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false}>
+              <Text style={styles.sidebarCategory}>NAVIGATION MATRICES</Text>
 
               <TouchableOpacity
                 style={[styles.navItem, activeTab === "states" && styles.navItemActive]}
@@ -769,23 +810,23 @@ const NsdDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
                   <FontAwesome5 name="user-tie" size={14} color="#38bdf8" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "managers" && { color: "#d4af37" }]}>State Managers (SM)</Text>
+                <Text style={[styles.navItemText, activeTab === "managers" && { color: "#d4af37" }]}>State Managers</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.navItem, activeTab === "logs" && styles.navItemActive]}
+                style={[styles.navItem, activeTab === "history" && styles.navItemActive]}
                 onPress={() => {
                   toggleSidebar(false);
-                  setActiveTab("logs");
+                  setActiveTab("history");
                 }}
               >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(192, 132, 252, 0.15)" }]}>
-                  <Feather name="activity" size={15} color="#c084fc" />
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+                  <Feather name="activity" size={15} color="#10b981" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "logs" && { color: "#d4af37" }]}>National Live Feed</Text>
+                <Text style={[styles.navItemText, activeTab === "history" && { color: "#d4af37" }]}>Audit Feed</Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>EXECUTIVE CONTROLS</Text>
+              <Text style={styles.sidebarCategory}>COMMAND ACTIONS</Text>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -822,7 +863,91 @@ const NsdDashboard = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* MODAL 1: ASSIGN NATIONAL TARGET */}
+      {/* MODAL 1: DRILL-DOWN INSPECTION (STATE MANAGER -> SUPERVISORS & PERFORMANCE) */}
+      <Modal visible={stateInspectModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "90%", width: isLargeScreen ? "65%" : "95%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>
+                  {inspectedState?.state?.toUpperCase()} FIELD HIERARCHY
+                </Text>
+                <Text style={styles.modalCardSubtitle}>
+                  State Manager: {inspectedState?.leaderName} ({inspectedState?.leaderPhone})
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setStateInspectModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            {inspectLoading ? (
+              <View style={{ padding: 40, alignItems: "center" }}>
+                <ActivityIndicator size="large" color="#d4af37" />
+                <Text style={{ color: "#94a3b8", fontSize: 12, marginTop: 10 }}>
+                  Fetching LGA Field Supervisors...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 10 }}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderLabel}>
+                    ACTIVE LGA FIELD SUPERVISORS ({inspectedSupervisors.length})
+                  </Text>
+                </View>
+
+                {inspectedSupervisors.length > 0 ? (
+                  inspectedSupervisors.map((sup) => (
+                    <View key={sup.id || sup._id} style={styles.inspectSupCard}>
+                      <View style={styles.supCardHeader}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.inspectSupName}>{sup.name}</Text>
+                          <Text style={styles.inspectSupLga}>
+                            📍 {sup.lga} LGA • 📞 {sup.phone}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => handleToggleStaffSuspension(sup.id || sup._id, sup.name, sup.isSuspended)}
+                        >
+                          <MaterialIcons
+                            name={sup.isSuspended ? "play-circle-filled" : "pause-circle-filled"}
+                            size={28}
+                            color={sup.isSuspended ? "#22c55e" : "#ef4444"}
+                          />
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.statsSummaryRow}>
+                        <View style={styles.summaryBox}>
+                          <Text style={styles.summaryBoxLabel}>Agents</Text>
+                          <Text style={styles.summaryBoxValue}>{sup.teamSize || sup.agentsCount || 0}</Text>
+                        </View>
+                        <View style={styles.summaryBox}>
+                          <Text style={styles.summaryBoxLabel}>Data Delivered</Text>
+                          <Text style={styles.summaryBoxValue}>{sup.teamPerformance || sup.dataSold || 0} GB</Text>
+                        </View>
+                        <View style={styles.summaryBox}>
+                          <Text style={styles.summaryBoxLabel}>Target Goal</Text>
+                          <Text style={[styles.summaryBoxValue, { color: "#d4af37" }]}>
+                            {sup.dataGoal || 500} GB
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.emptyFeed}>
+                    <FontAwesome5 name="user-slash" size={30} color="#475569" />
+                    <Text style={styles.emptyFeedText}>No Field Supervisors deployed in this state yet.</Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 2: ASSIGN NATIONAL TARGET */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -830,7 +955,7 @@ const NsdDashboard = ({ navigation }) => {
               <View>
                 <Text style={styles.modalCardTitle}>Deploy State Target</Text>
                 <Text style={styles.modalCardSubtitle}>
-                  Assigned State: {targetStateItem?.state} ({targetStateItem?.leaderName})
+                  Target for: {targetStateItem?.state} ({targetStateItem?.leaderName})
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
@@ -838,7 +963,7 @@ const NsdDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>TARGET MONTH / CYCLE</Text>
+            <Text style={styles.formFieldLabel}>TARGET CYCLE / MONTH</Text>
             <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
             <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
@@ -849,7 +974,7 @@ const NsdDashboard = ({ navigation }) => {
               onChangeText={setTargetDataGoal}
             />
 
-            <Text style={styles.formFieldLabel}>FIELD SUPERVISOR RECRUITMENT QUOTA</Text>
+            <Text style={styles.formFieldLabel}>SUPERVISOR RECRUITMENT QUOTA</Text>
             <TextInput
               style={styles.textInputStyle}
               keyboardType="numeric"
@@ -865,28 +990,28 @@ const NsdDashboard = ({ navigation }) => {
               {actionLoading ? (
                 <ActivityIndicator color="#0a1224" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>AUTHORIZE & DEPLOY STATE TARGET</Text>
+                <Text style={styles.primaryActionBtnText}>AUTHORIZE & DEPLOY TARGET</Text>
               )}
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL 2: APPOINT STATE MANAGER */}
+      {/* MODAL 3: APPOINT STATE MANAGER */}
       <Modal visible={appointModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Appoint State Manager (SM)</Text>
-                <Text style={styles.modalCardSubtitle}>Deploy executive state director</Text>
+                <Text style={styles.modalCardSubtitle}>Deploy state executive director</Text>
               </View>
               <TouchableOpacity onPress={() => setAppointModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+            <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.formFieldLabel}>SELECT NIGERIAN STATE</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
                 {ALL_NIGERIAN_STATES.map((st) => (
@@ -921,14 +1046,13 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setNewSmPhone}
               />
 
-              <Text style={styles.formFieldLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
+              <Text style={styles.formFieldLabel}>PASSWORD (FOR LOGIN)</Text>
               <TextInput
                 style={styles.textInputStyle}
-                placeholder="e.g. manager@ayaxdata.online"
+                placeholder="e.g. Password123@"
                 placeholderTextColor="#64748b"
-                keyboardType="email-address"
-                value={newSmEmail}
-                onChangeText={setNewSmEmail}
+                value={newSmPassword}
+                onChangeText={setNewSmPassword}
               />
 
               <TouchableOpacity
@@ -939,7 +1063,7 @@ const NsdDashboard = ({ navigation }) => {
                 {actionLoading ? (
                   <ActivityIndicator color="#0a1224" />
                 ) : (
-                  <Text style={styles.primaryActionBtnText}>AUTHORIZE STATE MANAGER</Text>
+                  <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -947,7 +1071,7 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: BROADCAST NATIONAL DIRECTIVE */}
+      {/* MODAL 4: BROADCAST NATIONAL DIRECTIVE */}
       <Modal visible={broadcastModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -964,7 +1088,7 @@ const NsdDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>DIRECTIVE TITLE</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="e.g. Nationwide Month-End Quota Acceleration"
+              placeholder="e.g. Nationwide Month-End Acceleration"
               placeholderTextColor="#64748b"
               value={notifTitle}
               onChangeText={setNotifTitle}
@@ -973,7 +1097,7 @@ const NsdDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>DIRECTIVE BODY</Text>
             <TextInput
               style={[styles.textInputStyle, { height: 80, textAlignVertical: "top" }]}
-              placeholder="Type national executive announcement here..."
+              placeholder="Type executive announcement here..."
               placeholderTextColor="#64748b"
               multiline
               value={notifMessage}
@@ -988,7 +1112,7 @@ const NsdDashboard = ({ navigation }) => {
               {actionLoading ? (
                 <ActivityIndicator color="#0a1224" />
               ) : (
-                <Text style={styles.primaryActionBtnText}>DISPATCH NATIONAL DIRECTIVE</Text>
+                <Text style={styles.primaryActionBtnText}>DISPATCH DIRECTIVE</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1128,17 +1252,16 @@ const styles = StyleSheet.create({
   managerNameText: { color: "#d4af37", fontSize: 11.5, fontWeight: "700", marginTop: 6 },
   managerSubDetails: { color: "#94a3b8", fontSize: 10, marginTop: 1 },
   stateStatsSummary: { color: "#64748b", fontSize: 10, marginTop: 4 },
-  stateCardActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  stateActionBtnSmall: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  inspectPill: {
+    backgroundColor: "rgba(56, 189, 248, 0.1)",
     paddingVertical: 5,
     borderRadius: 6,
-    marginHorizontal: 2,
+    marginTop: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.2)",
   },
-  stateActionBtnTextSmall: { fontSize: 10, fontWeight: "800", marginLeft: 4 },
+  inspectPillText: { color: "#38bdf8", fontSize: 10, fontWeight: "800" },
   stateVacantText: { color: "#ef4444", fontSize: 10, fontWeight: "600" },
   stateAppointBtn: {
     backgroundColor: "rgba(212, 175, 55, 0.12)",
@@ -1195,6 +1318,16 @@ const styles = StyleSheet.create({
   },
   managerActionBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 6 },
   managerActionBtnText: { fontSize: 11, fontWeight: "700", marginLeft: 5 },
+  inspectSupCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  inspectSupName: { color: "#f8fafc", fontSize: 13.5, fontWeight: "800" },
+  inspectSupLga: { color: "#38bdf8", fontSize: 11, marginTop: 2 },
   logCard: {
     backgroundColor: "#0a1224",
     borderRadius: 10,
@@ -1225,6 +1358,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   downloadReportBtnText: { color: "#0a1224", fontWeight: "900", fontSize: 12, marginLeft: 8 },
+  emptyFeed: {
+    backgroundColor: "#0a1224",
+    padding: 30,
+    borderRadius: 14,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  emptyFeedText: { color: "#64748b", fontSize: 12, marginTop: 10, textAlign: "center" },
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
@@ -1296,7 +1438,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: "100%",
-    maxWidth: 440,
+    maxWidth: 460,
     borderWidth: 1,
     borderColor: "#1e293b",
   },
