@@ -61,7 +61,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Tabs & Filtration
-  const [activeTab, setActiveTab] = useState("supervisors"); // 'supervisors', 'agents', 'lgas', 'history'
+  const [activeTab, setActiveTab] = useState("supervisors");
   const [selectedLga, setSelectedLga] = useState("All LGAs");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -78,13 +78,13 @@ const LeaderDashboard = ({ navigation }) => {
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
-  // Modal 2: Target Modal (Single & Bulk Allocation)
+  // Modal 2: Target Modal
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single_sup"); // 'single_sup', 'bulk_sup', 'single_agent', 'bulk_agent'
+  const [targetMode, setTargetMode] = useState("single_sup");
   const [targetRecipient, setTargetRecipient] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("500");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
-  const [targetAgentGoal, setTargetAgentGoal] = useState("10"); // Quota na kawo sabbin agents
+  const [targetAgentGoal, setTargetAgentGoal] = useState("10");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
   // Modal 3: Enroll Supervisor
@@ -102,7 +102,11 @@ const LeaderDashboard = ({ navigation }) => {
   const [actionLoading, setActionLoading] = useState(false);
 
   const currentLgaList = NIGERIA_STATES_LGAS[managerState] || [
-    "Central", "North", "South", "East", "West",
+    "Central",
+    "North",
+    "South",
+    "East",
+    "West",
   ];
 
   const toggleSidebar = (open) => {
@@ -123,81 +127,84 @@ const LeaderDashboard = ({ navigation }) => {
   };
 
   const showAlert = (title, message) => {
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       window.alert(`${title}: ${message}`);
     } else {
       Alert.alert(title, message);
     }
   };
 
-  const fetchDashboardData = useCallback(async (isBackground = false) => {
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const storedUserData = await AsyncStorage.getItem("userData");
-      if (!token) {
-        if (!isBackground) navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
-        return;
-      }
-
-      if (storedUserData) {
-        const parsed = JSON.parse(storedUserData);
-        if (parsed.state && ALL_NIGERIAN_STATES.includes(parsed.state)) {
-          setManagerState(parsed.state);
+  const fetchDashboardData = useCallback(
+    async (isBackground = false) => {
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        const storedUserData = await AsyncStorage.getItem("userData");
+        if (!token) {
+          if (!isBackground) navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+          return;
         }
+
+        if (storedUserData) {
+          const parsed = JSON.parse(storedUserData);
+          if (parsed.state && ALL_NIGERIAN_STATES.includes(parsed.state)) {
+            setManagerState(parsed.state);
+          }
+        }
+
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [dashRes, agentsRes, logsRes] = await Promise.all([
+          axios.get(`${BASE_URL}/leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
+          axios.get(`${BASE_URL}/leader/agents-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
+          axios.get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
+        ]);
+
+        const dashData = dashRes.data?.data || dashRes.data || {};
+        const fetchedSupervisors = dashData.supervisors || [];
+        const fetchedAgents = agentsRes.data?.agents || dashData.agents || [];
+        const fetchedLogs = logsRes.data?.logs || dashData.activityLogs || [];
+        const fetchedMyTarget = dashData.myTargets || dashData.leaderTargets || {};
+
+        setSupervisors(fetchedSupervisors);
+        setAgents(fetchedAgents);
+        setActivityLogs(fetchedLogs);
+
+        const uniqueLgas = new Set(fetchedSupervisors.map((s) => s.lga).filter(Boolean)).size;
+        const totalStateData = dashData.networkStats?.overallDataSold || 0;
+        const totalStateAirtime = dashData.networkStats?.overallAirtimeSold || 0;
+
+        setMyStateTarget({
+          dataGoal: fetchedMyTarget.dataGoal || 5000,
+          airtimeGoal: fetchedMyTarget.airtimeGoal || 500000,
+          agentGoal: fetchedMyTarget.agentGoal || 50,
+          supervisorGoal: fetchedMyTarget.supervisorGoal || currentLgaList.length,
+          currentMonth: fetchedMyTarget.currentMonth || "August 2026",
+          dataSold: totalStateData,
+          airtimeSold: totalStateAirtime,
+        });
+
+        setStats({
+          totalSupervisors: fetchedSupervisors.length,
+          totalAgents: fetchedAgents.length,
+          overallDataSold: totalStateData,
+          overallAirtimeSold: totalStateAirtime,
+          activeQuotas: fetchedSupervisors.filter((s) => s.targetAssigned || s.dataGoal).length,
+          activeLgasCount: uniqueLgas,
+        });
+      } catch (error) {
+        if (error.response?.status === 401 && !isBackground) {
+          await AsyncStorage.clear();
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        } else if (!isBackground) {
+          console.error("State Operations Sync Error:", error.message);
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [dashRes, agentsRes, logsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
-        axios.get(`${BASE_URL}/leader/agents-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
-        axios.get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
-      ]);
-
-      const dashData = dashRes.data?.data || dashRes.data || {};
-      const fetchedSupervisors = dashData.supervisors || [];
-      const fetchedAgents = agentsRes.data?.agents || dashData.agents || [];
-      const fetchedLogs = logsRes.data?.logs || dashData.activityLogs || [];
-      const fetchedMyTarget = dashData.myTargets || dashData.leaderTargets || {};
-
-      setSupervisors(fetchedSupervisors);
-      setAgents(fetchedAgents);
-      setActivityLogs(fetchedLogs);
-
-      const uniqueLgas = new Set(fetchedSupervisors.map((s) => s.lga).filter(Boolean)).size;
-      const totalStateData = dashData.networkStats?.overallDataSold || 0;
-      const totalStateAirtime = dashData.networkStats?.overallAirtimeSold || 0;
-
-      setMyStateTarget({
-        dataGoal: fetchedMyTarget.dataGoal || 5000,
-        airtimeGoal: fetchedMyTarget.airtimeGoal || 500000,
-        agentGoal: fetchedMyTarget.agentGoal || 50,
-        supervisorGoal: fetchedMyTarget.supervisorGoal || currentLgaList.length,
-        currentMonth: fetchedMyTarget.currentMonth || "August 2026",
-        dataSold: totalStateData,
-        airtimeSold: totalStateAirtime,
-      });
-
-      setStats({
-        totalSupervisors: fetchedSupervisors.length,
-        totalAgents: fetchedAgents.length,
-        overallDataSold: totalStateData,
-        overallAirtimeSold: totalStateAirtime,
-        activeQuotas: fetchedSupervisors.filter((s) => s.targetAssigned || s.dataGoal).length,
-        activeLgasCount: uniqueLgas,
-      });
-    } catch (error) {
-      if (error.response?.status === 401 && !isBackground) {
-        await AsyncStorage.clear();
-        navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
-      } else if (!isBackground) {
-        console.error("State Operations Sync Error:", error.message);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [navigation, currentLgaList.length]);
+    },
+    [navigation, currentLgaList.length]
+  );
 
   useEffect(() => {
     fetchDashboardData();
@@ -218,7 +225,7 @@ const LeaderDashboard = ({ navigation }) => {
       navigation.reset({ index: 0, routes: [{ name: "Login" }] });
     };
 
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       if (window.confirm("Do you want to log out from State Manager session?")) {
         doLogout();
       }
@@ -230,7 +237,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Bulk Selection Handlers
   const handleSelectAllSupervisors = () => {
     if (selectedSupIds.length === supervisors.length) {
       setSelectedSupIds([]);
@@ -263,7 +269,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Deploy Target (Supervisor ko Agent)
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -280,12 +285,12 @@ const LeaderDashboard = ({ navigation }) => {
       };
 
       if (targetMode === "single_sup") {
-        payload.supervisorId = targetRecipient._id || targetRecipient.id;
-        payload.lga = targetRecipient.lga;
+        payload.supervisorId = targetRecipient?._id || targetRecipient?.id;
+        payload.lga = targetRecipient?.lga;
       } else if (targetMode === "bulk_sup") {
         payload.supervisorIds = selectedSupIds;
       } else if (targetMode === "single_agent") {
-        payload.agentId = targetRecipient._id || targetRecipient.id;
+        payload.agentId = targetRecipient?._id || targetRecipient?.id;
       } else if (targetMode === "bulk_agent") {
         payload.agentIds = selectedAgentIds;
       }
@@ -307,7 +312,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Clear Target
   const handleClearTarget = async (recipientId, type = "supervisor") => {
     const confirmClear = async () => {
       try {
@@ -335,7 +339,7 @@ const LeaderDashboard = ({ navigation }) => {
       }
     };
 
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       if (window.confirm("Are you sure you want to reset this target quota to 0?")) confirmClear();
     } else {
       Alert.alert("Reset Target", "Are you sure you want to reset target quota to 0?", [
@@ -345,7 +349,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Suspend / Unsuspend Supervisor
   const handleToggleSupervisorStatus = async (id, currentStatus, supName) => {
     const action = currentStatus ? "Reactivate (Unsuspend)" : "Suspend";
     const proceed = async () => {
@@ -357,7 +360,7 @@ const LeaderDashboard = ({ navigation }) => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (res.data?.success || res.status === 200) {
-          showAlert("Updated", `Field Supervisor status updated.`);
+          showAlert("Updated", "Field Supervisor status updated.");
           fetchDashboardData();
         }
       } catch (e) {
@@ -365,7 +368,7 @@ const LeaderDashboard = ({ navigation }) => {
       }
     };
 
-    if (Platform.OS === "web") {
+    if (Platform.OS === "web" && typeof window !== "undefined") {
       if (window.confirm(`Are you sure you want to ${action} ${supName || "this supervisor"}?`)) {
         proceed();
       }
@@ -377,7 +380,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Enroll Supervisor (tare da Email)
   const handleEnrollSupervisor = async () => {
     if (!newSupName.trim() || !newSupPhone.trim() || !newSupLga) {
       return showAlert("Validation Error", "Name, Phone Number, and LGA are required.");
@@ -416,7 +418,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Broadcast Alert
   const handleBroadcastAlert = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
       return showAlert("Validation Error", "Directive Title and Body Message are required.");
@@ -599,7 +600,46 @@ const LeaderDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (WANDA NSD YA TURA MASA) */}
+          {/* DIRECT TARGET COMMAND BANNER */}
+          <View style={styles.targetCommandBanner}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={styles.targetBannerIconWrap}>
+                <FontAwesome5 name="bullseye" size={18} color="#1e40af" />
+              </View>
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={styles.targetBannerTitle}>State Quota Command Desk</Text>
+                <Text style={styles.targetBannerSub}>Deploy Data, Airtime & Recruitment quotas</Text>
+              </View>
+            </View>
+
+            <View style={styles.targetBannerBtnRow}>
+              <TouchableOpacity
+                style={styles.bannerActionBtnPrimary}
+                onPress={() => {
+                  setTargetMode("bulk_sup");
+                  setSelectedSupIds(supervisors.map((s) => s._id || s.id));
+                  setTargetModalVisible(true);
+                }}
+              >
+                <FontAwesome5 name="user-tie" size={12} color="#ffffff" />
+                <Text style={styles.bannerActionBtnTextPrimary}>TARGET ALL SUPERVISORS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bannerActionBtnSecondary}
+                onPress={() => {
+                  setTargetMode("bulk_agent");
+                  setSelectedAgentIds(agents.map((a) => a._id || a.id));
+                  setTargetModalVisible(true);
+                }}
+              >
+                <Ionicons name="people" size={14} color="#059669" />
+                <Text style={styles.bannerActionBtnTextSecondary}>TARGET ALL AGENTS</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW */}
           <View style={styles.executiveTargetCard}>
             <View style={styles.execHeaderRow}>
               <View>
@@ -686,7 +726,7 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={[styles.metricValue, { color: "#7c3aed" }]}>
                   {Number(stats.overallDataSold || 0).toLocaleString()} GB
                 </Text>
-                <Text style={[styles.metricSub, { color: "#7c3aed" }]}>Retail Data Volume</Text>
+                <Text style={styles.metricSub, { color: "#7c3aed" }]}>Retail Data Volume</Text>
               </View>
 
               <View style={[styles.metricCard, styles.cardAmberBg]}>
@@ -697,7 +737,7 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={[styles.metricValue, { color: "#d97706" }]}>
                   ₦{Number(stats.overallAirtimeSold || 0).toLocaleString()}
                 </Text>
-                <Text style={[styles.metricSub, { color: "#d97706" }]}>Gross VTU Volume</Text>
+                <Text style={styles.metricSub, { color: "#d97706" }]}>Gross VTU Volume</Text>
               </View>
             </View>
           </View>
@@ -719,7 +759,7 @@ const LeaderDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: FIELD SUPERVISORS (WITH BULK SELECT & TARGET DISTRIBUTION) */}
+          {/* TAB 1: FIELD SUPERVISORS */}
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.bulkActionRibbon}>
@@ -805,7 +845,6 @@ const LeaderDashboard = ({ navigation }) => {
                         </TouchableOpacity>
                       </View>
 
-                      {/* Supervisor Targets Breakdown */}
                       <View style={styles.statsSummaryGrid}>
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Data Target</Text>
@@ -833,7 +872,6 @@ const LeaderDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* Action Row */}
                       <View style={styles.supActionRow}>
                         <TouchableOpacity
                           style={styles.supActionBtn}
@@ -953,7 +991,6 @@ const LeaderDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* Agent Quota Targets */}
                       <View style={styles.agentQuotaRow}>
                         <Text style={styles.agentQuotaText}>
                           Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{ag.dataGoal || 100} GB</Text>
@@ -1226,6 +1263,36 @@ const LeaderDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
+                  setTargetMode("bulk_sup");
+                  setSelectedSupIds(supervisors.map((s) => s._id || s.id));
+                  setTargetModalVisible(true);
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
+                  <FontAwesome5 name="bullseye" size={15} color="#1e40af" />
+                </View>
+                <Text style={styles.navItemText}>Deploy Target to Supervisors</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setTargetMode("bulk_agent");
+                  setSelectedAgentIds(agents.map((a) => a._id || a.id));
+                  setTargetModalVisible(true);
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "#ecfdf5" }]}>
+                  <Ionicons name="people" size={16} color="#059669" />
+                </View>
+                <Text style={styles.navItemText}>Deploy Quota to Agents</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
                   setEnrollModalVisible(true);
                 }}
               >
@@ -1330,7 +1397,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: TARGET DEPLOYMENT MODAL (SUPERVISOR VS AGENT QUOTAS) */}
+      {/* MODAL 2: TARGET DEPLOYMENT MODAL */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1346,7 +1413,7 @@ const LeaderDashboard = ({ navigation }) => {
                     : `Set Quota for Agent ${targetRecipient?.name}`}
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
-                  {targetMode.includes("sup") ? "Field Supervisor Quotas" : "Grassroot Agent Retail Quotas"}
+                  {targetMode.includes("sup") ? "Field Supervisor Targets" : "Grassroot Retail Agent Quotas"}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
@@ -1358,7 +1425,6 @@ const LeaderDashboard = ({ navigation }) => {
               <Text style={styles.formFieldLabel}>TARGET MONTH / CYCLE</Text>
               <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
-              {/* 1. DATA VOLUME TARGET */}
               <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
               <TextInput
                 style={styles.textInputStyle}
@@ -1369,7 +1435,6 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setTargetDataGoal}
               />
 
-              {/* 2. AIRTIME SALES TARGET */}
               <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
               <TextInput
                 style={styles.textInputStyle}
@@ -1380,7 +1445,6 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setTargetAirtimeGoal}
               />
 
-              {/* 3. AGENT RECRUITMENT QUOTA (SUPERVISOR ONLY) */}
               {targetMode.includes("sup") && (
                 <>
                   <Text style={styles.formFieldLabel}>NEW AGENT RECRUITMENT TARGET (HEADCOUNT)</Text>
@@ -1413,7 +1477,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: ENROLL FIELD SUPERVISOR (WITH EMAIL FIELD) */}
+      {/* MODAL 3: ENROLL FIELD SUPERVISOR */}
       <Modal visible={enrollModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1462,7 +1526,6 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setNewSupPhone}
               />
 
-              {/* EMAIL FIELD */}
               <Text style={styles.formFieldLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
               <TextInput
                 style={styles.textInputStyle}
@@ -1616,11 +1679,67 @@ const styles = StyleSheet.create({
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
 
-  // Executive Target Card Styles
+  targetCommandBanner: {
+    backgroundColor: "#ffffff",
+    marginHorizontal: isLargeScreen ? 24 : 16,
+    marginTop: 14,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 5,
+    borderLeftColor: "#1e40af",
+    elevation: 2,
+  },
+  targetBannerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  targetBannerTitle: { color: "#0f172a", fontSize: 13.5, fontWeight: "900" },
+  targetBannerSub: { color: "#64748b", fontSize: 11, marginTop: 1 },
+  targetBannerBtnRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingTop: 8,
+  },
+  bannerActionBtnPrimary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1e40af",
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 6,
+  },
+  bannerActionBtnTextPrimary: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 6 },
+  bannerActionBtnSecondary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ecfdf5",
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#a7f3d0",
+    marginLeft: 6,
+  },
+  bannerActionBtnTextSecondary: { color: "#059669", fontSize: 10.5, fontWeight: "900", marginLeft: 6 },
+
   executiveTargetCard: {
     backgroundColor: "#ffffff",
     marginHorizontal: isLargeScreen ? 24 : 16,
-    marginTop: 16,
+    marginTop: 12,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
@@ -1672,7 +1791,6 @@ const styles = StyleSheet.create({
   execProgressBarFill: { height: 6, borderRadius: 3 },
   execPercentSub: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
 
-  // Bulk Actions
   bulkActionRibbon: {
     flexDirection: "row",
     justifyContent: "space-between",
