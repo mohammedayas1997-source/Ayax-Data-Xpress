@@ -57,22 +57,22 @@ const NsdDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal 1: Drill-down State Hierarchy (Duba Supervisors da Agents)
+  // Modal 1: Drill-down State Hierarchy
   const [stateInspectModalVisible, setStateInspectModalVisible] = useState(false);
   const [inspectedState, setInspectedState] = useState(null);
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
   const [inspectLoading, setInspectLoading] = useState(false);
 
-  // Modal 2: Target Deployment Modal (Single & Bulk)
+  // Modal 2: Target Deployment Modal
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single"); // 'single' ko 'bulk'
+  const [targetMode, setTargetMode] = useState("single");
   const [targetStateItem, setTargetStateItem] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("10000");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("500000");
   const [targetSupervisorGoal, setTargetSupervisorGoal] = useState("20");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Modal 3: Appoint State Manager Modal
+  // Modal 3: Appoint State Manager
   const [appointModalVisible, setAppointModalVisible] = useState(false);
   const [newSmName, setNewSmName] = useState("");
   const [newSmPhone, setNewSmPhone] = useState("");
@@ -111,7 +111,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 1. DAWO DA TELEMETRY NA KASA BAKI DAYA
   const fetchNationalTelemetry = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -134,11 +133,15 @@ const NsdDashboard = ({ navigation }) => {
 
       setStatesData(fetchedStates);
       setActivityLogs(fetchedLogs);
+
+      const calculatedTotalAgents = fetchedStates.reduce((acc, curr) => acc + (Number(curr.agentsCount) || 0), 0);
+      const calculatedTotalSupervisors = fetchedStates.reduce((acc, curr) => acc + (Number(curr.supervisorsCount) || 0), 0);
+
       setNationalStats({
         totalStates: ALL_NIGERIAN_STATES.length,
         activeManagers: fetchedStates.filter((s) => s.hasLeader || s.leaderId).length,
-        totalSupervisors: fetchedStats.totalSupervisors || 0,
-        totalAgents: fetchedStats.totalAgents || 0,
+        totalSupervisors: fetchedStats.totalSupervisors || calculatedTotalSupervisors || 0,
+        totalAgents: fetchedStats.totalAgents || calculatedTotalAgents || 0,
         nationalVolumeSold: fetchedStats.nationalVolumeSold || 0,
         nationalAirtimeSold: fetchedStats.nationalAirtimeSold || 0,
       });
@@ -183,7 +186,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. BULK STATE SELECTION LOGIC
   const activeStatesList = statesData.filter((s) => s.hasLeader);
 
   const handleSelectAllStates = () => {
@@ -202,7 +204,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. DUBA SUPERVISORS & AGENTS NA STATE MANAGER
   const handleInspectStateHierarchy = async (stateItem) => {
     setInspectedState(stateItem);
     setStateInspectModalVisible(true);
@@ -226,7 +227,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. DAKATARWA KO KUNNAWA (SUSPEND / UNSUSPEND)
   const handleToggleStaffSuspension = (staffId, staffName, isSuspended) => {
     if (!staffId) return;
 
@@ -267,7 +267,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 5. DEPLOY TARGET GA STATE (SINGLE KO BULK GA DUKKAN JIHOHI)
   const handleDeployNationalTarget = async () => {
     setActionLoading(true);
     try {
@@ -291,7 +290,6 @@ const NsdDashboard = ({ navigation }) => {
         payload.leaderId = targetStateItem.leaderId;
         payload.state = targetStateItem.state;
       } else {
-        // Bulk Target Mode
         payload.states = selectedStateNames;
       }
 
@@ -316,7 +314,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 6. GOGE / RESET TARGET GA STATE (CLEAR TARGET QUOTA)
   const handleClearStateTarget = async (leaderId, stateName) => {
     const confirmClear = async () => {
       try {
@@ -354,7 +351,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 7. APPOINT STATE MANAGER
   const handleAppointStateManager = async () => {
     if (!newSmName.trim() || !newSmPhone.trim() || !newSmState) {
       showAlert("Validation Error", "Name, Phone Number, and State are required.");
@@ -391,7 +387,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 8. BROADCAST DIRECTIVE
   const handleBroadcastDirective = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
       showAlert("Validation Error", "Directive Title and Body are required.");
@@ -525,7 +520,7 @@ const NsdDashboard = ({ navigation }) => {
             color={activeTab === "history" ? "#1e40af" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "history" && styles.mainNavTabTextActive]}>
-            National Live Feed
+            Live Stream
           </Text>
         </TouchableOpacity>
       </View>
@@ -540,10 +535,15 @@ const NsdDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* NATIONAL FIELD METRICS CARDS */}
+          {/* =========================================================================
+              NIGERIA EXECUTIVE TELEMETRY (ENHANCED COLORED ICONS & TOTAL AGENTS)
+             ========================================================================= */}
           <View style={styles.telemetrySection}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderLabel}>NIGERIA EXECUTIVE TELEMETRY</Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <View style={styles.telemetryBadgeDot} />
+                <Text style={styles.sectionHeaderLabel}>NIGERIA EXECUTIVE TELEMETRY</Text>
+              </View>
               <View style={styles.geoIndicatorBadge}>
                 <Ionicons name="shield-checkmark" size={13} color="#0284c7" />
                 <Text style={styles.geoIndicatorText}>REAL-TIME LIVE SYNC</Text>
@@ -551,10 +551,11 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.metricGrid}>
+              {/* CARD 1: STATE MANAGERS (ROYAL BLUE) */}
               <View style={[styles.metricCard, { borderLeftColor: "#1e40af" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>State Managers (SM)</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#eff6ff" }]}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}>
                     <FontAwesome5 name="user-tie" size={13} color="#1e40af" />
                   </View>
                 </View>
@@ -564,10 +565,11 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSub}>36 States & FCT Coverage</Text>
               </View>
 
+              {/* CARD 2: FIELD SUPERVISORS (SKY BLUE) */}
               <View style={[styles.metricCard, { borderLeftColor: "#0284c7" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>Field Supervisors (FS)</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#f0f9ff" }]}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" }]}>
                     <MaterialCommunityIcons name="account-group" size={16} color="#0284c7" />
                   </View>
                 </View>
@@ -575,30 +577,60 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSub}>LGA Network Leads</Text>
               </View>
 
+              {/* CARD 3: TOTAL RETAIL AGENTS (EMERALD GREEN) */}
               <View style={[styles.metricCard, { borderLeftColor: "#059669" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>National Data Sold</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#ecfdf5" }]}>
-                    <Ionicons name="server" size={14} color="#059669" />
+                  <Text style={styles.metricLabel}>Total Retail Agents</Text>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0" }]}>
+                    <Ionicons name="people" size={16} color="#059669" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#059669" }]}>
-                  {Number(nationalStats.nationalVolumeSold || 0).toLocaleString()} GB
+                  {Number(nationalStats.totalAgents).toLocaleString()}
                 </Text>
-                <Text style={styles.metricSub}>Data Delivered Volume</Text>
+                <Text style={styles.metricSub}>Grassroot Resellers Network</Text>
               </View>
 
+              {/* CARD 4: NATIONAL DATA VOLUME SOLD (VIOLET / PURPLE) */}
+              <View style={[styles.metricCard, { borderLeftColor: "#7c3aed" }]}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.metricLabel}>National Data Sold</Text>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe" }]}>
+                    <Ionicons name="server" size={15} color="#7c3aed" />
+                  </View>
+                </View>
+                <Text style={[styles.metricValue, { color: "#7c3aed" }]}>
+                  {Number(nationalStats.nationalVolumeSold || 0).toLocaleString()} GB
+                </Text>
+                <Text style={styles.metricSub}>Delivered Telecom Volume</Text>
+              </View>
+
+              {/* CARD 5: NATIONAL AIRTIME SOLD (AMBER GOLD) */}
               <View style={[styles.metricCard, { borderLeftColor: "#d97706" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>National Airtime Sold</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#fef3c7" }]}>
-                    <Ionicons name="call" size={13} color="#d97706" />
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}>
+                    <Ionicons name="call" size={14} color="#d97706" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#d97706" }]}>
                   ₦{Number(nationalStats.nationalAirtimeSold || 0).toLocaleString()}
                 </Text>
-                <Text style={styles.metricSub}>Recharge VTU Volume</Text>
+                <Text style={styles.metricSub}>Gross VTU Sales Revenue</Text>
+              </View>
+
+              {/* CARD 6: NETWORK EFFICIENCY SCORE (TEAL) */}
+              <View style={[styles.metricCard, { borderLeftColor: "#0d9488" }]}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.metricLabel}>Active Deployment</Text>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#f0fdfa", borderColor: "#99f6e4" }]}>
+                    <MaterialCommunityIcons name="shield-check" size={15} color="#0d9488" />
+                  </View>
+                </View>
+                <Text style={[styles.metricValue, { color: "#0d9488" }]}>
+                  {Math.round((nationalStats.activeManagers / ALL_NIGERIAN_STATES.length) * 100)}%
+                </Text>
+                <Text style={styles.metricSub}>Command Operational Desk</Text>
               </View>
             </View>
           </View>
@@ -620,7 +652,7 @@ const NsdDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: 36 STATES GRID (WITH BULK SELECT & DIRECT TARGET DEPLOYMENT) */}
+          {/* TAB 1: 36 STATES GRID */}
           {activeTab === "states" && (
             <View style={styles.tabContentWrapper}>
               {/* Bulk Action Ribbon */}
@@ -647,7 +679,7 @@ const NsdDashboard = ({ navigation }) => {
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Nationwide Quota ({selectedStateNames.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>Deploy Quota ({selectedStateNames.length})</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -728,7 +760,6 @@ const NsdDashboard = ({ navigation }) => {
                             {st.lgasTotal} LGAs • {st.supervisorsCount || 0} FS • {st.agentsCount || 0} Agents
                           </Text>
 
-                          {/* Mini Targets Indicator */}
                           <View style={styles.stateTargetMiniRow}>
                             <Text style={styles.stateTargetMiniText}>
                               Data: <Text style={{ fontWeight: "bold", color: "#1e40af" }}>{st.stateDataGoal || 0}GB</Text>
@@ -764,10 +795,9 @@ const NsdDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: STATE MANAGERS LIST (WITH EDIT, CLEAR, & BULK ACTIONS) */}
+          {/* TAB 2: STATE MANAGERS LIST */}
           {activeTab === "managers" && (
             <View style={styles.tabContentWrapper}>
-              {/* Bulk Action Ribbon */}
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
@@ -871,7 +901,6 @@ const NsdDashboard = ({ navigation }) => {
                       </View>
                     </View>
 
-                    {/* Manager Action Row: Set/Edit, Clear, Direct Call */}
                     <View style={styles.managerActionRow}>
                       <TouchableOpacity
                         style={styles.managerActionBtn}
@@ -1158,7 +1187,7 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ASSIGN NATIONAL TARGET (SINGLE & BULK ALLOCATION FOR DATA & AIRTIME) */}
+      {/* MODAL 2: ASSIGN NATIONAL TARGET */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1183,7 +1212,6 @@ const NsdDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>TARGET CYCLE / MONTH</Text>
             <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
-            {/* DATA TARGET FIELD */}
             <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
             <TextInput
               style={styles.textInputStyle}
@@ -1194,7 +1222,6 @@ const NsdDashboard = ({ navigation }) => {
               onChangeText={setTargetDataGoal}
             />
 
-            {/* AIRTIME TARGET FIELD */}
             <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
             <TextInput
               style={styles.textInputStyle}
@@ -1205,7 +1232,6 @@ const NsdDashboard = ({ navigation }) => {
               onChangeText={setTargetAirtimeGoal}
             />
 
-            {/* SUPERVISOR RECRUITMENT QUOTA */}
             <Text style={styles.formFieldLabel}>SUPERVISOR RECRUITMENT QUOTA (HEADCOUNT)</Text>
             <TextInput
               style={styles.textInputStyle}
@@ -1424,7 +1450,65 @@ const styles = StyleSheet.create({
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
 
-  // Bulk Actions
+  // Telemetry Section
+  telemetrySection: { padding: isLargeScreen ? 24 : 16 },
+  telemetryBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1e40af", marginRight: 8 },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
+  sectionHeaderLabel: { color: "#334155", fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  geoIndicatorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  geoIndicatorText: { color: "#0284c7", fontSize: 10, fontWeight: "800", marginLeft: 4 },
+  metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  metricCard: {
+    width: isLargeScreen ? "31.5%" : "48.5%",
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 4,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+  },
+  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  metricIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  metricLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
+  metricValue: { fontSize: 18, fontWeight: "900", marginVertical: 4 },
+  metricSub: { color: "#94a3b8", fontSize: 10, fontWeight: "600" },
+
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    height: 44,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    marginHorizontal: isLargeScreen ? 24 : 16,
+    marginBottom: 14,
+  },
+  searchInput: { flex: 1, color: "#0f172a", fontSize: 12 },
+  tabContentWrapper: { paddingHorizontal: isLargeScreen ? 24 : 16 },
+
   bulkActionRibbon: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1448,54 +1532,6 @@ const styles = StyleSheet.create({
   },
   bulkTargetBtnText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
 
-  telemetrySection: { padding: isLargeScreen ? 24 : 16 },
-  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionHeaderLabel: { color: "#475569", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
-  geoIndicatorBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-  },
-  geoIndicatorText: { color: "#0284c7", fontSize: 10, fontWeight: "800", marginLeft: 3 },
-  metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  metricCard: {
-    width: isLargeScreen ? "23.5%" : "48.5%",
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderLeftWidth: 4,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-  },
-  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  metricIconWrap: { width: 28, height: 28, borderRadius: 7, justifyContent: "center", alignItems: "center" },
-  metricLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
-  metricValue: { fontSize: 17, fontWeight: "900", marginVertical: 4 },
-  metricSub: { color: "#94a3b8", fontSize: 10, fontWeight: "600" },
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    height: 44,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    marginHorizontal: isLargeScreen ? 24 : 16,
-    marginBottom: 14,
-  },
-  searchInput: { flex: 1, color: "#0f172a", fontSize: 12 },
-  tabContentWrapper: { paddingHorizontal: isLargeScreen ? 24 : 16 },
   actionPillBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1560,6 +1596,7 @@ const styles = StyleSheet.create({
     borderColor: "#bfdbfe",
   },
   stateAppointBtnText: { color: "#1e40af", fontSize: 10, fontWeight: "800" },
+
   managerCard: {
     backgroundColor: "#ffffff",
     borderRadius: 14,
