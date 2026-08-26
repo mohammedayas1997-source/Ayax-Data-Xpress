@@ -46,7 +46,7 @@ const NsdDashboard = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
 
   // Tabs & Search
-  const [activeTab, setActiveTab] = useState("states"); // 'states', 'managers', 'history'
+  const [activeTab, setActiveTab] = useState("states");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Bulk State Selection
@@ -57,7 +57,7 @@ const NsdDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal 1: Drill-down State Hierarchy
+  // Modal 1: State Hierarchy
   const [stateInspectModalVisible, setStateInspectModalVisible] = useState(false);
   const [inspectedState, setInspectedState] = useState(null);
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
@@ -536,7 +536,7 @@ const NsdDashboard = ({ navigation }) => {
       >
         <View style={styles.contentCenterWrapper}>
           {/* =========================================================================
-              NIGERIA EXECUTIVE TELEMETRY (ENHANCED COLORED ICONS & TOTAL AGENTS)
+              NIGERIA EXECUTIVE TELEMETRY (DYNAMIC TINTED COLORED BACKGROUND ICONS)
              ========================================================================= */}
           <View style={styles.telemetrySection}>
             <View style={styles.sectionHeaderRow}>
@@ -551,12 +551,12 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.metricGrid}>
-              {/* CARD 1: STATE MANAGERS (ROYAL BLUE) */}
+              {/* CARD 1: STATE MANAGERS (ROYAL BLUE BACKGROUND) */}
               <View style={[styles.metricCard, { borderLeftColor: "#1e40af" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>State Managers (SM)</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#eff6ff", borderColor: "#bfdbfe" }]}>
-                    <FontAwesome5 name="user-tie" size={13} color="#1e40af" />
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#dbeafe", borderColor: "#93c5fd" }]}>
+                    <FontAwesome5 name="user-tie" size={14} color="#1e40af" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#1e40af" }]}>
@@ -565,24 +565,24 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSub}>36 States & FCT Coverage</Text>
               </View>
 
-              {/* CARD 2: FIELD SUPERVISORS (SKY BLUE) */}
+              {/* CARD 2: FIELD SUPERVISORS (SKY BLUE BACKGROUND) */}
               <View style={[styles.metricCard, { borderLeftColor: "#0284c7" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>Field Supervisors (FS)</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#f0f9ff", borderColor: "#bae6fd" }]}>
-                    <MaterialCommunityIcons name="account-group" size={16} color="#0284c7" />
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#e0f2fe", borderColor: "#7dd3fc" }]}>
+                    <MaterialCommunityIcons name="account-group" size={17} color="#0284c7" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#0284c7" }]}>{nationalStats.totalSupervisors}</Text>
                 <Text style={styles.metricSub}>LGA Network Leads</Text>
               </View>
 
-              {/* CARD 3: TOTAL RETAIL AGENTS (EMERALD GREEN) */}
+              {/* CARD 3: TOTAL RETAIL AGENTS (EMERALD GREEN BACKGROUND) */}
               <View style={[styles.metricCard, { borderLeftColor: "#059669" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>Total Retail Agents</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0" }]}>
-                    <Ionicons name="people" size={16} color="#059669" />
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#d1fae5", borderColor: "#6ee7b7" }]}>
+                    <Ionicons name="people" size={17} color="#059669" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#059669" }]}>
@@ -591,11 +591,11 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSub}>Grassroot Resellers Network</Text>
               </View>
 
-              {/* CARD 4: NATIONAL DATA VOLUME SOLD (VIOLET / PURPLE) */}
+              {/* CARD 4: NATIONAL DATA VOLUME SOLD (PURPLE BACKGROUND) */}
               <View style={[styles.metricCard, { borderLeftColor: "#7c3aed" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>National Data Sold</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe" }]}>
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#ede9fe", borderColor: "#c4b5fd" }]}>
                     <Ionicons name="server" size={15} color="#7c3aed" />
                   </View>
                 </View>
@@ -605,12 +605,12 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSub}>Delivered Telecom Volume</Text>
               </View>
 
-              {/* CARD 5: NATIONAL AIRTIME SOLD (AMBER GOLD) */}
+              {/* CARD 5: NATIONAL AIRTIME SOLD (AMBER GOLD BACKGROUND) */}
               <View style={[styles.metricCard, { borderLeftColor: "#d97706" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>National Airtime Sold</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#fef3c7", borderColor: "#fde68a" }]}>
-                    <Ionicons name="call" size={14} color="#d97706" />
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#fef3c7", borderColor: "#fcd34d" }]}>
+                    <Ionicons name="call" size={15} color="#d97706" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#d97706" }]}>
@@ -619,12 +619,12 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSub}>Gross VTU Sales Revenue</Text>
               </View>
 
-              {/* CARD 6: NETWORK EFFICIENCY SCORE (TEAL) */}
+              {/* CARD 6: COMMAND ACTIVE DEPLOYMENT (TEAL BACKGROUND) */}
               <View style={[styles.metricCard, { borderLeftColor: "#0d9488" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>Active Deployment</Text>
-                  <View style={[styles.metricIconWrap, { backgroundColor: "#f0fdfa", borderColor: "#99f6e4" }]}>
-                    <MaterialCommunityIcons name="shield-check" size={15} color="#0d9488" />
+                  <View style={[styles.metricIconWrap, { backgroundColor: "#ccfbf1", borderColor: "#5eead4" }]}>
+                    <MaterialCommunityIcons name="shield-check" size={16} color="#0d9488" />
                   </View>
                 </View>
                 <Text style={[styles.metricValue, { color: "#0d9488" }]}>
@@ -1482,13 +1482,15 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  
+  // Icon Container with Solid/Tinted Background
   metricIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
   metricLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
   metricValue: { fontSize: 18, fontWeight: "900", marginVertical: 4 },
