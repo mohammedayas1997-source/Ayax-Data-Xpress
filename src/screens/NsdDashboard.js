@@ -63,13 +63,14 @@ const NsdDashboard = ({ navigation }) => {
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
   const [inspectLoading, setInspectLoading] = useState(false);
 
-  // Modal 2: Target Deployment Modal
+  // Modal 2: Target Deployment Modal (Har da Raba Sabbin Agents & Sabbin Supervisors Quotas)
   const [targetModalVisible, setTargetModalVisible] = useState(false);
   const [targetMode, setTargetMode] = useState("single"); // 'single' ko 'bulk'
   const [targetStateItem, setTargetStateItem] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("10000");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("500000");
-  const [targetSupervisorGoal, setTargetSupervisorGoal] = useState("20");
+  const [targetNewAgentGoal, setTargetNewAgentGoal] = useState("50"); // Sabbin Agents Target
+  const [targetNewSupervisorGoal, setTargetNewSupervisorGoal] = useState("10"); // Sabbin Supervisors Target
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
   // Modal 3: Appoint State Manager
@@ -267,7 +268,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // DEPLOY TARGET GA STATE MANAGER (SINGLE KO BULK)
+  // DEPLOY TARGET GA STATE MANAGER (SINGLE KO NATIONWIDE BULK)
   const handleDeployNationalTarget = async () => {
     setActionLoading(true);
     try {
@@ -278,7 +279,8 @@ const NsdDashboard = ({ navigation }) => {
         mode: targetMode,
         dataGoal: Number(targetDataGoal),
         airtimeGoal: Number(targetAirtimeGoal),
-        supervisorGoal: Number(targetSupervisorGoal),
+        agentGoal: Number(targetNewAgentGoal), // Target na sabbin Agents
+        supervisorGoal: Number(targetNewSupervisorGoal), // Target na sabbin Supervisors
         month: targetMonth.trim(),
       };
 
@@ -300,8 +302,8 @@ const NsdDashboard = ({ navigation }) => {
         showAlert(
           "Targets Deployed 🎯",
           targetMode === "bulk"
-            ? `Allocated target (${targetDataGoal}GB & ₦${Number(targetAirtimeGoal).toLocaleString()}) across selected States.`
-            : `Allocated target (${targetDataGoal}GB & ₦${Number(targetAirtimeGoal).toLocaleString()}) to ${targetStateItem?.state} State Manager.`
+            ? `Allocated target (${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors) across selected States.`
+            : `Allocated target (${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors) to ${targetStateItem?.state} State Manager.`
         );
         setTargetModalVisible(false);
         setTargetStateItem(null);
@@ -329,13 +331,14 @@ const NsdDashboard = ({ navigation }) => {
             state: stateName,
             dataGoal: 0,
             airtimeGoal: 0,
+            agentGoal: 0,
             supervisorGoal: 0,
             month: targetMonth,
           },
           { headers }
         );
 
-        showAlert("Cleared", `Target quota for ${stateName} State reset to 0.`);
+        showAlert("Cleared", `All target quotas for ${stateName} State reset to 0.`);
         fetchNationalTelemetry();
       } catch (err) {
         showAlert("Error", "Could not reset target quota.");
@@ -343,9 +346,9 @@ const NsdDashboard = ({ navigation }) => {
     };
 
     if (Platform.OS === "web") {
-      if (window.confirm(`Are you sure you want to clear target quota for ${stateName} State?`)) confirmClear();
+      if (window.confirm(`Are you sure you want to clear target quotas for ${stateName} State?`)) confirmClear();
     } else {
-      Alert.alert("Reset State Target", `Reset target quota for ${stateName} State to 0?`, [
+      Alert.alert("Reset State Target", `Reset all target quotas for ${stateName} State to 0?`, [
         { text: "Cancel", style: "cancel" },
         { text: "Reset", style: "destructive", onPress: confirmClear },
       ]);
@@ -547,7 +550,7 @@ const NsdDashboard = ({ navigation }) => {
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.targetBannerTitle}>National Target Command Desk</Text>
                 <Text style={styles.targetBannerSub}>
-                  Deploy Data (GB), Airtime (₦), & Supervisors quotas across 36 States
+                  Deploy Data, Airtime, New Agents, & New Supervisors quotas across 36 States
                 </Text>
               </View>
             </View>
@@ -593,7 +596,7 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.metricGrid}>
-              {/* CARD 1: STATE MANAGERS (ROYAL BLUE THEME) */}
+              {/* CARD 1: STATE MANAGERS */}
               <View style={[styles.metricCard, styles.cardBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={[styles.metricLabel, { color: "#1e3a8a" }]}>State Managers (SM)</Text>
@@ -607,7 +610,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={[styles.metricSub, { color: "#3b82f6" }]}>36 States & FCT Coverage</Text>
               </View>
 
-              {/* CARD 2: FIELD SUPERVISORS (SKY BLUE THEME) */}
+              {/* CARD 2: FIELD SUPERVISORS */}
               <View style={[styles.metricCard, styles.cardSkyBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={[styles.metricLabel, { color: "#0369a1" }]}>Field Supervisors (FS)</Text>
@@ -619,7 +622,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={[styles.metricSub, { color: "#0284c7" }]}>LGA Network Coordinators</Text>
               </View>
 
-              {/* CARD 3: TOTAL RETAIL AGENTS (EMERALD GREEN THEME) */}
+              {/* CARD 3: TOTAL RETAIL AGENTS */}
               <View style={[styles.metricCard, styles.cardGreenBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={[styles.metricLabel, { color: "#065f46" }]}>Total Retail Agents</Text>
@@ -633,7 +636,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={[styles.metricSub, { color: "#059669" }]}>Active Field Resellers</Text>
               </View>
 
-              {/* CARD 4: NATIONAL DATA VOLUME SOLD (PURPLE THEME) */}
+              {/* CARD 4: NATIONAL DATA VOLUME */}
               <View style={[styles.metricCard, styles.cardPurpleBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={[styles.metricLabel, { color: "#5b21b6" }]}>National Data Sold</Text>
@@ -647,7 +650,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={[styles.metricSub, { color: "#7c3aed" }]}>Delivered Telecom Bundles</Text>
               </View>
 
-              {/* CARD 5: NATIONAL AIRTIME SOLD (AMBER GOLD THEME) */}
+              {/* CARD 5: NATIONAL AIRTIME */}
               <View style={[styles.metricCard, styles.cardAmberBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={[styles.metricLabel, { color: "#92400e" }]}>National Airtime Sold</Text>
@@ -661,7 +664,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={[styles.metricSub, { color: "#d97706" }]}>Gross Recharge VTU Value</Text>
               </View>
 
-              {/* CARD 6: STATE NETWORK COVERAGE (TEAL THEME) */}
+              {/* CARD 6: COVERAGE */}
               <View style={[styles.metricCard, styles.cardTealBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={[styles.metricLabel, { color: "#115e59" }]}>State Coverage Rate</Text>
@@ -797,17 +800,35 @@ const NsdDashboard = ({ navigation }) => {
                             {st.lgasTotal} LGAs • {st.supervisorsCount || 0} FS • {st.agentsCount || 0} Agents
                           </Text>
 
-                          {/* Mini Targets Indicator */}
-                          <View style={styles.stateTargetMiniRow}>
-                            <Text style={styles.stateTargetMiniText}>
-                              Data: <Text style={{ fontWeight: "bold", color: "#1e40af" }}>{st.stateDataGoal || 0}GB</Text>
-                            </Text>
-                            <Text style={styles.stateTargetMiniText}>
-                              Airtime: <Text style={{ fontWeight: "bold", color: "#d97706" }}>₦{Number(st.stateAirtimeGoal || 0).toLocaleString()}</Text>
-                            </Text>
+                          {/* Mini Targets Breakdown */}
+                          <View style={styles.stateTargetMiniGrid}>
+                            <View style={styles.stateTargetMiniItem}>
+                              <Text style={styles.stateTargetMiniLabel}>Data Quota</Text>
+                              <Text style={[styles.stateTargetMiniVal, { color: "#1e40af" }]}>
+                                {st.stateDataGoal || 0} GB
+                              </Text>
+                            </View>
+                            <View style={styles.stateTargetMiniItem}>
+                              <Text style={styles.stateTargetMiniLabel}>Airtime Quota</Text>
+                              <Text style={[styles.stateTargetMiniVal, { color: "#d97706" }]}>
+                                ₦{Number(st.stateAirtimeGoal || 0).toLocaleString()}
+                              </Text>
+                            </View>
+                            <View style={styles.stateTargetMiniItem}>
+                              <Text style={styles.stateTargetMiniLabel}>New Agents Goal</Text>
+                              <Text style={[styles.stateTargetMiniVal, { color: "#059669" }]}>
+                                {st.stateAgentGoal || 50} Agents
+                              </Text>
+                            </View>
+                            <View style={styles.stateTargetMiniItem}>
+                              <Text style={styles.stateTargetMiniLabel}>New FS Goal</Text>
+                              <Text style={[styles.stateTargetMiniVal, { color: "#0284c7" }]}>
+                                {st.stateSupervisorGoal || 10} FS
+                              </Text>
+                            </View>
                           </View>
 
-                          {/* Action Buttons for this State Card */}
+                          {/* Action Buttons */}
                           <View style={styles.stateCardActionGrid}>
                             <TouchableOpacity
                               style={styles.stateDeployTargetBtn}
@@ -816,12 +837,13 @@ const NsdDashboard = ({ navigation }) => {
                                 setTargetMode("single");
                                 setTargetDataGoal(String(st.stateDataGoal || 10000));
                                 setTargetAirtimeGoal(String(st.stateAirtimeGoal || 500000));
-                                setTargetSupervisorGoal(String(st.stateSupervisorGoal || 20));
+                                setTargetNewAgentGoal(String(st.stateAgentGoal || 50));
+                                setTargetNewSupervisorGoal(String(st.stateSupervisorGoal || 10));
                                 setTargetModalVisible(true);
                               }}
                             >
                               <FontAwesome5 name="bullseye" size={11} color="#ffffff" />
-                              <Text style={styles.stateDeployTargetBtnText}>Set Target</Text>
+                              <Text style={styles.stateDeployTargetBtnText}>Set Targets</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -880,7 +902,7 @@ const NsdDashboard = ({ navigation }) => {
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Target ({selectedStateNames.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Targets ({selectedStateNames.length})</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -933,21 +955,30 @@ const NsdDashboard = ({ navigation }) => {
                       </TouchableOpacity>
                     </View>
 
-                    <View style={styles.statsSummaryRow}>
+                    {/* Manager 4 Targets Breakdown */}
+                    <View style={styles.statsSummaryGrid}>
                       <View style={styles.summaryBox}>
-                        <Text style={styles.summaryBoxLabel}>Supervisors</Text>
-                        <Text style={styles.summaryBoxValue}>{sm.supervisorsCount || 0}</Text>
-                      </View>
-                      <View style={styles.summaryBox}>
-                        <Text style={styles.summaryBoxLabel}>Data Target</Text>
+                        <Text style={styles.summaryBoxLabel}>Data Quota</Text>
                         <Text style={[styles.summaryBoxValue, { color: "#1e40af" }]}>
                           {sm.stateDataGoal || 0} GB
                         </Text>
                       </View>
                       <View style={styles.summaryBox}>
-                        <Text style={styles.summaryBoxLabel}>Airtime Target</Text>
+                        <Text style={styles.summaryBoxLabel}>Airtime Quota</Text>
                         <Text style={[styles.summaryBoxValue, { color: "#d97706" }]}>
                           ₦{Number(sm.stateAirtimeGoal || 0).toLocaleString()}
+                        </Text>
+                      </View>
+                      <View style={styles.summaryBox}>
+                        <Text style={styles.summaryBoxLabel}>New Agents</Text>
+                        <Text style={[styles.summaryBoxValue, { color: "#059669" }]}>
+                          {sm.stateAgentGoal || 50}
+                        </Text>
+                      </View>
+                      <View style={styles.summaryBox}>
+                        <Text style={styles.summaryBoxLabel}>New FS</Text>
+                        <Text style={[styles.summaryBoxValue, { color: "#0284c7" }]}>
+                          {sm.stateSupervisorGoal || 10}
                         </Text>
                       </View>
                     </View>
@@ -960,12 +991,13 @@ const NsdDashboard = ({ navigation }) => {
                           setTargetMode("single");
                           setTargetDataGoal(String(sm.stateDataGoal || 10000));
                           setTargetAirtimeGoal(String(sm.stateAirtimeGoal || 500000));
-                          setTargetSupervisorGoal(String(sm.stateSupervisorGoal || 20));
+                          setTargetNewAgentGoal(String(sm.stateAgentGoal || 50));
+                          setTargetNewSupervisorGoal(String(sm.stateSupervisorGoal || 10));
                           setTargetModalVisible(true);
                         }}
                       >
                         <FontAwesome5 name="edit" size={12} color="#1e40af" />
-                        <Text style={[styles.managerActionBtnText, { color: "#1e40af" }]}>Set/Edit Target</Text>
+                        <Text style={[styles.managerActionBtnText, { color: "#1e40af" }]}>Set/Edit Targets</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -973,7 +1005,7 @@ const NsdDashboard = ({ navigation }) => {
                         onPress={() => handleClearStateTarget(sm.leaderId, sm.state)}
                       >
                         <Feather name="trash-2" size={13} color="#dc2626" />
-                        <Text style={[styles.managerActionBtnText, { color: "#dc2626" }]}>Clear Target</Text>
+                        <Text style={[styles.managerActionBtnText, { color: "#dc2626" }]}>Clear</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -1254,7 +1286,7 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ASSIGN NATIONAL TARGET */}
+      {/* MODAL 2: ASSIGN NATIONAL TARGETS (DATA, AIRTIME, NEW AGENTS, & NEW SUPERVISORS) */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1262,13 +1294,13 @@ const NsdDashboard = ({ navigation }) => {
               <View>
                 <Text style={styles.modalCardTitle}>
                   {targetMode === "bulk"
-                    ? `Deploy Bulk Quota (${selectedStateNames.length} States)`
-                    : `Deploy State Target (${targetStateItem?.state} State)`}
+                    ? `Deploy Nationwide Quotas (${selectedStateNames.length} States)`
+                    : `Deploy State Targets (${targetStateItem?.state} State)`}
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
                   {targetMode === "bulk"
-                    ? `Applying identical quota across selected states`
-                    : `Manager: ${targetStateItem?.leaderName} (${targetStateItem?.leaderPhone})`}
+                    ? `Applying quotas across selected state directorates`
+                    : `State Director: ${targetStateItem?.leaderName} (${targetStateItem?.leaderPhone})`}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
@@ -1276,55 +1308,68 @@ const NsdDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>TARGET CYCLE / MONTH</Text>
-            <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+              <Text style={styles.formFieldLabel}>TARGET CYCLE / MONTH</Text>
+              <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
-            {/* DATA TARGET FIELD */}
-            <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              keyboardType="numeric"
-              placeholder="e.g. 10000"
-              placeholderTextColor="#94a3b8"
-              value={targetDataGoal}
-              onChangeText={setTargetDataGoal}
-            />
+              {/* 1. DATA VOLUME TARGET */}
+              <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                keyboardType="numeric"
+                placeholder="e.g. 10000"
+                placeholderTextColor="#94a3b8"
+                value={targetDataGoal}
+                onChangeText={setTargetDataGoal}
+              />
 
-            {/* AIRTIME TARGET FIELD */}
-            <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              keyboardType="numeric"
-              placeholder="e.g. 500000"
-              placeholderTextColor="#94a3b8"
-              value={targetAirtimeGoal}
-              onChangeText={setTargetAirtimeGoal}
-            />
+              {/* 2. AIRTIME SALES TARGET */}
+              <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                keyboardType="numeric"
+                placeholder="e.g. 500000"
+                placeholderTextColor="#94a3b8"
+                value={targetAirtimeGoal}
+                onChangeText={setTargetAirtimeGoal}
+              />
 
-            {/* SUPERVISOR RECRUITMENT QUOTA */}
-            <Text style={styles.formFieldLabel}>SUPERVISOR RECRUITMENT QUOTA (HEADCOUNT)</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              keyboardType="numeric"
-              placeholder="e.g. 20"
-              placeholderTextColor="#94a3b8"
-              value={targetSupervisorGoal}
-              onChangeText={setTargetSupervisorGoal}
-            />
+              {/* 3. NEW AGENTS RECRUITMENT TARGET */}
+              <Text style={styles.formFieldLabel}>NEW AGENTS REGISTRATION TARGET (HEADCOUNT)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                keyboardType="numeric"
+                placeholder="e.g. 50"
+                placeholderTextColor="#94a3b8"
+                value={targetNewAgentGoal}
+                onChangeText={setTargetNewAgentGoal}
+              />
 
-            <TouchableOpacity
-              style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
-              onPress={handleDeployNationalTarget}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryActionBtnText}>
-                  {targetMode === "bulk" ? "AUTHORIZE BULK TARGET ALLOCATION" : "AUTHORIZE & DEPLOY TARGET"}
-                </Text>
-              )}
-            </TouchableOpacity>
+              {/* 4. NEW SUPERVISORS APPOINTMENT TARGET */}
+              <Text style={styles.formFieldLabel}>NEW SUPERVISORS APPOINTMENT TARGET (LGA LEADS)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                keyboardType="numeric"
+                placeholder="e.g. 10"
+                placeholderTextColor="#94a3b8"
+                value={targetNewSupervisorGoal}
+                onChangeText={setTargetNewSupervisorGoal}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleDeployNationalTarget}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>
+                    {targetMode === "bulk" ? "AUTHORIZE NATIONWIDE TARGET ALLOCATION" : "AUTHORIZE & DEPLOY TARGETS"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1698,17 +1743,22 @@ const styles = StyleSheet.create({
   managerNameText: { color: "#1e40af", fontSize: 12, fontWeight: "800", marginTop: 6 },
   managerSubDetails: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
   stateStatsSummary: { color: "#475569", fontSize: 10.5, marginTop: 4 },
-  stateTargetMiniRow: {
+  
+  // 4-Quotas Mini Grid
+  stateTargetMiniGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     backgroundColor: "#f8fafc",
     padding: 6,
-    borderRadius: 6,
+    borderRadius: 8,
     marginTop: 6,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  stateTargetMiniText: { fontSize: 9.5, color: "#64748b" },
+  stateTargetMiniItem: { width: "48%", marginVertical: 2 },
+  stateTargetMiniLabel: { fontSize: 8.5, color: "#64748b", fontWeight: "700" },
+  stateTargetMiniVal: { fontSize: 10.5, fontWeight: "900", marginTop: 1 },
 
   stateCardActionGrid: {
     flexDirection: "row",
@@ -1782,6 +1832,22 @@ const styles = StyleSheet.create({
   managerCardName: { color: "#0f172a", fontSize: 14.5, fontWeight: "800" },
   managerCardState: { color: "#64748b", fontSize: 11, marginTop: 2 },
   suspendIconButton: { padding: 4 },
+
+  statsSummaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    padding: 8,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  summaryBox: { width: "23%", alignItems: "center" },
+  summaryBoxLabel: { color: "#64748b", fontSize: 9, fontWeight: "700" },
+  summaryBoxValue: { fontSize: 11.5, fontWeight: "900", marginTop: 2 },
+  
   statsSummaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1792,9 +1858,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  summaryBox: { flex: 1, alignItems: "center" },
-  summaryBoxLabel: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
-  summaryBoxValue: { color: "#0f172a", fontSize: 12.5, fontWeight: "900", marginTop: 2 },
   managerActionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
