@@ -65,7 +65,7 @@ const NsdDashboard = ({ navigation }) => {
 
   // Modal 2: Target Deployment Modal
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single");
+  const [targetMode, setTargetMode] = useState("single"); // 'single' ko 'bulk'
   const [targetStateItem, setTargetStateItem] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("10000");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("500000");
@@ -267,6 +267,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
+  // DEPLOY TARGET GA STATE MANAGER (SINGLE KO BULK)
   const handleDeployNationalTarget = async () => {
     setActionLoading(true);
     try {
@@ -283,14 +284,14 @@ const NsdDashboard = ({ navigation }) => {
 
       if (targetMode === "single") {
         if (!targetStateItem?.leaderId) {
-          showAlert("Notice", "No State Manager assigned to this state.");
+          showAlert("Notice", "No State Manager appointed for this state yet.");
           setActionLoading(false);
           return;
         }
         payload.leaderId = targetStateItem.leaderId;
         payload.state = targetStateItem.state;
       } else {
-        payload.states = selectedStateNames;
+        payload.states = selectedStateNames.length > 0 ? selectedStateNames : ALL_NIGERIAN_STATES;
       }
 
       const res = await axios.post(`${BASE_URL}/super-leader/assign-target`, payload, { headers });
@@ -299,8 +300,8 @@ const NsdDashboard = ({ navigation }) => {
         showAlert(
           "Targets Deployed 🎯",
           targetMode === "bulk"
-            ? `Allocated targets across ${selectedStateNames.length} selected States.`
-            : `Allocated targets to ${targetStateItem?.state} State Manager.`
+            ? `Allocated target (${targetDataGoal}GB & ₦${Number(targetAirtimeGoal).toLocaleString()}) across selected States.`
+            : `Allocated target (${targetDataGoal}GB & ₦${Number(targetAirtimeGoal).toLocaleString()}) to ${targetStateItem?.state} State Manager.`
         );
         setTargetModalVisible(false);
         setTargetStateItem(null);
@@ -536,6 +537,47 @@ const NsdDashboard = ({ navigation }) => {
       >
         <View style={styles.contentCenterWrapper}>
           {/* =========================================================================
+              EXECUTIVE TARGET DISPATCH BANNER (BABBAN MABALLIN TURA TARGET)
+             ========================================================================= */}
+          <View style={styles.targetDispatchBanner}>
+            <View style={styles.targetDispatchTop}>
+              <View style={styles.targetIconBox}>
+                <FontAwesome5 name="bullseye" size={20} color="#1e40af" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.targetBannerTitle}>National Target Command Desk</Text>
+                <Text style={styles.targetBannerSub}>
+                  Deploy Data (GB), Airtime (₦), & Supervisors quotas across 36 States
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.targetBannerActionRow}>
+              <TouchableOpacity
+                style={styles.targetBannerBtnPrimary}
+                onPress={() => {
+                  setTargetMode("bulk");
+                  setSelectedStateNames(activeStatesList.map((s) => s.state));
+                  setTargetModalVisible(true);
+                }}
+              >
+                <MaterialCommunityIcons name="target-account" size={16} color="#ffffff" />
+                <Text style={styles.targetBannerBtnTextPrimary}>DEPLOY TO ALL 36 STATES</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.targetBannerBtnSecondary}
+                onPress={() => {
+                  setActiveTab("managers");
+                }}
+              >
+                <Feather name="edit" size={14} color="#1e40af" />
+                <Text style={styles.targetBannerBtnTextSecondary}>SELECT STATE</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* =========================================================================
               NIGERIA EXECUTIVE TELEMETRY (DYNAMIC PASTEL BACKGROUNDS & COLORED ICONS)
              ========================================================================= */}
           <View style={styles.telemetrySection}>
@@ -666,7 +708,7 @@ const NsdDashboard = ({ navigation }) => {
                   <Text style={styles.bulkSelectBtnText}>
                     {selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
                       ? "Deselect All"
-                      : `Select All Active States (${selectedStateNames.length}/${activeStatesList.length})`}
+                      : `Select States (${selectedStateNames.length}/${activeStatesList.length})`}
                   </Text>
                 </TouchableOpacity>
 
@@ -679,7 +721,7 @@ const NsdDashboard = ({ navigation }) => {
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Quota ({selectedStateNames.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>Deploy Target ({selectedStateNames.length})</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -697,20 +739,15 @@ const NsdDashboard = ({ navigation }) => {
                   const isSelected = selectedStateNames.includes(st.state);
 
                   return (
-                    <TouchableOpacity
+                    <View
                       key={st.state}
                       style={[styles.stateCard, isSelected && styles.cardSelected]}
-                      activeOpacity={0.88}
-                      onPress={() => handleInspectStateHierarchy(st)}
                     >
                       <View style={styles.stateCardHeader}>
                         {st.hasLeader && (
                           <TouchableOpacity
                             style={{ marginRight: 6 }}
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              handleToggleStateSelect(st.state);
-                            }}
+                            onPress={() => handleToggleStateSelect(st.state)}
                           >
                             <MaterialIcons
                               name={isSelected ? "check-box" : "check-box-outline-blank"}
@@ -760,6 +797,7 @@ const NsdDashboard = ({ navigation }) => {
                             {st.lgasTotal} LGAs • {st.supervisorsCount || 0} FS • {st.agentsCount || 0} Agents
                           </Text>
 
+                          {/* Mini Targets Indicator */}
                           <View style={styles.stateTargetMiniRow}>
                             <Text style={styles.stateTargetMiniText}>
                               Data: <Text style={{ fontWeight: "bold", color: "#1e40af" }}>{st.stateDataGoal || 0}GB</Text>
@@ -769,8 +807,30 @@ const NsdDashboard = ({ navigation }) => {
                             </Text>
                           </View>
 
-                          <View style={styles.inspectPill}>
-                            <Text style={styles.inspectPillText}>🔍 Click to Inspect Team & Targets</Text>
+                          {/* Action Buttons for this State Card */}
+                          <View style={styles.stateCardActionGrid}>
+                            <TouchableOpacity
+                              style={styles.stateDeployTargetBtn}
+                              onPress={() => {
+                                setTargetStateItem(st);
+                                setTargetMode("single");
+                                setTargetDataGoal(String(st.stateDataGoal || 10000));
+                                setTargetAirtimeGoal(String(st.stateAirtimeGoal || 500000));
+                                setTargetSupervisorGoal(String(st.stateSupervisorGoal || 20));
+                                setTargetModalVisible(true);
+                              }}
+                            >
+                              <FontAwesome5 name="bullseye" size={11} color="#ffffff" />
+                              <Text style={styles.stateDeployTargetBtnText}>Set Target</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.inspectPill}
+                              onPress={() => handleInspectStateHierarchy(st)}
+                            >
+                              <Feather name="users" size={12} color="#1e40af" />
+                              <Text style={styles.inspectPillText}>Inspect</Text>
+                            </TouchableOpacity>
                           </View>
                         </>
                       ) : (
@@ -778,8 +838,7 @@ const NsdDashboard = ({ navigation }) => {
                           <Text style={styles.stateVacantText}>No State Manager Appointed</Text>
                           <TouchableOpacity
                             style={styles.stateAppointBtn}
-                            onPress={(e) => {
-                              e.stopPropagation();
+                            onPress={() => {
                               setNewSmState(st.state);
                               setAppointModalVisible(true);
                             }}
@@ -788,7 +847,7 @@ const NsdDashboard = ({ navigation }) => {
                           </TouchableOpacity>
                         </View>
                       )}
-                    </TouchableOpacity>
+                    </View>
                   );
                 })}
               </View>
@@ -834,19 +893,14 @@ const NsdDashboard = ({ navigation }) => {
                 const isSelected = selectedStateNames.includes(sm.state);
 
                 return (
-                  <TouchableOpacity
+                  <View
                     key={sm.state}
                     style={[styles.managerCard, isSelected && styles.cardSelected]}
-                    activeOpacity={0.9}
-                    onPress={() => handleInspectStateHierarchy(sm)}
                   >
                     <View style={styles.managerCardHeader}>
                       <TouchableOpacity
                         style={{ marginRight: 10 }}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleToggleStateSelect(sm.state);
-                        }}
+                        onPress={() => handleToggleStateSelect(sm.state)}
                       >
                         <MaterialIcons
                           name={isSelected ? "check-box" : "check-box-outline-blank"}
@@ -868,10 +922,7 @@ const NsdDashboard = ({ navigation }) => {
                       </View>
 
                       <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleToggleStaffSuspension(sm.leaderId, sm.leaderName, sm.isSuspended);
-                        }}
+                        onPress={() => handleToggleStaffSuspension(sm.leaderId, sm.leaderName, sm.isSuspended)}
                         style={styles.suspendIconButton}
                       >
                         <MaterialIcons
@@ -904,8 +955,7 @@ const NsdDashboard = ({ navigation }) => {
                     <View style={styles.managerActionRow}>
                       <TouchableOpacity
                         style={styles.managerActionBtn}
-                        onPress={(e) => {
-                          e.stopPropagation();
+                        onPress={() => {
                           setTargetStateItem(sm);
                           setTargetMode("single");
                           setTargetDataGoal(String(sm.stateDataGoal || 10000));
@@ -920,10 +970,7 @@ const NsdDashboard = ({ navigation }) => {
 
                       <TouchableOpacity
                         style={styles.managerActionBtn}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          handleClearStateTarget(sm.leaderId, sm.state);
-                        }}
+                        onPress={() => handleClearStateTarget(sm.leaderId, sm.state)}
                       >
                         <Feather name="trash-2" size={13} color="#dc2626" />
                         <Text style={[styles.managerActionBtnText, { color: "#dc2626" }]}>Clear Target</Text>
@@ -931,16 +978,21 @@ const NsdDashboard = ({ navigation }) => {
 
                       <TouchableOpacity
                         style={styles.managerActionBtn}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          Linking.openURL(`tel:${sm.leaderPhone}`);
-                        }}
+                        onPress={() => handleInspectStateHierarchy(sm)}
+                      >
+                        <Feather name="users" size={12} color="#059669" />
+                        <Text style={[styles.managerActionBtnText, { color: "#059669" }]}>Inspect Team</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.managerActionBtn}
+                        onPress={() => Linking.openURL(`tel:${sm.leaderPhone}`)}
                       >
                         <Ionicons name="call" size={13} color="#0284c7" />
-                        <Text style={[styles.managerActionBtnText, { color: "#0284c7" }]}>Call SM</Text>
+                        <Text style={[styles.managerActionBtnText, { color: "#0284c7" }]}>Call</Text>
                       </TouchableOpacity>
                     </View>
-                  </TouchableOpacity>
+                  </View>
                 );
               })}
             </View>
@@ -1064,7 +1116,22 @@ const NsdDashboard = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>COMMAND ACTIONS</Text>
+              <Text style={styles.sidebarCategory}>EXECUTIVE ACTIONS</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setTargetMode("bulk");
+                  setSelectedStateNames(activeStatesList.map((s) => s.state));
+                  setTargetModalVisible(true);
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "#fef3c7" }]}>
+                  <FontAwesome5 name="bullseye" size={14} color="#d97706" />
+                </View>
+                <Text style={styles.navItemText}>Deploy State Targets</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -1196,12 +1263,12 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.modalCardTitle}>
                   {targetMode === "bulk"
                     ? `Deploy Bulk Quota (${selectedStateNames.length} States)`
-                    : `Deploy State Target`}
+                    : `Deploy State Target (${targetStateItem?.state} State)`}
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
                   {targetMode === "bulk"
                     ? `Applying identical quota across selected states`
-                    : `State Target for: ${targetStateItem?.state} (${targetStateItem?.leaderName})`}
+                    : `Manager: ${targetStateItem?.leaderName} (${targetStateItem?.leaderPhone})`}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
@@ -1212,6 +1279,7 @@ const NsdDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>TARGET CYCLE / MONTH</Text>
             <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
+            {/* DATA TARGET FIELD */}
             <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
             <TextInput
               style={styles.textInputStyle}
@@ -1222,6 +1290,7 @@ const NsdDashboard = ({ navigation }) => {
               onChangeText={setTargetDataGoal}
             />
 
+            {/* AIRTIME TARGET FIELD */}
             <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
             <TextInput
               style={styles.textInputStyle}
@@ -1232,6 +1301,7 @@ const NsdDashboard = ({ navigation }) => {
               onChangeText={setTargetAirtimeGoal}
             />
 
+            {/* SUPERVISOR RECRUITMENT QUOTA */}
             <Text style={styles.formFieldLabel}>SUPERVISOR RECRUITMENT QUOTA (HEADCOUNT)</Text>
             <TextInput
               style={styles.textInputStyle}
@@ -1450,6 +1520,64 @@ const styles = StyleSheet.create({
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
 
+  // Target Command Dispatch Banner
+  targetDispatchBanner: {
+    backgroundColor: "#ffffff",
+    marginHorizontal: isLargeScreen ? 24 : 16,
+    marginTop: 14,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 5,
+    borderLeftColor: "#1e40af",
+    elevation: 2,
+  },
+  targetDispatchTop: { flexDirection: "row", alignItems: "center" },
+  targetIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  targetBannerTitle: { color: "#0f172a", fontSize: 13.5, fontWeight: "900" },
+  targetBannerSub: { color: "#64748b", fontSize: 11, marginTop: 1 },
+  targetBannerActionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingTop: 10,
+  },
+  targetBannerBtnPrimary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1e40af",
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginRight: 6,
+  },
+  targetBannerBtnTextPrimary: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 5 },
+  targetBannerBtnSecondary: {
+    flex: 0.45,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  targetBannerBtnTextSecondary: { color: "#1e40af", fontSize: 11, fontWeight: "800", marginLeft: 4 },
+
   // Telemetry Section
   telemetrySection: { padding: isLargeScreen ? 24 : 16 },
   telemetryBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1e40af", marginRight: 8 },
@@ -1481,36 +1609,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
   },
-  cardBlueBg: {
-    backgroundColor: "#f0f7ff",
-    borderColor: "#bfdbfe",
-    borderLeftColor: "#1e40af",
-  },
-  cardSkyBg: {
-    backgroundColor: "#f0f9ff",
-    borderColor: "#bae6fd",
-    borderLeftColor: "#0284c7",
-  },
-  cardGreenBg: {
-    backgroundColor: "#ecfdf5",
-    borderColor: "#a7f3d0",
-    borderLeftColor: "#059669",
-  },
-  cardPurpleBg: {
-    backgroundColor: "#f5f3ff",
-    borderColor: "#ddd6fe",
-    borderLeftColor: "#7c3aed",
-  },
-  cardAmberBg: {
-    backgroundColor: "#fffbeb",
-    borderColor: "#fde68a",
-    borderLeftColor: "#d97706",
-  },
-  cardTealBg: {
-    backgroundColor: "#f0fdfa",
-    borderColor: "#99f6e4",
-    borderLeftColor: "#0d9488",
-  },
+  cardBlueBg: { backgroundColor: "#f0f7ff", borderColor: "#bfdbfe", borderLeftColor: "#1e40af" },
+  cardSkyBg: { backgroundColor: "#f0f9ff", borderColor: "#bae6fd", borderLeftColor: "#0284c7" },
+  cardGreenBg: { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", borderLeftColor: "#059669" },
+  cardPurpleBg: { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe", borderLeftColor: "#7c3aed" },
+  cardAmberBg: { backgroundColor: "#fffbeb", borderColor: "#fde68a", borderLeftColor: "#d97706" },
+  cardTealBg: { backgroundColor: "#f0fdfa", borderColor: "#99f6e4", borderLeftColor: "#0d9488" },
 
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   metricIconWrap: {
@@ -1605,16 +1709,39 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
   },
   stateTargetMiniText: { fontSize: 9.5, color: "#64748b" },
-  inspectPill: {
-    backgroundColor: "#eff6ff",
-    paddingVertical: 6,
-    borderRadius: 6,
-    marginTop: 8,
+
+  stateCardActionGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingTop: 6,
+  },
+  stateDeployTargetBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1e40af",
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginRight: 4,
+  },
+  stateDeployTargetBtnText: { color: "#ffffff", fontSize: 10, fontWeight: "800", marginLeft: 4 },
+  inspectPill: {
+    flex: 0.8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: "#bfdbfe",
   },
-  inspectPillText: { color: "#1e40af", fontSize: 10, fontWeight: "800" },
+  inspectPillText: { color: "#1e40af", fontSize: 10, fontWeight: "800", marginLeft: 3 },
   stateVacantText: { color: "#dc2626", fontSize: 10.5, fontWeight: "600" },
   stateAppointBtn: {
     backgroundColor: "#eff6ff",
