@@ -53,7 +53,7 @@ const NsdDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal 1: Drill-down State Hierarchy (Duba Supervisors da Ayyukan Jihar)
+  // Modal 1: Drill-down State Hierarchy
   const [stateInspectModalVisible, setStateInspectModalVisible] = useState(false);
   const [inspectedState, setInspectedState] = useState(null);
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
@@ -105,7 +105,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 1. DAWO DA TELEMETRY NA KASA BAKI DAYA
   const fetchNationalTelemetry = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -176,7 +175,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. DUBA KASAN STATE MANAGER (SUPERVISORS & AGENTS INSPECTION)
   const handleInspectStateHierarchy = async (stateItem) => {
     setInspectedState(stateItem);
     setStateInspectModalVisible(true);
@@ -186,7 +184,6 @@ const NsdDashboard = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Binciko supervisors na wannan jihar
       const res = await axios.get(
         `${BASE_URL}/leader/dashboard?state=${encodeURIComponent(stateItem.state)}`,
         { headers, timeout: 15000 }
@@ -201,7 +198,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. DAKATARWA KO KUNNAWA (SUSPEND / UNSUSPEND)
   const handleToggleStaffSuspension = (staffId, staffName, isSuspended) => {
     if (!staffId) return;
 
@@ -242,7 +238,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. DEPLOY TARGET GA STATE MANAGER
   const handleDeployNationalTarget = async () => {
     if (!targetStateItem?.leaderId) {
       showAlert("Notice", "No State Manager assigned to this state.");
@@ -277,7 +272,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 5. APPOINT STATE MANAGER
   const handleAppointStateManager = async () => {
     if (!newSmName.trim() || !newSmPhone.trim() || !newSmState) {
       showAlert("Validation Error", "Name, Phone Number, and State are required.");
@@ -314,7 +308,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // 6. BROADCAST DIRECTIVE
   const handleBroadcastDirective = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
       showAlert("Validation Error", "Directive Title and Body are required.");
@@ -359,8 +352,8 @@ const NsdDashboard = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#060c18" />
-        <ActivityIndicator size="large" color="#d4af37" />
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+        <ActivityIndicator size="large" color="#1e3a8a" />
         <Text style={styles.loaderTitle}>NATIONAL SALES DIRECTOR (NSD)</Text>
         <Text style={styles.loaderText}>Establishing Real-Time 36 States Executive Link...</Text>
       </View>
@@ -369,12 +362,12 @@ const NsdDashboard = ({ navigation }) => {
 
   return (
     <View style={styles.mainWrapper}>
-      <StatusBar barStyle="light-content" backgroundColor="#060c18" />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       {/* TOP COMMAND BAR */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)} activeOpacity={0.7}>
-          <Feather name="menu" size={24} color="#f8fafc" />
+          <Feather name="menu" size={24} color="#0f172a" />
         </TouchableOpacity>
 
         <View style={styles.topBrandGroup}>
@@ -391,7 +384,7 @@ const NsdDashboard = ({ navigation }) => {
             onPress={() => setAppointModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="person-add" size={16} color="#d4af37" />
+            <Ionicons name="person-add" size={16} color="#1e3a8a" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -399,7 +392,7 @@ const NsdDashboard = ({ navigation }) => {
             onPress={() => setBroadcastModalVisible(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="megaphone-outline" size={16} color="#38bdf8" />
+            <Ionicons name="megaphone-outline" size={16} color="#0284c7" />
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.avatarBtn, styles.logoutIconBtn]} onPress={handleLogout} activeOpacity={0.7}>
@@ -417,10 +410,10 @@ const NsdDashboard = ({ navigation }) => {
           <MaterialCommunityIcons
             name="map-legend"
             size={16}
-            color={activeTab === "states" ? "#d4af37" : "#64748b"}
+            color={activeTab === "states" ? "#1e3a8a" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "states" && styles.mainNavTabTextActive]}>
-            36 States & FCT Matrix ({ALL_NIGERIAN_STATES.length})
+            36 States Matrix ({ALL_NIGERIAN_STATES.length})
           </Text>
         </TouchableOpacity>
 
@@ -431,7 +424,7 @@ const NsdDashboard = ({ navigation }) => {
           <FontAwesome5
             name="user-tie"
             size={13}
-            color={activeTab === "managers" ? "#d4af37" : "#64748b"}
+            color={activeTab === "managers" ? "#1e3a8a" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "managers" && styles.mainNavTabTextActive]}>
             State Managers ({nationalStats.activeManagers})
@@ -445,10 +438,10 @@ const NsdDashboard = ({ navigation }) => {
           <Feather
             name="activity"
             size={14}
-            color={activeTab === "history" ? "#d4af37" : "#64748b"}
+            color={activeTab === "history" ? "#1e3a8a" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "history" && styles.mainNavTabTextActive]}>
-            Live Operations Feed
+            National Live Feed
           </Text>
         </TouchableOpacity>
       </View>
@@ -459,7 +452,7 @@ const NsdDashboard = ({ navigation }) => {
         contentContainerStyle={styles.scrollContentContainer}
         nestedScrollEnabled={true}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onManualRefresh} tintColor="#d4af37" />
+          <RefreshControl refreshing={refreshing} onRefresh={onManualRefresh} tintColor="#1e3a8a" />
         }
       >
         <View style={styles.contentCenterWrapper}>
@@ -468,47 +461,47 @@ const NsdDashboard = ({ navigation }) => {
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeaderLabel}>NIGERIA EXECUTIVE TELEMETRY</Text>
               <View style={styles.geoIndicatorBadge}>
-                <Ionicons name="shield-checkmark" size={13} color="#d4af37" />
+                <Ionicons name="shield-checkmark" size={13} color="#1e3a8a" />
                 <Text style={styles.geoIndicatorText}>REAL-TIME LIVE SYNC</Text>
               </View>
             </View>
 
             <View style={styles.metricGrid}>
-              <View style={[styles.metricCard, { borderColor: "rgba(212, 175, 55, 0.35)" }]}>
+              <View style={[styles.metricCard, { borderLeftColor: "#1e3a8a" }]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={styles.metricLabel}>Appointed State Managers</Text>
-                  <FontAwesome5 name="user-tie" size={14} color="#d4af37" />
+                  <Text style={styles.metricLabel}>State Managers (SM)</Text>
+                  <FontAwesome5 name="user-tie" size={14} color="#1e3a8a" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#d4af37" }]}>
+                <Text style={[styles.metricValue, { color: "#1e3a8a" }]}>
                   {nationalStats.activeManagers} / {ALL_NIGERIAN_STATES.length}
                 </Text>
                 <Text style={styles.metricSub}>36 States & FCT Coverage</Text>
               </View>
 
-              <View style={[styles.metricCard, { borderColor: "rgba(56, 189, 248, 0.35)" }]}>
+              <View style={[styles.metricCard, { borderLeftColor: "#0284c7" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>Field Supervisors (FS)</Text>
-                  <MaterialCommunityIcons name="account-group" size={17} color="#38bdf8" />
+                  <MaterialCommunityIcons name="account-group" size={17} color="#0284c7" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#38bdf8" }]}>{nationalStats.totalSupervisors}</Text>
+                <Text style={[styles.metricValue, { color: "#0284c7" }]}>{nationalStats.totalSupervisors}</Text>
                 <Text style={styles.metricSub}>LGA Network Leads</Text>
               </View>
 
-              <View style={[styles.metricCard, { borderColor: "rgba(16, 185, 129, 0.35)" }]}>
+              <View style={[styles.metricCard, { borderLeftColor: "#059669" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>Retail Agents</Text>
-                  <Ionicons name="people" size={16} color="#10b981" />
+                  <Ionicons name="people" size={16} color="#059669" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#10b981" }]}>{nationalStats.totalAgents}</Text>
+                <Text style={[styles.metricValue, { color: "#059669" }]}>{nationalStats.totalAgents}</Text>
                 <Text style={styles.metricSub}>Grassroot Resellers</Text>
               </View>
 
-              <View style={[styles.metricCard, { borderColor: "rgba(192, 132, 252, 0.35)" }]}>
+              <View style={[styles.metricCard, { borderLeftColor: "#7c3aed" }]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabel}>National Volume</Text>
-                  <Ionicons name="server" size={15} color="#c084fc" />
+                  <Ionicons name="server" size={15} color="#7c3aed" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#c084fc" }]}>
+                <Text style={[styles.metricValue, { color: "#7c3aed" }]}>
                   {Number(nationalStats.nationalVolumeSold || 0).toLocaleString()} GB
                 </Text>
                 <Text style={styles.metricSub}>National Delivered Data</Text>
@@ -522,13 +515,13 @@ const NsdDashboard = ({ navigation }) => {
             <TextInput
               style={styles.searchInput}
               placeholder="Search State, Manager name, phone, or region..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />
             {searchQuery ? (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={16} color="#94a3b8" />
+                <Ionicons name="close-circle" size={16} color="#64748b" />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -539,7 +532,7 @@ const NsdDashboard = ({ navigation }) => {
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>NIGERIA REGIONAL MATRICES ({filteredStates.length})</Text>
                 <TouchableOpacity style={styles.actionPillBtn} onPress={() => setAppointModalVisible(true)}>
-                  <Ionicons name="person-add" size={13} color="#0a1224" />
+                  <Ionicons name="person-add" size={13} color="#ffffff" />
                   <Text style={styles.actionPillBtnText}>APPOINT SM</Text>
                 </TouchableOpacity>
               </View>
@@ -560,9 +553,9 @@ const NsdDashboard = ({ navigation }) => {
                           {
                             backgroundColor: st.hasLeader
                               ? st.isSuspended
-                                ? "rgba(239, 68, 68, 0.15)"
-                                : "rgba(16, 185, 129, 0.15)"
-                              : "rgba(100, 116, 139, 0.15)",
+                                ? "#fef2f2"
+                                : "#ecfdf5"
+                              : "#f1f5f9",
                           },
                         ]}
                       >
@@ -572,9 +565,9 @@ const NsdDashboard = ({ navigation }) => {
                             {
                               color: st.hasLeader
                                 ? st.isSuspended
-                                  ? "#ef4444"
-                                  : "#10b981"
-                                : "#94a3b8",
+                                  ? "#dc2626"
+                                  : "#059669"
+                                : "#64748b",
                             },
                           ]}
                         >
@@ -618,7 +611,7 @@ const NsdDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: STATE MANAGERS LIST & DIRECT ACTIONS */}
+          {/* TAB 2: STATE MANAGERS LIST */}
           {activeTab === "managers" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -635,7 +628,7 @@ const NsdDashboard = ({ navigation }) => {
                   <View style={styles.managerCardHeader}>
                     <View style={styles.managerMainInfo}>
                       <View style={styles.managerAvatar}>
-                        <FontAwesome5 name="user-tie" size={17} color="#d4af37" />
+                        <FontAwesome5 name="user-tie" size={17} color="#1e3a8a" />
                       </View>
                       <View style={{ marginLeft: 12, flex: 1 }}>
                         <Text style={styles.managerCardName}>{sm.leaderName}</Text>
@@ -655,7 +648,7 @@ const NsdDashboard = ({ navigation }) => {
                       <MaterialIcons
                         name={sm.isSuspended ? "play-circle-filled" : "pause-circle-filled"}
                         size={32}
-                        color={sm.isSuspended ? "#22c55e" : "#ef4444"}
+                        color={sm.isSuspended ? "#059669" : "#dc2626"}
                       />
                     </TouchableOpacity>
                   </View>
@@ -671,7 +664,7 @@ const NsdDashboard = ({ navigation }) => {
                     </View>
                     <View style={styles.summaryBox}>
                       <Text style={styles.summaryBoxLabel}>Target Quota</Text>
-                      <Text style={[styles.summaryBoxValue, { color: "#d4af37" }]}>
+                      <Text style={[styles.summaryBoxValue, { color: "#1e3a8a" }]}>
                         {sm.stateDataGoal || 5000} GB
                       </Text>
                     </View>
@@ -685,8 +678,8 @@ const NsdDashboard = ({ navigation }) => {
                         Linking.openURL(`tel:${sm.leaderPhone}`);
                       }}
                     >
-                      <Ionicons name="call" size={14} color="#38bdf8" />
-                      <Text style={[styles.managerActionBtnText, { color: "#38bdf8" }]}>Direct Call</Text>
+                      <Ionicons name="call" size={14} color="#0284c7" />
+                      <Text style={[styles.managerActionBtnText, { color: "#0284c7" }]}>Direct Call</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -697,16 +690,16 @@ const NsdDashboard = ({ navigation }) => {
                         setTargetModalVisible(true);
                       }}
                     >
-                      <FontAwesome5 name="bullseye" size={13} color="#d4af37" />
-                      <Text style={[styles.managerActionBtnText, { color: "#d4af37" }]}>Assign Target</Text>
+                      <FontAwesome5 name="bullseye" size={13} color="#1e3a8a" />
+                      <Text style={[styles.managerActionBtnText, { color: "#1e3a8a" }]}>Assign Target</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={styles.managerActionBtn}
                       onPress={() => handleInspectStateHierarchy(sm)}
                     >
-                      <Feather name="external-link" size={14} color="#94a3b8" />
-                      <Text style={[styles.managerActionBtnText, { color: "#94a3b8" }]}>Inspect Field Team</Text>
+                      <Feather name="external-link" size={14} color="#64748b" />
+                      <Text style={[styles.managerActionBtnText, { color: "#64748b" }]}>Inspect Field Team</Text>
                     </TouchableOpacity>
                   </View>
                 </TouchableOpacity>
@@ -714,12 +707,12 @@ const NsdDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 3: LIVE OPERATIONS AUDIT FEED */}
+          {/* TAB 3: AUDIT STREAM */}
           {activeTab === "history" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>NATIONAL LIVE AUDIT STREAM</Text>
-                <Text style={{ color: "#10b981", fontSize: 11, fontWeight: "bold" }}>REAL-TIME FEED</Text>
+                <Text style={{ color: "#059669", fontSize: 11, fontWeight: "bold" }}>REAL-TIME FEED</Text>
               </View>
 
               {activityLogs.length > 0 ? (
@@ -739,7 +732,7 @@ const NsdDashboard = ({ navigation }) => {
                 ))
               ) : (
                 <View style={styles.emptyFeed}>
-                  <Feather name="activity" size={36} color="#475569" />
+                  <Feather name="activity" size={36} color="#94a3b8" />
                   <Text style={styles.emptyFeedText}>No real-time audit logs recorded yet.</Text>
                 </View>
               )}
@@ -754,7 +747,7 @@ const NsdDashboard = ({ navigation }) => {
               Linking.openURL(`${BASE_URL}/super-leader/download-report?token=${token}`);
             }}
           >
-            <MaterialIcons name="file-download" size={20} color="#0a1224" />
+            <MaterialIcons name="file-download" size={20} color="#ffffff" />
             <Text style={styles.downloadReportBtnText}>EXPORT 36 STATES AUDIT REPORT (CSV)</Text>
           </TouchableOpacity>
         </View>
@@ -773,14 +766,14 @@ const NsdDashboard = ({ navigation }) => {
           >
             <View style={styles.sidebarHeader}>
               <View style={styles.sidebarBrandRow}>
-                <MaterialCommunityIcons name="shield-crown" size={26} color="#d4af37" />
+                <MaterialCommunityIcons name="shield-crown" size={28} color="#1e3a8a" />
                 <View style={{ marginLeft: 10 }}>
                   <Text style={styles.sidebarBrandText}>National Director</Text>
                   <Text style={styles.sidebarRoleText}>Head of Field Sales (NSD)</Text>
                 </View>
               </View>
               <TouchableOpacity onPress={() => toggleSidebar(false)}>
-                <Feather name="x" size={22} color="#94a3b8" />
+                <Feather name="x" size={22} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -794,10 +787,12 @@ const NsdDashboard = ({ navigation }) => {
                   setActiveTab("states");
                 }}
               >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(212, 175, 55, 0.15)" }]}>
-                  <MaterialCommunityIcons name="map-legend" size={16} color="#d4af37" />
+                <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
+                  <MaterialCommunityIcons name="map-legend" size={16} color="#1e3a8a" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "states" && { color: "#d4af37" }]}>36 States Matrix</Text>
+                <Text style={[styles.navItemText, activeTab === "states" && { color: "#1e3a8a", fontWeight: "900" }]}>
+                  36 States Matrix
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -807,10 +802,12 @@ const NsdDashboard = ({ navigation }) => {
                   setActiveTab("managers");
                 }}
               >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
-                  <FontAwesome5 name="user-tie" size={14} color="#38bdf8" />
+                <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
+                  <FontAwesome5 name="user-tie" size={14} color="#1e3a8a" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "managers" && { color: "#d4af37" }]}>State Managers</Text>
+                <Text style={[styles.navItemText, activeTab === "managers" && { color: "#1e3a8a", fontWeight: "900" }]}>
+                  State Managers
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -820,10 +817,12 @@ const NsdDashboard = ({ navigation }) => {
                   setActiveTab("history");
                 }}
               >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
-                  <Feather name="activity" size={15} color="#10b981" />
+                <View style={[styles.navIconBox, { backgroundColor: "#ecfdf5" }]}>
+                  <Feather name="activity" size={15} color="#059669" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "history" && { color: "#d4af37" }]}>Audit Feed</Text>
+                <Text style={[styles.navItemText, activeTab === "history" && { color: "#059669", fontWeight: "900" }]}>
+                  Audit Feed
+                </Text>
               </TouchableOpacity>
 
               <Text style={styles.sidebarCategory}>COMMAND ACTIONS</Text>
@@ -835,8 +834,8 @@ const NsdDashboard = ({ navigation }) => {
                   setAppointModalVisible(true);
                 }}
               >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(212, 175, 55, 0.15)" }]}>
-                  <Ionicons name="person-add-outline" size={16} color="#d4af37" />
+                <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
+                  <Ionicons name="person-add-outline" size={16} color="#1e3a8a" />
                 </View>
                 <Text style={styles.navItemText}>Appoint State Manager</Text>
               </TouchableOpacity>
@@ -848,22 +847,22 @@ const NsdDashboard = ({ navigation }) => {
                   setBroadcastModalVisible(true);
                 }}
               >
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(56, 189, 248, 0.15)" }]}>
-                  <Ionicons name="megaphone-outline" size={16} color="#38bdf8" />
+                <View style={[styles.navIconBox, { backgroundColor: "#f0f9ff" }]}>
+                  <Ionicons name="megaphone-outline" size={16} color="#0284c7" />
                 </View>
-                <Text style={styles.navItemText}>Broadcast National Directive</Text>
+                <Text style={styles.navItemText}>Broadcast Directive</Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-              <Feather name="log-out" size={17} color="#ef4444" />
+              <Feather name="log-out" size={17} color="#dc2626" />
               <Text style={styles.logoutBtnText}>Exit NSD Session</Text>
             </TouchableOpacity>
           </Animated.View>
         </TouchableOpacity>
       )}
 
-      {/* MODAL 1: DRILL-DOWN INSPECTION (STATE MANAGER -> SUPERVISORS & PERFORMANCE) */}
+      {/* MODAL 1: DRILL-DOWN INSPECTION */}
       <Modal visible={stateInspectModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxHeight: "90%", width: isLargeScreen ? "65%" : "95%" }]}>
@@ -877,14 +876,14 @@ const NsdDashboard = ({ navigation }) => {
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setStateInspectModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
+                <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
 
             {inspectLoading ? (
               <View style={{ padding: 40, alignItems: "center" }}>
-                <ActivityIndicator size="large" color="#d4af37" />
-                <Text style={{ color: "#94a3b8", fontSize: 12, marginTop: 10 }}>
+                <ActivityIndicator size="large" color="#1e3a8a" />
+                <Text style={{ color: "#64748b", fontSize: 12, marginTop: 10 }}>
                   Fetching LGA Field Supervisors...
                 </Text>
               </View>
@@ -912,7 +911,7 @@ const NsdDashboard = ({ navigation }) => {
                           <MaterialIcons
                             name={sup.isSuspended ? "play-circle-filled" : "pause-circle-filled"}
                             size={28}
-                            color={sup.isSuspended ? "#22c55e" : "#ef4444"}
+                            color={sup.isSuspended ? "#059669" : "#dc2626"}
                           />
                         </TouchableOpacity>
                       </View>
@@ -924,11 +923,13 @@ const NsdDashboard = ({ navigation }) => {
                         </View>
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Data Delivered</Text>
-                          <Text style={styles.summaryBoxValue}>{sup.teamPerformance || sup.dataSold || 0} GB</Text>
+                          <Text style={[styles.summaryBoxValue, { color: "#059669" }]}>
+                            {sup.teamPerformance || sup.dataSold || 0} GB
+                          </Text>
                         </View>
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Target Goal</Text>
-                          <Text style={[styles.summaryBoxValue, { color: "#d4af37" }]}>
+                          <Text style={[styles.summaryBoxValue, { color: "#1e3a8a" }]}>
                             {sup.dataGoal || 500} GB
                           </Text>
                         </View>
@@ -937,7 +938,7 @@ const NsdDashboard = ({ navigation }) => {
                   ))
                 ) : (
                   <View style={styles.emptyFeed}>
-                    <FontAwesome5 name="user-slash" size={30} color="#475569" />
+                    <FontAwesome5 name="user-slash" size={30} color="#94a3b8" />
                     <Text style={styles.emptyFeedText}>No Field Supervisors deployed in this state yet.</Text>
                   </View>
                 )}
@@ -959,7 +960,7 @@ const NsdDashboard = ({ navigation }) => {
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
+                <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -988,7 +989,7 @@ const NsdDashboard = ({ navigation }) => {
               disabled={actionLoading}
             >
               {actionLoading ? (
-                <ActivityIndicator color="#0a1224" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text style={styles.primaryActionBtnText}>AUTHORIZE & DEPLOY TARGET</Text>
               )}
@@ -1007,7 +1008,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.modalCardSubtitle}>Deploy state executive director</Text>
               </View>
               <TouchableOpacity onPress={() => setAppointModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
+                <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -1031,7 +1032,7 @@ const NsdDashboard = ({ navigation }) => {
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. Sani Bello"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
                 value={newSmName}
                 onChangeText={setNewSmName}
               />
@@ -1040,7 +1041,7 @@ const NsdDashboard = ({ navigation }) => {
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. 08022223333"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
                 keyboardType="phone-pad"
                 value={newSmPhone}
                 onChangeText={setNewSmPhone}
@@ -1050,7 +1051,7 @@ const NsdDashboard = ({ navigation }) => {
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. Password123@"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
                 value={newSmPassword}
                 onChangeText={setNewSmPassword}
               />
@@ -1061,7 +1062,7 @@ const NsdDashboard = ({ navigation }) => {
                 disabled={actionLoading}
               >
                 {actionLoading ? (
-                  <ActivityIndicator color="#0a1224" />
+                  <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT</Text>
                 )}
@@ -1081,7 +1082,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.modalCardSubtitle}>Push directive across 36 State Managers</Text>
               </View>
               <TouchableOpacity onPress={() => setBroadcastModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#94a3b8" />
+                <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -1089,7 +1090,7 @@ const NsdDashboard = ({ navigation }) => {
             <TextInput
               style={styles.textInputStyle}
               placeholder="e.g. Nationwide Month-End Acceleration"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               value={notifTitle}
               onChangeText={setNotifTitle}
             />
@@ -1098,7 +1099,7 @@ const NsdDashboard = ({ navigation }) => {
             <TextInput
               style={[styles.textInputStyle, { height: 80, textAlignVertical: "top" }]}
               placeholder="Type executive announcement here..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
               multiline
               value={notifMessage}
               onChangeText={setNotifMessage}
@@ -1110,7 +1111,7 @@ const NsdDashboard = ({ navigation }) => {
               disabled={actionLoading}
             >
               {actionLoading ? (
-                <ActivityIndicator color="#0a1224" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text style={styles.primaryActionBtnText}>DISPATCH DIRECTIVE</Text>
               )}
@@ -1123,12 +1124,12 @@ const NsdDashboard = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  mainWrapper: { flex: 1, backgroundColor: "#060c18" },
-  loaderContainer: { flex: 1, backgroundColor: "#060c18", justifyContent: "center", alignItems: "center" },
-  loaderTitle: { color: "#d4af37", fontSize: 16, fontWeight: "900", letterSpacing: 1.5, marginTop: 16 },
+  mainWrapper: { flex: 1, backgroundColor: "#f8fafc" },
+  loaderContainer: { flex: 1, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center" },
+  loaderTitle: { color: "#1e3a8a", fontSize: 16, fontWeight: "900", letterSpacing: 1.5, marginTop: 16 },
   loaderText: { color: "#64748b", fontSize: 12, fontWeight: "600", marginTop: 6 },
   topBar: {
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     paddingTop: Platform.OS === "ios" ? 50 : 40,
     paddingBottom: 14,
     paddingHorizontal: isLargeScreen ? 32 : 18,
@@ -1136,40 +1137,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    borderBottomColor: "#e2e8f0",
   },
   menuIconBtn: { padding: 6 },
   topBrandGroup: { alignItems: "center" },
   stateBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    backgroundColor: "#eff6ff",
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
     marginBottom: 3,
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.3)",
+    borderColor: "#bfdbfe",
   },
-  livePulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#d4af37", marginRight: 6 },
-  stateBadgeText: { color: "#d4af37", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
-  topBrandTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "900", letterSpacing: 0.5 },
+  livePulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#1e3a8a", marginRight: 6 },
+  stateBadgeText: { color: "#1e3a8a", fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
+  topBrandTitle: { color: "#0f172a", fontSize: 13, fontWeight: "900", letterSpacing: 0.5 },
   avatarBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#d4af37",
+    borderColor: "#cbd5e1",
   },
-  logoutIconBtn: { borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.1)" },
+  logoutIconBtn: { borderColor: "#fecaca", backgroundColor: "#fef2f2" },
   mainNavBar: {
     flexDirection: "row",
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    borderBottomColor: "#e2e8f0",
     paddingHorizontal: isLargeScreen ? 32 : 12,
   },
   mainNavTab: {
@@ -1181,106 +1182,122 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
-  mainNavTabActive: { borderBottomColor: "#d4af37" },
+  mainNavTabActive: { borderBottomColor: "#1e3a8a" },
   mainNavTabText: { color: "#64748b", fontSize: 12, fontWeight: "700", marginLeft: 6 },
-  mainNavTabTextActive: { color: "#d4af37" },
+  mainNavTabTextActive: { color: "#1e3a8a", fontWeight: "900" },
   scrollArea: { flex: 1, width: "100%" },
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
   telemetrySection: { padding: isLargeScreen ? 24 : 16 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionHeaderLabel: { color: "#64748b", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  sectionHeaderLabel: { color: "#475569", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
   geoIndicatorBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    backgroundColor: "#eff6ff",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
   },
-  geoIndicatorText: { color: "#d4af37", fontSize: 10, fontWeight: "800", marginLeft: 3 },
+  geoIndicatorText: { color: "#1e3a8a", fontSize: 10, fontWeight: "800", marginLeft: 3 },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   metricCard: {
     width: isLargeScreen ? "23.5%" : "48.5%",
-    backgroundColor: "#0a1224",
-    borderRadius: 14,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 4,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  metricLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
-  metricValue: { fontSize: 17, fontWeight: "900", marginVertical: 4 },
-  metricSub: { color: "#64748b", fontSize: 10, fontWeight: "600" },
+  metricLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
+  metricValue: { fontSize: 18, fontWeight: "900", marginVertical: 4 },
+  metricSub: { color: "#94a3b8", fontSize: 10, fontWeight: "600" },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 14,
     borderRadius: 10,
     height: 44,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#cbd5e1",
     marginHorizontal: isLargeScreen ? 24 : 16,
     marginBottom: 14,
   },
-  searchInput: { flex: 1, color: "#fff", fontSize: 12 },
+  searchInput: { flex: 1, color: "#0f172a", fontSize: 12 },
   tabContentWrapper: { paddingHorizontal: isLargeScreen ? 24 : 16 },
   actionPillBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#d4af37",
+    backgroundColor: "#1e3a8a",
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 6,
   },
-  actionPillBtnText: { color: "#0a1224", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+  actionPillBtnText: { color: "#ffffff", fontSize: 10, fontWeight: "900", marginLeft: 4 },
   stateGridContainer: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   stateCard: {
     width: isLargeScreen ? "31.5%" : "48.5%",
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   stateCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  stateNameTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
+  stateNameTitle: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
   stateStatusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   stateStatusBadgeText: { fontSize: 10, fontWeight: "800" },
-  managerNameText: { color: "#d4af37", fontSize: 11.5, fontWeight: "700", marginTop: 6 },
-  managerSubDetails: { color: "#94a3b8", fontSize: 10, marginTop: 1 },
-  stateStatsSummary: { color: "#64748b", fontSize: 10, marginTop: 4 },
+  managerNameText: { color: "#1e3a8a", fontSize: 12, fontWeight: "800", marginTop: 6 },
+  managerSubDetails: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
+  stateStatsSummary: { color: "#475569", fontSize: 10.5, marginTop: 4 },
   inspectPill: {
-    backgroundColor: "rgba(56, 189, 248, 0.1)",
-    paddingVertical: 5,
+    backgroundColor: "#eff6ff",
+    paddingVertical: 6,
     borderRadius: 6,
     marginTop: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.2)",
+    borderColor: "#bfdbfe",
   },
-  inspectPillText: { color: "#38bdf8", fontSize: 10, fontWeight: "800" },
-  stateVacantText: { color: "#ef4444", fontSize: 10, fontWeight: "600" },
+  inspectPillText: { color: "#1e3a8a", fontSize: 10, fontWeight: "800" },
+  stateVacantText: { color: "#dc2626", fontSize: 10.5, fontWeight: "600" },
   stateAppointBtn: {
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
-    paddingVertical: 5,
+    backgroundColor: "#eff6ff",
+    paddingVertical: 6,
     paddingHorizontal: 8,
     borderRadius: 6,
     marginTop: 6,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(212, 175, 55, 0.3)",
+    borderColor: "#bfdbfe",
   },
-  stateAppointBtnText: { color: "#d4af37", fontSize: 10, fontWeight: "800" },
+  stateAppointBtnText: { color: "#1e3a8a", fontSize: 10, fontWeight: "800" },
   managerCard: {
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
   },
   managerCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   managerMainInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
@@ -1288,67 +1305,65 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#eff6ff",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#bfdbfe",
   },
-  managerCardName: { color: "#f8fafc", fontSize: 14, fontWeight: "800" },
-  managerCardState: { color: "#94a3b8", fontSize: 11, marginTop: 2 },
+  managerCardName: { color: "#0f172a", fontSize: 14.5, fontWeight: "800" },
+  managerCardState: { color: "#64748b", fontSize: 11, marginTop: 2 },
   suspendIconButton: { padding: 4 },
   statsSummaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#f8fafc",
     borderRadius: 10,
     padding: 10,
     marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
   summaryBox: { flex: 1, alignItems: "center" },
   summaryBoxLabel: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
-  summaryBoxValue: { color: "#f8fafc", fontSize: 12.5, fontWeight: "900", marginTop: 2 },
+  summaryBoxValue: { color: "#0f172a", fontSize: 13, fontWeight: "900", marginTop: 2 },
   managerActionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "#172033",
+    borderTopColor: "#e2e8f0",
     paddingTop: 8,
   },
   managerActionBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 6 },
-  managerActionBtnText: { fontSize: 11, fontWeight: "700", marginLeft: 5 },
+  managerActionBtnText: { fontSize: 11, fontWeight: "700", marginLeft: 4 },
   inspectSupCard: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#f8fafc",
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
   },
-  inspectSupName: { color: "#f8fafc", fontSize: 13.5, fontWeight: "800" },
-  inspectSupLga: { color: "#38bdf8", fontSize: 11, marginTop: 2 },
+  inspectSupName: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
+  inspectSupLga: { color: "#1e3a8a", fontSize: 11, marginTop: 2, fontWeight: "600" },
+  supCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   logCard: {
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     borderRadius: 10,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
   },
   logCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  logCategoryBadge: {
-    backgroundColor: "rgba(212, 175, 55, 0.12)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  logCategoryText: { color: "#d4af37", fontSize: 9, fontWeight: "bold" },
-  logTimestamp: { color: "#64748b", fontSize: 10 },
-  logDetailsText: { color: "#f8fafc", fontSize: 12, fontWeight: "600", marginVertical: 4 },
+  logCategoryBadge: { backgroundColor: "#eff6ff", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  logCategoryText: { color: "#1e3a8a", fontSize: 9, fontWeight: "bold" },
+  logTimestamp: { color: "#94a3b8", fontSize: 10 },
+  logDetailsText: { color: "#0f172a", fontSize: 12, fontWeight: "600", marginVertical: 4 },
   logActorText: { color: "#64748b", fontSize: 10 },
   downloadReportBtn: {
-    backgroundColor: "#d4af37",
+    backgroundColor: "#1e3a8a",
     marginHorizontal: isLargeScreen ? 24 : 16,
     marginTop: 20,
     paddingVertical: 14,
@@ -1356,35 +1371,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    elevation: 3,
   },
-  downloadReportBtnText: { color: "#0a1224", fontWeight: "900", fontSize: 12, marginLeft: 8 },
+  downloadReportBtnText: { color: "#ffffff", fontWeight: "900", fontSize: 12, marginLeft: 8 },
   emptyFeed: {
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     padding: 30,
     borderRadius: 14,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
   },
-  emptyFeedText: { color: "#64748b", fontSize: 12, marginTop: 10, textAlign: "center" },
+  emptyFeedText: { color: "#94a3b8", fontSize: 12, marginTop: 10, textAlign: "center" },
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
     zIndex: 100,
   },
   sidebarContainer: {
     position: "absolute",
     top: 0,
     bottom: 0,
-    backgroundColor: "#060c18",
+    backgroundColor: "#ffffff",
     paddingTop: Platform.OS === "ios" ? 50 : 35,
     paddingHorizontal: 16,
     borderRightWidth: 1,
-    borderRightColor: "#1e293b",
+    borderRightColor: "#e2e8f0",
   },
   sidebarHeader: {
     flexDirection: "row",
@@ -1392,14 +1408,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    borderBottomColor: "#e2e8f0",
   },
   sidebarBrandRow: { flexDirection: "row", alignItems: "center" },
-  sidebarBrandText: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
-  sidebarRoleText: { color: "#d4af37", fontSize: 10.5, fontWeight: "700" },
+  sidebarBrandText: { color: "#0f172a", fontSize: 15, fontWeight: "900" },
+  sidebarRoleText: { color: "#1e3a8a", fontSize: 10.5, fontWeight: "700" },
   sidebarNavList: { flex: 1, marginTop: 10 },
   sidebarCategory: {
-    color: "#475569",
+    color: "#64748b",
     fontSize: 9.5,
     fontWeight: "900",
     letterSpacing: 1,
@@ -1415,32 +1431,33 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 3,
   },
-  navItemActive: { backgroundColor: "rgba(212, 175, 55, 0.1)" },
+  navItemActive: { backgroundColor: "#eff6ff" },
   navIconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: "center", alignItems: "center" },
-  navItemText: { color: "#cbd5e1", fontSize: 12.5, fontWeight: "700", marginLeft: 12 },
+  navItemText: { color: "#334155", fontSize: 12.5, fontWeight: "700", marginLeft: 12 },
   logoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: "#1e293b",
+    borderTopColor: "#e2e8f0",
   },
-  logoutBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "800", marginLeft: 10 },
+  logoutBtnText: { color: "#dc2626", fontSize: 13, fontWeight: "800", marginLeft: 10 },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
   },
   modalCard: {
-    backgroundColor: "#0a1224",
+    backgroundColor: "#ffffff",
     borderRadius: 20,
     padding: 20,
     width: "100%",
     maxWidth: 460,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#cbd5e1",
+    elevation: 8,
   },
   modalHeaderRow: {
     flexDirection: "row",
@@ -1448,13 +1465,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
+    borderBottomColor: "#e2e8f0",
     paddingBottom: 10,
   },
-  modalCardTitle: { color: "#f8fafc", fontSize: 15, fontWeight: "900" },
+  modalCardTitle: { color: "#0f172a", fontSize: 15, fontWeight: "900" },
   modalCardSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
   formFieldLabel: {
-    color: "#94a3b8",
+    color: "#475569",
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 0.8,
@@ -1465,33 +1482,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: "#0f172a",
+    backgroundColor: "#ffffff",
     marginRight: 8,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#cbd5e1",
   },
-  stateTabPillActive: { backgroundColor: "#d4af37", borderColor: "#d4af37" },
-  stateTabPillText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
-  stateTabPillTextActive: { color: "#060c18", fontWeight: "900" },
+  stateTabPillActive: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
+  stateTabPillText: { color: "#475569", fontSize: 11, fontWeight: "700" },
+  stateTabPillTextActive: { color: "#ffffff", fontWeight: "900" },
   textInputStyle: {
-    backgroundColor: "#0f172a",
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#cbd5e1",
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 44,
-    color: "#f8fafc",
+    color: "#0f172a",
     fontSize: 13,
     fontWeight: "600",
   },
   primaryActionBtn: {
-    backgroundColor: "#d4af37",
+    backgroundColor: "#1e3a8a",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 18,
+    elevation: 2,
   },
-  primaryActionBtnText: { color: "#0a1224", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
+  primaryActionBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
 });
 
 export default NsdDashboard;
