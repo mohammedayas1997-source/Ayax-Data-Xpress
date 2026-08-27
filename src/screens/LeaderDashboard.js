@@ -726,7 +726,9 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={[styles.metricValue, { color: "#7c3aed" }]}>
                   {Number(stats.overallDataSold || 0).toLocaleString()} GB
                 </Text>
-                <Text style={styles.metricSub, { color: "#7c3aed" }]}>Retail Data Volume</Text>
+                <Text style={[styles.metricSub, { color: "#7c3aed" }]}>
+                Retail Data Volume
+                </Text>
               </View>
 
               <View style={[styles.metricCard, styles.cardAmberBg]}>
@@ -737,7 +739,9 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={[styles.metricValue, { color: "#d97706" }]}>
                   ₦{Number(stats.overallAirtimeSold || 0).toLocaleString()}
                 </Text>
-                <Text style={styles.metricSub, { color: "#d97706" }]}>Gross VTU Volume</Text>
+                <Text style={[styles.metricSub, { color: "#d97706" }]}>
+                Gross VTU Volume
+              </Text>
               </View>
             </View>
           </View>
