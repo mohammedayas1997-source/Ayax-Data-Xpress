@@ -542,7 +542,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 9. Save or Edit Data Plan Package (Calls SuperAdmin Route)
+  // 9. Save or Edit Data Plan Package
   const handleSaveDataPlan = async () => {
     if (!planCode.trim() || !planUserPrice || isNaN(Number(planUserPrice))) {
       return showAlert("Validation Error", "Plan Code and User Selling Price are required.");
@@ -591,7 +591,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 10. Delete Data Plan (Calls SuperAdmin Route)
+  // 10. Delete Data Plan
   const handleDeleteDataPlan = async (planId) => {
     if (!planId) return;
     const confirmDelete = Platform.OS === "web"
@@ -617,7 +617,6 @@ const SuperAdminDashboard = ({ navigation }) => {
       setActionLoading(false);
     }
   };
-
   // 11. Bulk Marketing Data Dispatch
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice) {
