@@ -5,11 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   StatusBar,
   Dimensions,
   ToastAndroid,
-  ImageBackground,
   Linking,
   Platform,
   ActivityIndicator,
@@ -26,6 +24,7 @@ import {
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import axios from "axios";
 
 import { ThemeContext } from "../context/ThemeContext";
@@ -33,6 +32,7 @@ import { ThemeContext } from "../context/ThemeContext";
 const { width } = Dimensions.get("window");
 const isLargeScreen = width >= 1024;
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+const DVA_CACHE_KEY = "@ayax_permanent_virtual_account";
 
 const AgentDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -95,6 +95,18 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
+  // Load Cached Virtual Account Immediately
+  const loadCachedAccount = async () => {
+    try {
+      const savedAcc = await AsyncStorage.getItem(DVA_CACHE_KEY);
+      if (savedAcc) {
+        setVirtualAccount(JSON.parse(savedAcc));
+      }
+    } catch (e) {
+      console.log("Cached account load error:", e.message);
+    }
+  };
+
   const fetchAgentDashboardData = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
@@ -127,24 +139,36 @@ const AgentDashboard = ({ navigation }) => {
         axios.get(`${BASE_URL}/user/profile`, config).catch(() => ({ data: { success: false } })),
         axios.get(`${BASE_URL}/agent/performance`, config).catch(() => ({ data: { data: null } })),
         axios.get(`${BASE_URL}/agent/my-supervisor`, config).catch(() => ({ data: { data: null } })),
-        axios.get(`${BASE_URL}/notifications`, config).catch(() => ({ data: [] })),
+        axios.get(`${BASE_URL}/notifications`, config).catch(() => 
+          axios.get(`${BASE_URL}/notifications/my-notifications`, config).catch(() => ({ data: [] }))
+        ),
       ]);
 
-      // 1. Profile Data
+      // 1. Profile & Virtual Account Data
       const user = profileRes.data?.user || profileRes.data?.data || parsedLocalUser;
       if (user) {
         setUserData(user);
-        if (user.virtualAccount?.accountNumber) {
-          setVirtualAccount(user.virtualAccount);
-        } else if (user.accountNumber && user.accountNumber !== "Pending") {
-          setVirtualAccount({
-            bankName: user.bankName || "Wema Bank",
-            accountNumber: user.accountNumber,
-            accountName: user.accountName || user.name,
-          });
+        
+        const accNum =
+          user.virtualAccount?.accountNumber ||
+          user.accountNumber ||
+          user.virtualAccountNumber;
+
+        if (accNum && accNum !== "Pending") {
+          const formattedAcc = {
+            bankName: user.virtualAccount?.bankName || user.bankName || "Wema Bank",
+            accountNumber: accNum,
+            accountName:
+              user.virtualAccount?.accountName ||
+              user.accountName ||
+              user.name ||
+              `${user.firstName || ""} ${user.surname || ""}`.trim(),
+          };
+          setVirtualAccount(formattedAcc);
+          await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(formattedAcc));
         }
 
-        // Quotas da Targets
+        // Quotas & Targets
         const tg = user.targets || {};
         setAgentQuota({
           dataGoal: Number(tg.dataGoal) || 100,
@@ -166,10 +190,11 @@ const AgentDashboard = ({ navigation }) => {
         setAssignedSupervisor(typeof sup === "object" ? sup : { name: "LGA Supervisor", phone: "" });
       }
 
-      // 4. Notifications
-      const notifs = Array.isArray(notifRes.data) ? notifRes.data : notifRes.data?.notifications || [];
-      setNotifications(notifs);
-      setUnreadCount(notifs.filter((n) => n.read === false || !n.isRead).length);
+      // 4. Notifications & Unread Counter
+      const rawNotifs = notifRes.data?.notifications || notifRes.data?.data || notifRes.data || [];
+      const notifsList = Array.isArray(rawNotifs) ? rawNotifs : [];
+      setNotifications(notifsList);
+      setUnreadCount(notifsList.filter((n) => n.isRead === false || n.read === false || n.status === "unread").length);
     } catch (err) {
       if (err.response?.status === 401 && !isBackground) {
         await AsyncStorage.clear();
@@ -183,8 +208,14 @@ const AgentDashboard = ({ navigation }) => {
     }
   }, [navigation]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadCachedAccount();
+      fetchAgentDashboardData();
+    }, [fetchAgentDashboardData])
+  );
+
   useEffect(() => {
-    fetchAgentDashboardData();
     const interval = setInterval(() => {
       fetchAgentDashboardData(true);
     }, 20000);
@@ -212,22 +243,37 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
+  // Automated Dedicated Virtual Account Generation (HomeScreen Standard)
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
+      
       const response = await axios.post(
         `${BASE_URL}/virtual-account/create`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
+        }
       );
 
-      if (response.data?.success) {
-        setVirtualAccount(response.data.data);
-        showAlert("Success", "Virtual bank account provisioned!");
+      if (response.data && response.data.success) {
+        const accData = response.data.data;
+        setVirtualAccount(accData);
+        await AsyncStorage.setItem(DVA_CACHE_KEY, JSON.stringify(accData));
+
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
+        }
       }
     } catch (error) {
-      showAlert("Error", error.response?.data?.message || "Could not generate account.");
+      console.error("Virtual Account Error:", error.response?.data || error.message);
+      Alert.alert("Error", "Could not fetch or create virtual account. Try again later.");
     } finally {
       setLoadingAccount(false);
     }
@@ -357,50 +403,50 @@ const AgentDashboard = ({ navigation }) => {
           </View>
         </LinearGradient>
 
-        {/* REAL-TIME TARGET & PERFORMANCE TRACKING (DATA + AIRTIME) */}
-        <View style={styles.executiveTargetCard}>
-          <View style={styles.execHeaderRow}>
+        {/* REAL-TIME TARGET & PERFORMANCE TRACKING (EXECUTIVE DARK BLUE CARD) */}
+        <View style={styles.executiveTargetCardDark}>
+          <View style={styles.execHeaderRowDark}>
             <View>
-              <Text style={styles.execBadgeText}>OFFICIAL SUPERVISOR QUOTA ALLOCATION</Text>
-              <Text style={styles.execTitleText}>{agentQuota.currentMonth.toUpperCase()} PERFORMANCE</Text>
+              <Text style={styles.execBadgeTextDark}>OFFICIAL SUPERVISOR QUOTA ALLOCATION</Text>
+              <Text style={styles.execTitleTextDark}>{agentQuota.currentMonth.toUpperCase()} PERFORMANCE</Text>
             </View>
-            <View style={styles.cycleBadge}>
-              <Ionicons name="calendar" size={12} color="#1e40af" />
-              <Text style={styles.cycleBadgeText}>{agentQuota.currentMonth}</Text>
+            <View style={styles.cycleBadgeDark}>
+              <Ionicons name="calendar" size={12} color="#38bdf8" />
+              <Text style={styles.cycleBadgeTextDark}>{agentQuota.currentMonth}</Text>
             </View>
           </View>
 
           <View style={styles.execMetricsRow}>
             {/* Data Quota */}
-            <View style={styles.execMetricBox}>
-              <Text style={styles.execMetricLabel}>DATA QUOTA (GB)</Text>
-              <Text style={[styles.execMetricValue, { color: "#1e40af" }]}>
+            <View style={styles.execMetricBoxDark}>
+              <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>DATA QUOTA (GB)</Text>
+              <Text style={styles.execMetricValueDark}>
                 {agentQuota.dataSold} / {agentQuota.dataGoal} GB
               </Text>
-              <View style={styles.execProgressBarBg}>
-                <View style={[styles.execProgressBarFill, { width: `${dataPercent}%`, backgroundColor: "#1e40af" }]} />
+              <View style={styles.execProgressBarBgDark}>
+                <View style={[styles.execProgressBarFill, { width: `${dataPercent}%`, backgroundColor: "#38bdf8" }]} />
               </View>
-              <Text style={styles.execPercentSub}>{dataPercent}% Delivered</Text>
+              <Text style={styles.execPercentSubDark}>{dataPercent}% Delivered</Text>
             </View>
 
             {/* Airtime Quota */}
-            <View style={styles.execMetricBox}>
-              <Text style={styles.execMetricLabel}>AIRTIME SALES (₦)</Text>
-              <Text style={[styles.execMetricValue, { color: "#d97706" }]}>
+            <View style={styles.execMetricBoxDark}>
+              <Text style={[styles.execMetricLabelDark, { color: "#fbbf24" }]}>AIRTIME SALES (₦)</Text>
+              <Text style={styles.execMetricValueDark}>
                 ₦{Number(agentQuota.airtimeSold).toLocaleString()} / ₦{Number(agentQuota.airtimeGoal).toLocaleString()}
               </Text>
-              <View style={styles.execProgressBarBg}>
-                <View style={[styles.execProgressBarFill, { width: `${airtimePercent}%`, backgroundColor: "#d97706" }]} />
+              <View style={styles.execProgressBarBgDark}>
+                <View style={[styles.execProgressBarFill, { width: `${airtimePercent}%`, backgroundColor: "#fbbf24" }]} />
               </View>
-              <Text style={styles.execPercentSub}>{airtimePercent}% Delivered</Text>
+              <Text style={styles.execPercentSubDark}>{airtimePercent}% Delivered</Text>
             </View>
           </View>
         </View>
 
-        {/* DEDICATED VIRTUAL ACCOUNT CARD */}
+        {/* DEDICATED VIRTUAL ACCOUNT CARD (AUTOMATED FUNDING) */}
         <Text style={styles.sectionLabel}>Automated Funding Account</Text>
         <View style={styles.dvaCard}>
-          {virtualAccount ? (
+          {virtualAccount && virtualAccount.accountNumber ? (
             <View>
               <View style={styles.dvaTopRow}>
                 <View style={{ flex: 1 }}>
@@ -425,7 +471,7 @@ const AgentDashboard = ({ navigation }) => {
             </View>
           ) : (
             <View style={styles.noAccountContainer}>
-              <Text style={styles.noAccText}>No dedicated bank account generated yet.</Text>
+              <Text style={styles.noAccText}>You don't have an automated account assigned yet.</Text>
               <TouchableOpacity
                 style={styles.generateBtn}
                 onPress={handleGetVirtualAccount}
@@ -436,7 +482,7 @@ const AgentDashboard = ({ navigation }) => {
                 ) : (
                   <>
                     <Ionicons name="card-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-                    <Text style={styles.generateBtnText}>Get Dedicated Account</Text>
+                    <Text style={styles.generateBtnText}>Get Virtual Account</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -714,29 +760,54 @@ const styles = StyleSheet.create({
   innerBtnGradient: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center", height: "100%" },
   actionBtnText: { color: "#fff", fontWeight: "900", fontSize: 11, marginLeft: 6 },
 
-  executiveTargetCard: {
-    backgroundColor: "#ffffff",
+  // EXECUTIVE DARK BLUE CARDS
+  executiveTargetCardDark: {
+    backgroundColor: "#0f172a",
     borderRadius: 14,
-    padding: 14,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#1e293b",
     borderLeftWidth: 4,
-    borderLeftColor: "#1e40af",
-    elevation: 2,
+    borderLeftColor: "#38bdf8",
+    elevation: 4,
   },
-  execHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#f1f5f9", paddingBottom: 8, marginBottom: 10 },
-  execBadgeText: { color: "#64748b", fontSize: 9, fontWeight: "800", letterSpacing: 0.6 },
-  execTitleText: { color: "#0f172a", fontSize: 12.5, fontWeight: "900", marginTop: 2 },
-  cycleBadge: { flexDirection: "row", alignItems: "center", backgroundColor: "#eff6ff", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: "#bfdbfe" },
-  cycleBadgeText: { color: "#1e40af", fontSize: 10, fontWeight: "800", marginLeft: 3 },
+  execHeaderRowDark: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+    paddingBottom: 8,
+    marginBottom: 10,
+  },
+  execBadgeTextDark: { color: "#94a3b8", fontSize: 9, fontWeight: "800", letterSpacing: 0.6 },
+  execTitleTextDark: { color: "#ffffff", fontSize: 12.5, fontWeight: "900", marginTop: 2 },
+  cycleBadgeDark: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.25)",
+  },
+  cycleBadgeTextDark: { color: "#38bdf8", fontSize: 10, fontWeight: "800", marginLeft: 3 },
   execMetricsRow: { flexDirection: "row", justifyContent: "space-between" },
-  execMetricBox: { flex: 0.485, backgroundColor: "#f8fafc", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#e2e8f0" },
-  execMetricLabel: { color: "#64748b", fontSize: 9.5, fontWeight: "800" },
-  execMetricValue: { fontSize: 14, fontWeight: "900", marginVertical: 3 },
-  execProgressBarBg: { height: 6, backgroundColor: "#e2e8f0", borderRadius: 3, overflow: "hidden", marginVertical: 3 },
+  execMetricBoxDark: {
+    flex: 0.485,
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  execMetricLabelDark: { fontSize: 9.5, fontWeight: "800" },
+  execMetricValueDark: { fontSize: 14, fontWeight: "900", marginVertical: 3, color: "#ffffff" },
+  execProgressBarBgDark: { height: 6, backgroundColor: "#334155", borderRadius: 3, overflow: "hidden", marginVertical: 3 },
   execProgressBarFill: { height: 6, borderRadius: 3 },
-  execPercentSub: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
+  execPercentSubDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "700" },
 
   sectionLabel: { fontSize: 12, fontWeight: "900", color: "#475569", letterSpacing: 0.8, marginTop: 6, marginBottom: 8, textTransform: "uppercase" },
   dvaCard: { backgroundColor: "#ffffff", borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: "#e2e8f0", elevation: 2 },
