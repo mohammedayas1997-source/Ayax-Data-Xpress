@@ -57,8 +57,24 @@ const BuyDataScreen = ({ navigation }) => {
     fetchUserRole();
   }, []);
 
-  // 1. Dauko Plans daga Database
-  const fetchLivePlans = useCallback(async (net) => {
+  // Normalizer don tantance ainihin Network na Plan
+  const resolvePlanNetwork = (plan) => {
+    const rawNet = String(
+      plan.network || plan.networkName || plan.network_name || plan.networkId || ""
+    ).toUpperCase().trim();
+    const rawCode = String(plan.planCode || plan.code || "").toUpperCase().trim();
+    const rawName = String(plan.name || plan.planLabel || "").toUpperCase().trim();
+
+    if (rawNet.includes("MTN") || rawCode.startsWith("MTN") || rawName.includes("MTN")) return "MTN";
+    if (rawNet.includes("AIRTEL") || rawCode.startsWith("AIRTEL") || rawName.includes("AIRTEL") || rawNet.includes("AIR")) return "AIRTEL";
+    if (rawNet.includes("GLO") || rawCode.startsWith("GLO") || rawName.includes("GLO")) return "GLO";
+    if (rawNet.includes("9MOB") || rawNet.includes("ETISALAT") || rawCode.startsWith("9MOB") || rawName.includes("9MOBILE")) return "9MOBILE";
+    
+    return rawNet;
+  };
+
+  // 1. Dauko Plans da Tace su Zalla ga Network ɗin da aka zaɓa
+  const fetchLivePlans = useCallback(async (currentNet) => {
     setLoadingPlans(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -85,24 +101,18 @@ const BuyDataScreen = ({ navigation }) => {
         const rawPlans = res.data.data || res.data.plans || (Array.isArray(res.data) ? res.data : []);
         const plansArray = Array.isArray(rawPlans) ? rawPlans : [];
 
-        // Tace plans bisa ga Network
-        const currentNet = String(net).toUpperCase().trim();
+        // STRICT FILTER: Tace na wannan Network ɗin da aka danna KAWAI
+        const targetNetwork = String(currentNet).toUpperCase().trim();
         const networkFiltered = plansArray.filter((p) => {
-          const pNet = String(p.network || p.networkName || p.network_name || "").toUpperCase();
-          const pName = String(p.name || p.planLabel || "").toUpperCase();
-          const pCode = String(p.planCode || p.code || "").toUpperCase();
-
-          return (
-            pNet.includes(currentNet) ||
-            pName.includes(currentNet) ||
-            pCode.startsWith(currentNet)
-          );
+          const planNet = resolvePlanNetwork(p);
+          return planNet === targetNetwork;
         });
 
-        setAvailablePlans(networkFiltered.length > 0 ? networkFiltered : plansArray);
+        setAvailablePlans(networkFiltered);
       }
     } catch (err) {
       console.log("Error loading plans:", err.message);
+      setAvailablePlans([]);
     } finally {
       setLoadingPlans(false);
     }
@@ -114,7 +124,7 @@ const BuyDataScreen = ({ navigation }) => {
     setIsDropdownOpen(false); // Rufe dropdown a duk lokacin da aka sauya Network
   }, [selectedNetwork, fetchLivePlans]);
 
-  // Tace plans dangane da Plan Type
+  // Tace plans dangane da Plan Type (SME, GIFTING, CG, etc.)
   const filteredPlans = availablePlans.filter((p) => {
     if (selectedPlanType === "ALL") return true;
     const pType = String(p.planType || p.type || "").toUpperCase();
@@ -264,7 +274,7 @@ const BuyDataScreen = ({ navigation }) => {
           onChangeText={setPhoneNumber}
         />
 
-        {/* 2. MABALLIN SELECT DATA BUNDLE (DROPDOWN TOGGLE) */}
+        {/* MABALLIN SELECT DATA BUNDLE (DROPDOWN TOGGLE) */}
         <Text style={styles.sectionLabel}>DATA BUNDLE PACKAGE</Text>
         <TouchableOpacity
           style={[styles.dropdownBtn, isDropdownOpen && styles.dropdownBtnActive]}
@@ -302,13 +312,13 @@ const BuyDataScreen = ({ navigation }) => {
           />
         </TouchableOpacity>
 
-        {/* 3. JERIN DATA PLANS (SAI AN DANNA MABALLIN YAKE FITOWA) */}
+        {/* JERIN DATA PLANS NA WANNAN NETWORK DIN KAWAI */}
         {isDropdownOpen && (
           <View style={styles.plansContainer}>
             {loadingPlans ? (
               <View style={{ paddingVertical: 20, alignItems: "center" }}>
                 <ActivityIndicator size="small" color="#00f0ff" />
-                <Text style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Loading plans...</Text>
+                <Text style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Loading {selectedNetwork} plans...</Text>
               </View>
             ) : filteredPlans.length === 0 ? (
               <View style={styles.emptyCard}>
@@ -331,7 +341,7 @@ const BuyDataScreen = ({ navigation }) => {
                     style={[styles.planCard, isSelected && styles.planCardActive]}
                     onPress={() => {
                       setSelectedPlan(plan);
-                      setIsDropdownOpen(false); // Rufe jerin plans nan take idan mutum ya zaba
+                      setIsDropdownOpen(false); // Rufe jerin nan take idan mutum ya zaɓa
                     }}
                     activeOpacity={0.8}
                   >
