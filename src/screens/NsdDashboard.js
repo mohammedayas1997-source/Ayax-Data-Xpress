@@ -49,7 +49,7 @@ const NsdDashboard = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState("states");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Selective State Selection Array
+  // Selective State Selection Array (Dukkan Jihohi 36)
   const [selectedStateNames, setSelectedStateNames] = useState([]);
 
   // Sidebar Drawer
@@ -73,7 +73,7 @@ const NsdDashboard = ({ navigation }) => {
   const [targetNewSupervisorGoal, setTargetNewSupervisorGoal] = useState("10");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Modal 3: Appoint State Manager
+  // Modal 3: Appoint State Manager (With Email & Credentials)
   const [appointModalVisible, setAppointModalVisible] = useState(false);
   const [newSmName, setNewSmName] = useState("");
   const [newSmPhone, setNewSmPhone] = useState("");
@@ -187,18 +187,16 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  const activeStatesList = statesData.filter((s) => s.hasLeader);
-
-  // Select or Deselect All States
+  // Select / Deselect Dukkan Jihohi 36
   const handleSelectAllStates = () => {
-    if (selectedStateNames.length === activeStatesList.length) {
+    if (selectedStateNames.length === ALL_NIGERIAN_STATES.length) {
       setSelectedStateNames([]);
     } else {
-      setSelectedStateNames(activeStatesList.map((s) => s.state));
+      setSelectedStateNames([...ALL_NIGERIAN_STATES]);
     }
   };
 
-  // Toggle Selection for Single State
+  // Toggle Selection don Jiha guda daya
   const handleToggleStateSelect = (stateName) => {
     if (selectedStateNames.includes(stateName)) {
       setSelectedStateNames(selectedStateNames.filter((s) => s !== stateName));
@@ -303,7 +301,6 @@ const NsdDashboard = ({ navigation }) => {
         payload.mode = "bulk";
         payload.states = selectedStateNames;
       } else {
-        // All 36 States
         payload.mode = "bulk";
         payload.states = ALL_NIGERIAN_STATES;
       }
@@ -372,9 +369,10 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
+  // APPOINT STATE MANAGER (SAVE EMAIL, PHONE, PASSWORD TO DATABASE)
   const handleAppointStateManager = async () => {
     if (!newSmName.trim() || !newSmPhone.trim() || !newSmState) {
-      showAlert("Validation Error", "Name, Phone Number, and State are required.");
+      showAlert("Validation Error", "Full Name, Phone Number, and State are required.");
       return;
     }
 
@@ -386,19 +384,21 @@ const NsdDashboard = ({ navigation }) => {
         {
           name: newSmName.trim(),
           phone: newSmPhone.trim(),
-          email: newSmEmail.trim() || undefined,
+          email: newSmEmail.trim() ? newSmEmail.trim().toLowerCase() : undefined,
           password: newSmPassword.trim() || "Password123@",
           state: newSmState,
+          role: "leader",
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Appointed 🎉", `${newSmName} is now State Manager for ${newSmState}.`);
+        showAlert("Appointed 🎉", `${newSmName} has been created and appointed as State Manager for ${newSmState}. They can now log in using their credentials.`);
         setAppointModalVisible(false);
         setNewSmName("");
         setNewSmPhone("");
         setNewSmEmail("");
+        setNewSmPassword("Password123@");
         fetchNationalTelemetry();
       }
     } catch (err) {
@@ -607,7 +607,7 @@ const NsdDashboard = ({ navigation }) => {
                 >
                   {selectedStateNames.length > 0
                     ? `DEPLOY SELECTED (${selectedStateNames.length})`
-                    : "SELECT STATES"}
+                    : "SELECT SPECIFIC STATES"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -738,7 +738,7 @@ const NsdDashboard = ({ navigation }) => {
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
                     name={
-                      selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
+                      selectedStateNames.length === ALL_NIGERIAN_STATES.length
                         ? "check-box"
                         : "check-box-outline-blank"
                     }
@@ -746,10 +746,10 @@ const NsdDashboard = ({ navigation }) => {
                     color="#1e40af"
                   />
                   <Text style={styles.bulkSelectBtnText}>
-                    {selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
+                    {selectedStateNames.length === ALL_NIGERIAN_STATES.length
                       ? "Deselect All"
                       : selectedStateNames.length > 0
-                      ? `Selected (${selectedStateNames.length}/${activeStatesList.length})`
+                      ? `Selected (${selectedStateNames.length}/${ALL_NIGERIAN_STATES.length})`
                       : "Select Specific States"}
                   </Text>
                 </TouchableOpacity>
@@ -932,7 +932,7 @@ const NsdDashboard = ({ navigation }) => {
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
                     name={
-                      selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
+                      selectedStateNames.length === ALL_NIGERIAN_STATES.length
                         ? "check-box"
                         : "check-box-outline-blank"
                     }
@@ -940,9 +940,9 @@ const NsdDashboard = ({ navigation }) => {
                     color="#1e40af"
                   />
                   <Text style={styles.bulkSelectBtnText}>
-                    {selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
+                    {selectedStateNames.length === ALL_NIGERIAN_STATES.length
                       ? "Deselect All"
-                      : `Selected (${selectedStateNames.length}/${activeStatesList.length})`}
+                      : `Selected (${selectedStateNames.length}/${ALL_NIGERIAN_STATES.length})`}
                   </Text>
                 </TouchableOpacity>
 
@@ -1338,7 +1338,7 @@ const NsdDashboard = ({ navigation }) => {
       </Modal>
 
       {/* =========================================================================
-          MODAL 2: ADVANCED TARGET DEPLOYMENT (SINGLE, SELECT FEW, OR ALL 36 STATES)
+          MODAL 2: ADVANCED TARGET DEPLOYMENT (36 STATES SELECTION GUARANTEED)
          ========================================================================= */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -1356,7 +1356,9 @@ const NsdDashboard = ({ navigation }) => {
                   {targetMode === "single"
                     ? `Manager: ${targetStateItem?.leaderName} (${targetStateItem?.leaderPhone})`
                     : targetMode === "selected"
-                    ? `Selected: ${selectedStateNames.join(", ")}`
+                    ? selectedStateNames.length > 0
+                      ? `Selected: ${selectedStateNames.join(", ")}`
+                      : "Choose specific states from the list below"
                     : "Nationwide uniform performance quota allocation"}
                 </Text>
               </View>
@@ -1385,13 +1387,16 @@ const NsdDashboard = ({ navigation }) => {
                 >
                   <FontAwesome5 name="check-double" size={12} color={targetMode === "selected" ? "#ffffff" : "#64748b"} />
                   <Text style={[styles.toggleSegmentText, targetMode === "selected" && styles.toggleSegmentTextActive]}>
-                    Select Specific ({selectedStateNames.length})
+                    Select States ({selectedStateNames.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={[styles.toggleSegmentBtn, targetMode === "all" && styles.toggleSegmentBtnActive]}
-                  onPress={() => setTargetMode("all")}
+                  onPress={() => {
+                    setTargetMode("all");
+                    setSelectedStateNames([...ALL_NIGERIAN_STATES]);
+                  }}
                 >
                   <MaterialCommunityIcons name="target-account" size={14} color={targetMode === "all" ? "#ffffff" : "#64748b"} />
                   <Text style={[styles.toggleSegmentText, targetMode === "all" && styles.toggleSegmentTextActive]}>
@@ -1400,29 +1405,31 @@ const NsdDashboard = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* CHECKBOX LIST DON ZABAR JIHO SHI KAƊAN */}
+              {/* DUKKAN SUNAYEN JIHOHI 36 DA CHECKBOXES (ALL NIGERIAN STATES LIST) */}
               {targetMode === "selected" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
                     <Text style={styles.selectionListHeaderTitle}>
-                      Select Target States ({selectedStateNames.length} selected)
+                      Select Target States ({selectedStateNames.length}/{ALL_NIGERIAN_STATES.length} selected)
                     </Text>
                     <TouchableOpacity onPress={handleSelectAllStates}>
                       <Text style={styles.selectionListSelectAllText}>
-                        {selectedStateNames.length === activeStatesList.length ? "Deselect All" : "Select All States"}
+                        {selectedStateNames.length === ALL_NIGERIAN_STATES.length ? "Deselect All" : "Select All 36 States"}
                       </Text>
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                  <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                     <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-                      {activeStatesList.map((item) => {
-                        const isChecked = selectedStateNames.includes(item.state);
+                      {ALL_NIGERIAN_STATES.map((stateName) => {
+                        const isChecked = selectedStateNames.includes(stateName);
+                        const matchedStateObj = statesData.find((s) => s.state?.toLowerCase() === stateName?.toLowerCase());
+
                         return (
                           <TouchableOpacity
-                            key={item.state}
+                            key={stateName}
                             style={[styles.stateCheckItem, isChecked && styles.stateCheckItemActive]}
-                            onPress={() => handleToggleStateSelect(item.state)}
+                            onPress={() => handleToggleStateSelect(stateName)}
                           >
                             <MaterialIcons
                               name={isChecked ? "check-box" : "check-box-outline-blank"}
@@ -1431,10 +1438,10 @@ const NsdDashboard = ({ navigation }) => {
                             />
                             <View style={{ marginLeft: 6, flex: 1 }}>
                               <Text style={[styles.stateCheckText, isChecked && { color: "#1e40af", fontWeight: "bold" }]}>
-                                {item.state}
+                                {stateName}
                               </Text>
                               <Text style={styles.stateCheckSub} numberOfLines={1}>
-                                {item.leaderName}
+                                {matchedStateObj?.leaderName || "Vacant"}
                               </Text>
                             </View>
                           </TouchableOpacity>
@@ -1513,14 +1520,16 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: APPOINT STATE MANAGER */}
+      {/* =========================================================================
+          MODAL 3: APPOINT STATE MANAGER (WITH DIRECT EMAIL & LOGIN DATABASE SAVE)
+         ========================================================================= */}
       <Modal visible={appointModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Appoint State Manager (SM)</Text>
-                <Text style={styles.modalCardSubtitle}>Deploy state executive director</Text>
+                <Text style={styles.modalCardSubtitle}>Create user profile & deploy executive leader</Text>
               </View>
               <TouchableOpacity onPress={() => setAppointModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748b" />
@@ -1552,7 +1561,7 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setNewSmName}
               />
 
-              <Text style={styles.formFieldLabel}>PHONE NUMBER</Text>
+              <Text style={styles.formFieldLabel}>PHONE NUMBER (LOGIN USERNAME)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. 08022223333"
@@ -1562,7 +1571,19 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setNewSmPhone}
               />
 
-              <Text style={styles.formFieldLabel}>PASSWORD (FOR LOGIN)</Text>
+              {/* EMAIL FIELD FOR DATABASE REGISTRATION */}
+              <Text style={styles.formFieldLabel}>EMAIL ADDRESS (FOR LOGIN & NOTIFICATIONS)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. sanibello@ayaxdata.online"
+                placeholderTextColor="#94a3b8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={newSmEmail}
+                onChangeText={setNewSmEmail}
+              />
+
+              <Text style={styles.formFieldLabel}>PASSWORD (FOR LOGIN AUTHENTICATION)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. Password123@"
@@ -1579,7 +1600,7 @@ const NsdDashboard = ({ navigation }) => {
                 {actionLoading ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT</Text>
+                  <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT & CREATE ACCOUNT</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -1762,7 +1783,7 @@ const styles = StyleSheet.create({
   },
   targetBannerBtnTextSecondary: { color: "#1e40af", fontSize: 11, fontWeight: "800", marginLeft: 4 },
 
-  // Telemetry Section (Dark Blue Theme)
+  // Telemetry Section
   telemetrySection: { padding: isLargeScreen ? 24 : 16 },
   telemetryBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1e40af", marginRight: 8 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
