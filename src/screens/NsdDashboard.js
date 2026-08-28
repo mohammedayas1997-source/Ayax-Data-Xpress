@@ -49,7 +49,7 @@ const NsdDashboard = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState("states");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Selective / Bulk State Selection
+  // Selective State Selection Array
   const [selectedStateNames, setSelectedStateNames] = useState([]);
 
   // Sidebar Drawer
@@ -63,7 +63,7 @@ const NsdDashboard = ({ navigation }) => {
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
   const [inspectLoading, setInspectLoading] = useState(false);
 
-  // Modal 2: Target Deployment Modal (Single, Selected Few, ko All 36 States)
+  // Modal 2: Target Deployment Modal (Single, Selected Few, or All 36 States)
   const [targetModalVisible, setTargetModalVisible] = useState(false);
   const [targetMode, setTargetMode] = useState("single"); // 'single' | 'selected' | 'all'
   const [targetStateItem, setTargetStateItem] = useState(null);
@@ -189,7 +189,7 @@ const NsdDashboard = ({ navigation }) => {
 
   const activeStatesList = statesData.filter((s) => s.hasLeader);
 
-  // Zaɓar Dukkan Jihohi ko Cirewa
+  // Select or Deselect All States
   const handleSelectAllStates = () => {
     if (selectedStateNames.length === activeStatesList.length) {
       setSelectedStateNames([]);
@@ -198,7 +198,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // Zaɓar Jiha Ɗaya ko Cire ta
+  // Toggle Selection for Single State
   const handleToggleStateSelect = (stateName) => {
     if (selectedStateNames.includes(stateName)) {
       setSelectedStateNames(selectedStateNames.filter((s) => s !== stateName));
@@ -270,7 +270,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // DEPLOY TARGET GA STATE MANAGER (SINGLE, SELECTED FEW, KO ALL 36 STATES)
+  // Deploy Target (Single State, Selected States, or All 36 States)
   const handleDeployNationalTarget = async () => {
     setActionLoading(true);
     try {
@@ -295,6 +295,11 @@ const NsdDashboard = ({ navigation }) => {
         payload.leaderId = targetStateItem.leaderId;
         payload.state = targetStateItem.state;
       } else if (targetMode === "selected") {
+        if (selectedStateNames.length === 0) {
+          showAlert("Validation Error", "Please select at least one State.");
+          setActionLoading(false);
+          return;
+        }
         payload.mode = "bulk";
         payload.states = selectedStateNames;
       } else {
@@ -566,7 +571,7 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.targetBannerActionRow}>
-              {/* Maballin Tura Target zuwa Jihohi 36 Gaba Daya */}
+              {/* Deploy Targets to All 36 States */}
               <TouchableOpacity
                 style={styles.targetBannerBtnPrimary}
                 onPress={() => {
@@ -578,21 +583,33 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.targetBannerBtnTextPrimary}>DEPLOY TO ALL 36 STATES</Text>
               </TouchableOpacity>
 
-              {/* Maballin Tura Target ga Jihohin da aka yi wa Select Kalilan */}
-              {selectedStateNames.length > 0 && (
-                <TouchableOpacity
-                  style={styles.targetBannerBtnSelected}
-                  onPress={() => {
-                    setTargetMode("selected");
-                    setTargetModalVisible(true);
-                  }}
+              {/* Deploy Targets to Selected States */}
+              <TouchableOpacity
+                style={[
+                  styles.targetBannerBtnSecondary,
+                  selectedStateNames.length > 0 && { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0" },
+                ]}
+                onPress={() => {
+                  setTargetMode("selected");
+                  setTargetModalVisible(true);
+                }}
+              >
+                <FontAwesome5
+                  name="check-double"
+                  size={13}
+                  color={selectedStateNames.length > 0 ? "#059669" : "#1e40af"}
+                />
+                <Text
+                  style={[
+                    styles.targetBannerBtnTextSecondary,
+                    selectedStateNames.length > 0 && { color: "#059669" },
+                  ]}
                 >
-                  <FontAwesome5 name="check-double" size={13} color="#ffffff" />
-                  <Text style={styles.targetBannerBtnTextSelected}>
-                    DEPLOY SELECTED ({selectedStateNames.length})
-                  </Text>
-                </TouchableOpacity>
-              )}
+                  {selectedStateNames.length > 0
+                    ? `DEPLOY SELECTED (${selectedStateNames.length})`
+                    : "SELECT STATES"}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -716,7 +733,7 @@ const NsdDashboard = ({ navigation }) => {
           {/* TAB 1: 36 STATES GRID */}
           {activeTab === "states" && (
             <View style={styles.tabContentWrapper}>
-              {/* SELECTIVE & BULK ACTION RIBBON */}
+              {/* SELECTIVE ACTION RIBBON */}
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
@@ -747,7 +764,7 @@ const NsdDashboard = ({ navigation }) => {
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
                     <Text style={styles.bulkTargetBtnText}>
-                      Deploy Target to ({selectedStateNames.length}) States
+                      Deploy Target ({selectedStateNames.length} States)
                     </Text>
                   </TouchableOpacity>
                 ) : (
@@ -782,7 +799,7 @@ const NsdDashboard = ({ navigation }) => {
                       style={[styles.stateCard, isSelected && styles.cardSelected]}
                     >
                       <View style={styles.stateCardHeader}>
-                        {/* Checkbox Domin Zaban Jihohi Kalilan */}
+                        {/* Checkbox for State Selection */}
                         <TouchableOpacity
                           style={{ marginRight: 6 }}
                           onPress={() => handleToggleStateSelect(st.state)}
@@ -1320,10 +1337,12 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ASSIGN TARGETS (SINGLE, SELECTED FEW, OR ALL 36 STATES) */}
+      {/* =========================================================================
+          MODAL 2: ADVANCED TARGET DEPLOYMENT (SINGLE, SELECT FEW, OR ALL 36 STATES)
+         ========================================================================= */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
             <View style={styles.modalHeaderRow}>
               <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={styles.modalCardTitle}>
@@ -1346,11 +1365,93 @@ const NsdDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
-              <Text style={styles.formFieldLabel}>TARGET CYCLE / MONTH</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* TARGET MODE SELECTOR */}
+              <Text style={styles.formFieldLabel}>1. SELECT SCOPE (TARGET RECIPIENTS)</Text>
+              <View style={styles.toggleSegmentRow}>
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetMode === "single" && styles.toggleSegmentBtnActive]}
+                  onPress={() => setTargetMode("single")}
+                >
+                  <FontAwesome5 name="user-tie" size={12} color={targetMode === "single" ? "#ffffff" : "#64748b"} />
+                  <Text style={[styles.toggleSegmentText, targetMode === "single" && styles.toggleSegmentTextActive]}>
+                    Single State
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetMode === "selected" && styles.toggleSegmentBtnActive]}
+                  onPress={() => setTargetMode("selected")}
+                >
+                  <FontAwesome5 name="check-double" size={12} color={targetMode === "selected" ? "#ffffff" : "#64748b"} />
+                  <Text style={[styles.toggleSegmentText, targetMode === "selected" && styles.toggleSegmentTextActive]}>
+                    Select Specific ({selectedStateNames.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetMode === "all" && styles.toggleSegmentBtnActive]}
+                  onPress={() => setTargetMode("all")}
+                >
+                  <MaterialCommunityIcons name="target-account" size={14} color={targetMode === "all" ? "#ffffff" : "#64748b"} />
+                  <Text style={[styles.toggleSegmentText, targetMode === "all" && styles.toggleSegmentTextActive]}>
+                    All 36 States
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* CHECKBOX LIST DON ZABAR JIHO SHI KAƊAN */}
+              {targetMode === "selected" && (
+                <View style={styles.selectionListBox}>
+                  <View style={styles.selectionListHeader}>
+                    <Text style={styles.selectionListHeaderTitle}>
+                      Select Target States ({selectedStateNames.length} selected)
+                    </Text>
+                    <TouchableOpacity onPress={handleSelectAllStates}>
+                      <Text style={styles.selectionListSelectAllText}>
+                        {selectedStateNames.length === activeStatesList.length ? "Deselect All" : "Select All States"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                      {activeStatesList.map((item) => {
+                        const isChecked = selectedStateNames.includes(item.state);
+                        return (
+                          <TouchableOpacity
+                            key={item.state}
+                            style={[styles.stateCheckItem, isChecked && styles.stateCheckItemActive]}
+                            onPress={() => handleToggleStateSelect(item.state)}
+                          >
+                            <MaterialIcons
+                              name={isChecked ? "check-box" : "check-box-outline-blank"}
+                              size={18}
+                              color={isChecked ? "#1e40af" : "#94a3b8"}
+                            />
+                            <View style={{ marginLeft: 6, flex: 1 }}>
+                              <Text style={[styles.stateCheckText, isChecked && { color: "#1e40af", fontWeight: "bold" }]}>
+                                {item.state}
+                              </Text>
+                              <Text style={styles.stateCheckSub} numberOfLines={1}>
+                                {item.leaderName}
+                              </Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* TARGET QUOTA INPUTS */}
+              <Text style={styles.formFieldLabel}>2. TARGET QUOTA ALLOCATION</Text>
+
+              <Text style={styles.formFieldSubLabel}>TARGET CYCLE / MONTH</Text>
               <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
-              <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
+              <Text style={styles.formFieldSubLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 keyboardType="numeric"
@@ -1360,7 +1461,7 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setTargetDataGoal}
               />
 
-              <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
+              <Text style={styles.formFieldSubLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 keyboardType="numeric"
@@ -1370,7 +1471,7 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setTargetAirtimeGoal}
               />
 
-              <Text style={styles.formFieldLabel}>NEW AGENTS REGISTRATION TARGET (HEADCOUNT)</Text>
+              <Text style={styles.formFieldSubLabel}>NEW AGENTS REGISTRATION TARGET (HEADCOUNT)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 keyboardType="numeric"
@@ -1380,7 +1481,7 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setTargetNewAgentGoal}
               />
 
-              <Text style={styles.formFieldLabel}>NEW SUPERVISORS APPOINTMENT TARGET (LGA LEADS)</Text>
+              <Text style={styles.formFieldSubLabel}>NEW SUPERVISORS APPOINTMENT TARGET (LGA LEADS)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 keyboardType="numeric"
@@ -1648,18 +1749,20 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   targetBannerBtnTextPrimary: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 5 },
-  targetBannerBtnSelected: {
+  targetBannerBtnSecondary: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#059669",
+    backgroundColor: "#eff6ff",
     paddingVertical: 8,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
   },
-  targetBannerBtnTextSelected: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 5 },
+  targetBannerBtnTextSecondary: { color: "#1e40af", fontSize: 11, fontWeight: "800", marginLeft: 4 },
 
-  // Telemetry Section
+  // Telemetry Section (Dark Blue Theme)
   telemetrySection: { padding: isLargeScreen ? 24 : 16 },
   telemetryBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1e40af", marginRight: 8 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
@@ -1695,9 +1798,7 @@ const styles = StyleSheet.create({
     borderColor: "#1e293b",
     borderLeftColor: "#38bdf8",
   },
-
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  
   metricIconWrapDark: {
     width: 32,
     height: 32,
@@ -2010,6 +2111,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#e2e8f0",
   },
   logoutBtnText: { color: "#dc2626", fontSize: 13, fontWeight: "800", marginLeft: 10 },
+  
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.7)",
@@ -2022,7 +2124,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: "100%",
-    maxWidth: 460,
+    maxWidth: 480,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     elevation: 8,
@@ -2039,13 +2141,106 @@ const styles = StyleSheet.create({
   modalCardTitle: { color: "#0f172a", fontSize: 15, fontWeight: "900" },
   modalCardSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
   formFieldLabel: {
-    color: "#475569",
-    fontSize: 10,
+    color: "#1e40af",
+    fontSize: 10.5,
     fontWeight: "900",
     letterSpacing: 0.8,
     marginTop: 12,
     marginBottom: 6,
   },
+  formFieldSubLabel: {
+    color: "#475569",
+    fontSize: 9.5,
+    fontWeight: "800",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+
+  // Toggle Segment
+  toggleSegmentRow: {
+    flexDirection: "row",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 10,
+  },
+  toggleSegmentBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  toggleSegmentBtnActive: {
+    backgroundColor: "#1e40af",
+    elevation: 2,
+  },
+  toggleSegmentText: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 4,
+  },
+  toggleSegmentTextActive: {
+    color: "#ffffff",
+    fontWeight: "900",
+  },
+
+  // Specific Selection List Box
+  selectionListBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    marginBottom: 12,
+  },
+  selectionListHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    paddingBottom: 6,
+    marginBottom: 6,
+  },
+  selectionListHeaderTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  selectionListSelectAllText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#1e40af",
+  },
+  stateCheckItem: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 6,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  stateCheckItemActive: {
+    borderColor: "#1e40af",
+    backgroundColor: "#eff6ff",
+  },
+  stateCheckText: {
+    color: "#0f172a",
+    fontSize: 11.5,
+    fontWeight: "700",
+  },
+  stateCheckSub: {
+    color: "#64748b",
+    fontSize: 9.5,
+  },
+
   stateTabPill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
