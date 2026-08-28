@@ -80,41 +80,68 @@ const AgentDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 320);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // 1. Ainihin Extract Logic kamar na HomeScreen
+  // 1. Tabbatar da cewa lambar account ɗin ainihin lamba ce (ba 'Initialization Pending' ko 'Pending' ba)
+  const isValidAccountNumber = (accNo) => {
+    if (!accNo) return false;
+    const str = String(accNo).trim();
+    if (
+      str.toLowerCase() === "initialization pending" ||
+      str.toLowerCase() === "pending" ||
+      str.toLowerCase() === "null" ||
+      str.toLowerCase() === "undefined" ||
+      str.length < 7
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   const extractVirtualAccount = (user) => {
     if (!user) return null;
     let activeAcc = null;
 
-    if (user.virtualAccount && (user.virtualAccount.accountNumber || user.virtualAccount.account_number)) {
+    const rawNum =
+      user.virtualAccount?.accountNumber ||
+      user.virtualAccount?.account_number ||
+      user.dva?.accountNumber ||
+      user.dva?.account_number ||
+      user.accountNumber ||
+      user.virtualAccountNumber;
+
+    if (isValidAccountNumber(rawNum)) {
       activeAcc = {
-        bankName: user.virtualAccount.bankName || user.virtualAccount.bank_name || "Wema Bank",
-        accountName: user.virtualAccount.accountName || user.virtualAccount.account_name || user.name || "Ayax Agent",
-        accountNumber: user.virtualAccount.accountNumber || user.virtualAccount.account_number,
+        bankName:
+          user.virtualAccount?.bankName ||
+          user.virtualAccount?.bank_name ||
+          user.dva?.bankName ||
+          user.dva?.bank_name ||
+          user.bankName ||
+          "Wema Bank",
+        accountName:
+          user.virtualAccount?.accountName ||
+          user.virtualAccount?.account_name ||
+          user.dva?.accountName ||
+          user.dva?.account_name ||
+          user.accountName ||
+          user.name ||
+          "Ayax Agent",
+        accountNumber: String(rawNum).trim(),
       };
     } else if (Array.isArray(user.virtualAccounts) && user.virtualAccounts.length > 0) {
       const first = user.virtualAccounts[0];
-      activeAcc = {
-        bankName: first.bankName || first.bank_name || "Wema Bank",
-        accountName: first.accountName || first.account_name || user.name,
-        accountNumber: first.accountNumber || first.account_number,
-      };
-    } else if (user.dva && (user.dva.accountNumber || user.dva.account_number)) {
-      activeAcc = {
-        bankName: user.dva.bankName || user.dva.bank_name || "Wema Bank",
-        accountName: user.dva.accountName || user.dva.account_name || user.name,
-        accountNumber: user.dva.accountNumber || user.dva.account_number,
-      };
-    } else if (user.accountNumber && user.accountNumber !== "Pending") {
-      activeAcc = {
-        bankName: user.bankName || "Wema Bank",
-        accountName: user.accountName || user.name || "Ayax Agent",
-        accountNumber: user.accountNumber,
-      };
+      const firstNum = first.accountNumber || first.account_number;
+      if (isValidAccountNumber(firstNum)) {
+        activeAcc = {
+          bankName: first.bankName || first.bank_name || "Wema Bank",
+          accountName: first.accountName || first.account_name || user.name,
+          accountNumber: String(firstNum).trim(),
+        };
+      }
     }
     return activeAcc;
   };
 
-  // 2. Load cached user profile and virtual account immediately on launch
+  // 2. Load cached data on launch
   useEffect(() => {
     const loadCachedData = async () => {
       try {
@@ -124,17 +151,20 @@ const AgentDashboard = ({ navigation }) => {
         ]);
 
         if (cachedAcc) {
-          setVirtualAccount(JSON.parse(cachedAcc));
+          const parsedAcc = JSON.parse(cachedAcc);
+          if (isValidAccountNumber(parsedAcc?.accountNumber)) {
+            setVirtualAccount(parsedAcc);
+          } else {
+            await AsyncStorage.removeItem("userVirtualAccount");
+          }
         }
         if (cachedUser) {
           const parsed = JSON.parse(cachedUser);
           setUserData(parsed);
-          if (!cachedAcc && (parsed.virtualAccount || parsed.virtualAccounts || parsed.dva || parsed.accountNumber)) {
-            const acc = extractVirtualAccount(parsed);
-            if (acc) {
-              setVirtualAccount(acc);
-              await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(acc));
-            }
+          const acc = extractVirtualAccount(parsed);
+          if (acc) {
+            setVirtualAccount(acc);
+            await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(acc));
           }
         }
       } catch (e) {
@@ -196,24 +226,26 @@ const AgentDashboard = ({ navigation }) => {
         axios.get(`${BASE_URL}/user/profile`, config).catch(() => ({ data: { success: false } })),
         axios.get(`${BASE_URL}/agent/performance`, config).catch(() => ({ data: { data: null } })),
         axios.get(`${BASE_URL}/agent/my-supervisor`, config).catch(() => ({ data: { data: null } })),
-        axios.get(`${BASE_URL}/notifications`, config).catch(() => 
+        axios.get(`${BASE_URL}/notifications`, config).catch(() =>
           axios.get(`${BASE_URL}/notifications/my-notifications`, config).catch(() => ({ data: [] }))
         ),
       ]);
 
-      // Profile & Virtual Account Data
       const user = profileRes.data?.user || profileRes.data?.data || parsedLocalUser;
       if (user) {
         setUserData(user);
         await AsyncStorage.setItem("userData", JSON.stringify(user));
 
         const activeAcc = extractVirtualAccount(user);
-        if (activeAcc && activeAcc.accountNumber) {
+        if (activeAcc && isValidAccountNumber(activeAcc.accountNumber)) {
           setVirtualAccount(activeAcc);
           await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(activeAcc));
+        } else {
+          // Idan account din yana 'Initialization Pending', a bar shi a null don maballin ya fito
+          setVirtualAccount(null);
+          await AsyncStorage.removeItem("userVirtualAccount");
         }
 
-        // Quotas & Targets
         const tg = user.targets || {};
         setAgentQuota({
           dataGoal: Number(tg.dataGoal) || 100,
@@ -224,18 +256,15 @@ const AgentDashboard = ({ navigation }) => {
         });
       }
 
-      // Performance Metrics
       if (perfRes.data?.data) {
         setPerformance(perfRes.data.data);
       }
 
-      // Supervisor Assignment
       if (supRes.data?.data || user?.assignedSupervisor) {
         const sup = supRes.data?.data || user.assignedSupervisor;
         setAssignedSupervisor(typeof sup === "object" ? sup : { name: "LGA Supervisor", phone: "" });
       }
 
-      // Notifications & Unread Counter
       const rawNotifs = notifRes.data?.notifications || notifRes.data?.data || notifRes.data || [];
       const notifsList = Array.isArray(rawNotifs) ? rawNotifs : [];
       setNotifications(notifsList);
@@ -282,43 +311,66 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. Ainihin Kirkirar Virtual Account kamar na HomeScreen
+  // 4. Kirkirar Virtual Account tare da kiyaye duk wani endpoint fallback
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      };
 
-      const response = await axios.post(
-        `${BASE_URL}/virtual-account/create`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
+      let response;
+      let lastError = null;
+
+      try {
+        response = await axios.post(`${BASE_URL}/virtual-account/create`, {}, { headers });
+      } catch (err1) {
+        lastError = err1;
+        try {
+          response = await axios.post(`${BASE_URL}/wallet/generate-virtual-account`, {}, { headers });
+        } catch (err2) {
+          lastError = err2;
         }
-      );
-
-      if (response.data && response.data.success) {
-        const accData = response.data.data || response.data.virtualAccount;
-        const formattedAcc = {
-          bankName: accData.bankName || accData.bank_name || "Wema Bank",
-          accountName: accData.accountName || accData.account_name || userData?.name || "Ayax Agent",
-          accountNumber: accData.accountNumber || accData.account_number,
-        };
-
-        setVirtualAccount(formattedAcc);
-        await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(formattedAcc));
-
-        if (Platform.OS === "android") {
-          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
-        } else {
-          Alert.alert("Success", "Dedicated account generated successfully!");
-        }
-        fetchAgentDashboardData();
       }
+
+      if (response && response.data && (response.data.success || response.status === 200)) {
+        const accData = response.data.data || response.data.virtualAccount || response.data.account;
+        const accNumber =
+          accData?.accountNumber ||
+          accData?.account_number ||
+          accData?.virtualAccountNumber ||
+          response.data?.accountNumber;
+
+        if (isValidAccountNumber(accNumber)) {
+          const formattedAcc = {
+            bankName: accData?.bankName || accData?.bank_name || "Wema Bank",
+            accountName: accData?.accountName || accData?.account_name || userData?.name || "Ayax Agent",
+            accountNumber: String(accNumber).trim(),
+          };
+
+          setVirtualAccount(formattedAcc);
+          await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(formattedAcc));
+
+          if (Platform.OS === "android") {
+            ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+          } else {
+            Alert.alert("Success", "Dedicated account generated successfully!");
+          }
+          await fetchAgentDashboardData(false);
+          return;
+        }
+      }
+
+      const errMsg =
+        lastError?.response?.data?.message ||
+        response?.data?.message ||
+        "Could not generate account. Please try again.";
+      Alert.alert("Notice", errMsg);
     } catch (error) {
-      Alert.alert("Error", "Could not generate virtual account. Please try again later.");
+      Alert.alert("Error", error.response?.data?.message || "Could not generate virtual account.");
     } finally {
       setLoadingAccount(false);
     }
@@ -525,7 +577,7 @@ const AgentDashboard = ({ navigation }) => {
         </View>
 
         <View style={styles.dvaCard}>
-          {virtualAccount && virtualAccount.accountNumber ? (
+          {virtualAccount && isValidAccountNumber(virtualAccount.accountNumber) ? (
             <View>
               <View style={styles.dvaTopRow}>
                 <View style={{ flex: 1 }}>
@@ -908,7 +960,6 @@ const styles = StyleSheet.create({
   actionBtnText: { color: "#0369a1", fontWeight: "900", fontSize: 11.5, marginLeft: 6, letterSpacing: 0.5 },
   supportBtnText: { color: "#ffffff", fontWeight: "900", fontSize: 11.5, marginLeft: 6, letterSpacing: 0.5 },
 
-  // EXECUTIVE TARGET CARD DARK
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
     borderRadius: 16,
