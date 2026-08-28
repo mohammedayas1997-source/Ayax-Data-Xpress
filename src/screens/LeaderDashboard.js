@@ -65,7 +65,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [selectedLga, setSelectedLga] = useState("All LGAs");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Bulk Selection States a Main Screen
+  // Bulk Selection States
   const [selectedSupIds, setSelectedSupIds] = useState([]);
   const [selectedAgentIds, setSelectedAgentIds] = useState([]);
 
@@ -78,14 +78,12 @@ const LeaderDashboard = ({ navigation }) => {
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
-  // =========================================================================
-  // ADVANCED TARGET COMMAND MODAL STATES (LGA, SUPERVISOR, & AGENTS)
-  // =========================================================================
+  // Advanced Target Command Modal States
   const [targetModalVisible, setTargetModalVisible] = useState(false);
   const [targetCategory, setTargetCategory] = useState("supervisor"); // 'supervisor', 'agent', 'lga'
   const [targetScope, setTargetScope] = useState("selected"); // 'all', 'selected', 'by_lga'
-  const [targetSelectedLgas, setTargetSelectedLgas] = useState([]); // Selected LGAs
-  const [targetSelectedPeopleIds, setTargetSelectedPeopleIds] = useState([]); // Selected Sup or Agent IDs
+  const [targetSelectedLgas, setTargetSelectedLgas] = useState([]);
+  const [targetSelectedPeopleIds, setTargetSelectedPeopleIds] = useState([]);
   
   // Quota Inputs
   const [targetDataGoal, setTargetDataGoal] = useState("500");
@@ -243,7 +241,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Helper don Zabar Mutane a cikin Modal
+  // Checkbox Select Helper Functions
   const handleToggleModalPerson = (id) => {
     if (targetSelectedPeopleIds.includes(id)) {
       setTargetSelectedPeopleIds(targetSelectedPeopleIds.filter((item) => item !== id));
@@ -277,7 +275,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // AIKIN TURA TARGET GA MUTANE KAƊAN, KOWACE LGA, KO DUKA GABA DAYA
+  // Deploy Target Function
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -625,7 +623,7 @@ const LeaderDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* DIRECT TARGET COMMAND BANNER (BABBAN MABALLIN SAMAR DA TARGET) */}
+          {/* DIRECT TARGET COMMAND BANNER */}
           <View style={styles.targetCommandBanner}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={styles.targetBannerIconWrap}>
@@ -676,7 +674,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (DARK BLUE EXECUTIVE CARD) */}
+          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
@@ -734,7 +732,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 2: SUMMARY METRICS (DARK BLUE BACKGROUNDS) */}
+          {/* SECTION 2: SUMMARY METRICS */}
           <View style={styles.telemetrySection}>
             <View style={styles.metricGrid}>
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
@@ -1367,9 +1365,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL 2: ADVANCED TARGET DEPLOYMENT (LGA, SUPERVISORS, KAƊAN KO DUKA)
-         ========================================================================= */}
+      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
@@ -1429,7 +1425,7 @@ const LeaderDashboard = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* STEP 2: SCOPE SELECTION (ZABAR MUTANE KADAN KO DUKA) */}
+              {/* STEP 2: SCOPE SELECTION */}
               <Text style={styles.formFieldLabel}>2. SELECT SCOPE (RECIPIENTS)</Text>
               <View style={styles.toggleSegmentRow}>
                 <TouchableOpacity
@@ -1437,7 +1433,7 @@ const LeaderDashboard = ({ navigation }) => {
                   onPress={() => setTargetScope("selected")}
                 >
                   <Text style={[styles.toggleSegmentText, targetScope === "selected" && styles.toggleSegmentTextActive]}>
-                    Select Specific (Kaɗan)
+                    Select Specific Recipients
                   </Text>
                 </TouchableOpacity>
 
@@ -1451,12 +1447,12 @@ const LeaderDashboard = ({ navigation }) => {
                   }}
                 >
                   <Text style={[styles.toggleSegmentText, targetScope === "all" && styles.toggleSegmentTextActive]}>
-                    Select All in State (Duka)
+                    Select All in State
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* CHECKBOX LIST DON ZABAR MUTANE KADAN (SPECIFIC SELECTION) */}
+              {/* CHECKBOX LIST FOR SPECIFIC SELECTION */}
               {targetScope === "selected" && targetCategory !== "lga" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
@@ -1502,7 +1498,7 @@ const LeaderDashboard = ({ navigation }) => {
                 </View>
               )}
 
-              {/* CHECKBOX LIST DON ZABAR LGA (KOWANE LGA) */}
+              {/* CHECKBOX LIST FOR SPECIFIC LGAS */}
               {targetCategory === "lga" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
