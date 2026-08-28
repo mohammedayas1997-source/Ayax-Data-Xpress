@@ -185,18 +185,18 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Kwaso dukkan sassan tsarin kamfani ta hanyar kofofin SuperAdmin
+      // Kwaso dukkan sassan tsarin kamfani ta hanyar kofofin SuperAdmin/Admin
       const [telemetryRes, txRes, plansRes, usersRes, logsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }).catch(() => 
-          axios.get(`${BASE_URL}/superadmin/stats`, { headers, timeout: 15000 })
+        axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }).catch(() =>
+          axios.get(`${BASE_URL}/superadmin/stats`, { headers, timeout: 15000 }).catch(() => ({ data: {} }))
         ),
-        axios.get(`${BASE_URL}/admin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => 
-          axios.get(`${BASE_URL}/superadmin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => ({ data: { transactions: [] } }))
+        axios.get(`${BASE_URL}/superadmin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() =>
+          axios.get(`${BASE_URL}/admin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => ({ data: { transactions: [] } }))
         ),
-        axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => 
-          axios.get(`${BASE_URL}/superadmin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } }))
+        axios.get(`${BASE_URL}/superadmin/plans`, { headers, timeout: 15000 }).catch(() =>
+          axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } }))
         ),
-        axios.get(`${BASE_URL}/superadmin/users?limit=200`, { headers, timeout: 15000 }).catch(() => 
+        axios.get(`${BASE_URL}/superadmin/users?limit=200`, { headers, timeout: 15000 }).catch(() =>
           axios.get(`${BASE_URL}/admin/users?limit=200`, { headers, timeout: 15000 }).catch(() => ({ data: { users: [] } }))
         ),
         axios.get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
@@ -211,9 +211,8 @@ const SuperAdminDashboard = ({ navigation }) => {
         setRecentTx(txRes.data.transactions || txRes.data.data || []);
       }
 
-      if (plansRes.data?.data || plansRes.data?.plans) {
-        setDataPlansList(plansRes.data.data || plansRes.data.plans || []);
-      }
+      const fetchedPlans = plansRes.data?.data || plansRes.data?.plans || [];
+      setDataPlansList(Array.isArray(fetchedPlans) ? fetchedPlans : []);
 
       if (usersRes.data?.users || usersRes.data?.data) {
         setAllUsersList(usersRes.data.users || usersRes.data.data || []);
@@ -293,7 +292,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Tariff Deployed", res.data.message || "Pricing updated successfully.");
         setPrices((prev) => ({ ...prev, [targetTariffService.key]: Number(newTariffPrice) }));
         setPricingModalVisible(false);
@@ -328,7 +327,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Broadcast Sent 🚀", res.data.message || "Notification delivered.");
         setNotificationModalVisible(false);
         setNotifTitle("");
@@ -362,7 +361,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Ledger Synced", res.data.message || "Wallet adjusted successfully.");
         setWalletModalVisible(false);
         setWalletUserId("");
@@ -397,7 +396,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Executive Refund Executed", res.data.message || "Refund processed.");
         setRefundModalVisible(false);
         setRefundUserId("");
@@ -431,7 +430,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Role Updated", res.data.message || "User role modified.");
         setRoleModalVisible(false);
         setRoleUserId("");
@@ -463,7 +462,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Credentials Reset", res.data.message || "Security credentials updated.");
         setPasswordModalVisible(false);
         setPwdUserId("");
@@ -496,7 +495,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Security State Changed", res.data.message || "Account state toggled.");
         setLockModalVisible(false);
         setLockUserId("");
@@ -530,7 +529,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Target Deployed 🎯", res.data.message || "Targets allocated successfully.");
         setTargetModalVisible(false);
         setTargetSupervisorId("");
@@ -617,6 +616,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       setActionLoading(false);
     }
   };
+
   // 11. Bulk Marketing Data Dispatch
   const handleExecuteDispatch = async () => {
     if (!dispatchPlanCode || !dispatchPrice) {
@@ -639,7 +639,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Campaign Queued", res.data.message || "Bulk dispatch queued.");
         setDispatchModalVisible(false);
         setDispatchRecipients("");
@@ -662,7 +662,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         data: { retentionDays: Number(purgeDays) },
       });
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Forensic Clean Complete", res.data.message || "Audit trail pruned.");
         setPurgeModalVisible(false);
       }
@@ -990,7 +990,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                   </View>
                   <View style={styles.tileInfo}>
                     <Text style={[styles.tileTitle, { color: "#f87171" }]}>
-                      Executive Refund Override (SuperAdmin Only)
+                      Executive Refund Override
                     </Text>
                     <Text style={styles.tileDescription}>
                       Directly disburse wallet refunds for failed transactions without third-party bottlenecks.
@@ -2337,7 +2337,7 @@ const SuperAdminDashboard = ({ navigation }) => {
               onChangeText={setLockReason}
             />
 
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 20 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <TouchableOpacity
                 style={[
                   styles.primaryActionBtn,
