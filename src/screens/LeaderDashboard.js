@@ -60,14 +60,10 @@ const LeaderDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Tabs & Filtration
+  // Tabs & Search
   const [activeTab, setActiveTab] = useState("supervisors");
   const [selectedLga, setSelectedLga] = useState("All LGAs");
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Bulk Selection States
-  const [selectedSupIds, setSelectedSupIds] = useState([]);
-  const [selectedAgentIds, setSelectedAgentIds] = useState([]);
 
   // Sidebar Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -78,10 +74,10 @@ const LeaderDashboard = ({ navigation }) => {
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
-  // Advanced Target Command Modal States
+  // Modal 2: Advanced Target Command Modal States
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetCategory, setTargetCategory] = useState("supervisor"); // 'supervisor', 'agent', 'lga'
-  const [targetScope, setTargetScope] = useState("selected"); // 'all', 'selected', 'by_lga'
+  const [targetCategory, setTargetCategory] = useState("supervisor"); // 'supervisor' | 'agent' | 'lga'
+  const [targetScope, setTargetScope] = useState("selected"); // 'selected' | 'all' | 'by_lga'
   const [targetSelectedLgas, setTargetSelectedLgas] = useState([]);
   const [targetSelectedPeopleIds, setTargetSelectedPeopleIds] = useState([]);
   
@@ -241,7 +237,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Checkbox Select Helper Functions
+  // Helper Functions for Target Checkbox Multi-Select
   const handleToggleModalPerson = (id) => {
     if (targetSelectedPeopleIds.includes(id)) {
       setTargetSelectedPeopleIds(targetSelectedPeopleIds.filter((item) => item !== id));
@@ -403,6 +399,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // ENROLL FIELD SUPERVISOR (SAVES TO DATABASE DIRECTLY)
   const handleEnrollSupervisor = async () => {
     if (!newSupName.trim() || !newSupPhone.trim() || !newSupLga) {
       return showAlert("Validation Error", "Name, Phone Number, and LGA are required.");
@@ -416,7 +413,7 @@ const LeaderDashboard = ({ navigation }) => {
         {
           name: newSupName.trim(),
           phone: newSupPhone.trim(),
-          email: newSupEmail.trim() || undefined,
+          email: newSupEmail.trim() ? newSupEmail.trim().toLowerCase() : undefined,
           password: newSupPassword.trim() || "Password123@",
           state: managerState,
           lga: newSupLga,
@@ -426,12 +423,13 @@ const LeaderDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Supervisor Enrolled 🎉", `Assigned to ${newSupLga} LGA, ${managerState} State.`);
+        showAlert("Supervisor Enrolled 🎉", `${newSupName} has been created and assigned to ${newSupLga} LGA, ${managerState} State. They can now log in using their credentials.`);
         setEnrollModalVisible(false);
         setNewSupName("");
         setNewSupPhone("");
         setNewSupEmail("");
         setNewSupLga("");
+        setNewSupPassword("Password123@");
         fetchDashboardData();
       }
     } catch (err) {
@@ -641,6 +639,7 @@ const LeaderDashboard = ({ navigation }) => {
                 onPress={() => {
                   setTargetCategory("supervisor");
                   setTargetScope("selected");
+                  setTargetSelectedPeopleIds([]);
                   setTargetModalVisible(true);
                 }}
               >
@@ -653,6 +652,7 @@ const LeaderDashboard = ({ navigation }) => {
                 onPress={() => {
                   setTargetCategory("agent");
                   setTargetScope("selected");
+                  setTargetSelectedPeopleIds([]);
                   setTargetModalVisible(true);
                 }}
               >
@@ -665,6 +665,7 @@ const LeaderDashboard = ({ navigation }) => {
                 onPress={() => {
                   setTargetCategory("lga");
                   setTargetScope("by_lga");
+                  setTargetSelectedLgas([]);
                   setTargetModalVisible(true);
                 }}
               >
@@ -1233,6 +1234,7 @@ const LeaderDashboard = ({ navigation }) => {
                   toggleSidebar(false);
                   setTargetCategory("supervisor");
                   setTargetScope("selected");
+                  setTargetSelectedPeopleIds([]);
                   setTargetModalVisible(true);
                 }}
               >
@@ -1248,6 +1250,7 @@ const LeaderDashboard = ({ navigation }) => {
                   toggleSidebar(false);
                   setTargetCategory("agent");
                   setTargetScope("selected");
+                  setTargetSelectedPeopleIds([]);
                   setTargetModalVisible(true);
                 }}
               >
@@ -1365,7 +1368,9 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT */}
+      {/* =========================================================================
+          MODAL 2: ADVANCED TARGET DEPLOYMENT (SUPERVISORS & AGENTS MULTI-SELECT)
+         ========================================================================= */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
@@ -1452,7 +1457,7 @@ const LeaderDashboard = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* CHECKBOX LIST FOR SPECIFIC SELECTION */}
+              {/* CHECKBOX LIST FOR SUPERVISORS OR AGENTS MULTI-SELECT */}
               {targetScope === "selected" && targetCategory !== "lga" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
@@ -1468,7 +1473,7 @@ const LeaderDashboard = ({ navigation }) => {
                     </TouchableOpacity>
                   </View>
 
-                  <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                  <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                     {(targetCategory === "supervisor" ? supervisors : agents).map((item) => {
                       const id = item._id || item.id;
                       const name = item.name || `${item.firstName || ""} ${item.surname || ""}` || "User";
@@ -1488,7 +1493,7 @@ const LeaderDashboard = ({ navigation }) => {
                           <View style={{ marginLeft: 8, flex: 1 }}>
                             <Text style={styles.personCheckName}>{name}</Text>
                             <Text style={styles.personCheckSub}>
-                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"}
+                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"} {targetCategory === "agent" && item.assignedSupervisorName ? `• FS: ${item.assignedSupervisorName}` : ""}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -1596,14 +1601,16 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: ENROLL FIELD SUPERVISOR */}
+      {/* =========================================================================
+          MODAL 3: ENROLL FIELD SUPERVISOR (PERSISTS DIRECTLY TO DATABASE)
+         ========================================================================= */}
       <Modal visible={enrollModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Appoint Field Supervisor (FS)</Text>
-                <Text style={styles.modalCardSubtitle}>Deploy LGA field coordinator in {managerState}</Text>
+                <Text style={styles.modalCardSubtitle}>Create user profile & deploy LGA field coordinator</Text>
               </View>
               <TouchableOpacity onPress={() => setEnrollModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748b" />
@@ -1635,7 +1642,7 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setNewSupName}
               />
 
-              <Text style={styles.formFieldLabel}>PHONE NUMBER</Text>
+              <Text style={styles.formFieldLabel}>PHONE NUMBER (LOGIN USERNAME)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. 08031234567"
@@ -1645,7 +1652,7 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setNewSupPhone}
               />
 
-              <Text style={styles.formFieldLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
+              <Text style={styles.formFieldLabel}>EMAIL ADDRESS (FOR LOGIN & NOTIFICATIONS)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. supervisor@ayaxdata.online"
@@ -1673,7 +1680,7 @@ const LeaderDashboard = ({ navigation }) => {
                 {actionLoading ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT</Text>
+                  <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT & CREATE ACCOUNT</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
