@@ -53,7 +53,7 @@ const AgentDashboard = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Dedicated Virtual Account States
+  // Dedicated Virtual Account States (Daidai da FundWallet)
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
 
@@ -80,99 +80,19 @@ const AgentDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 320);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // 1. Tabbatar da cewa lambar account ɗin ainihin lamba ce (ba 'Initialization Pending' ko 'Pending' ba)
-  const isValidAccountNumber = (accNo) => {
-    if (!accNo) return false;
-    const str = String(accNo).trim();
-    if (
-      str.toLowerCase() === "initialization pending" ||
-      str.toLowerCase() === "pending" ||
-      str.toLowerCase() === "null" ||
-      str.toLowerCase() === "undefined" ||
-      str.length < 7
-    ) {
-      return false;
+  // Filter don goge Initialization Pending
+  const cleanAccount = (acc) => {
+    if (!acc) return null;
+    const num = acc.accountNumber || acc.account_number;
+    if (!num || String(num).toLowerCase().includes("pending") || String(num).length < 7) {
+      return null;
     }
-    return true;
-  };
-
-  const extractVirtualAccount = (user) => {
-    if (!user) return null;
-    let activeAcc = null;
-
-    const rawNum =
-      user.virtualAccount?.accountNumber ||
-      user.virtualAccount?.account_number ||
-      user.dva?.accountNumber ||
-      user.dva?.account_number ||
-      user.accountNumber ||
-      user.virtualAccountNumber;
-
-    if (isValidAccountNumber(rawNum)) {
-      activeAcc = {
-        bankName:
-          user.virtualAccount?.bankName ||
-          user.virtualAccount?.bank_name ||
-          user.dva?.bankName ||
-          user.dva?.bank_name ||
-          user.bankName ||
-          "Wema Bank",
-        accountName:
-          user.virtualAccount?.accountName ||
-          user.virtualAccount?.account_name ||
-          user.dva?.accountName ||
-          user.dva?.account_name ||
-          user.accountName ||
-          user.name ||
-          "Ayax Agent",
-        accountNumber: String(rawNum).trim(),
-      };
-    } else if (Array.isArray(user.virtualAccounts) && user.virtualAccounts.length > 0) {
-      const first = user.virtualAccounts[0];
-      const firstNum = first.accountNumber || first.account_number;
-      if (isValidAccountNumber(firstNum)) {
-        activeAcc = {
-          bankName: first.bankName || first.bank_name || "Wema Bank",
-          accountName: first.accountName || first.account_name || user.name,
-          accountNumber: String(firstNum).trim(),
-        };
-      }
-    }
-    return activeAcc;
-  };
-
-  // 2. Load cached data on launch
-  useEffect(() => {
-    const loadCachedData = async () => {
-      try {
-        const [cachedAcc, cachedUser] = await Promise.all([
-          AsyncStorage.getItem("userVirtualAccount"),
-          AsyncStorage.getItem("userData"),
-        ]);
-
-        if (cachedAcc) {
-          const parsedAcc = JSON.parse(cachedAcc);
-          if (isValidAccountNumber(parsedAcc?.accountNumber)) {
-            setVirtualAccount(parsedAcc);
-          } else {
-            await AsyncStorage.removeItem("userVirtualAccount");
-          }
-        }
-        if (cachedUser) {
-          const parsed = JSON.parse(cachedUser);
-          setUserData(parsed);
-          const acc = extractVirtualAccount(parsed);
-          if (acc) {
-            setVirtualAccount(acc);
-            await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(acc));
-          }
-        }
-      } catch (e) {
-        console.log("Error loading cached storage:", e.message);
-      }
+    return {
+      bankName: acc.bankName || acc.bank_name || "Wema Bank",
+      accountName: acc.accountName || acc.account_name || userData?.name || "Ayax Agent",
+      accountNumber: String(num).trim(),
     };
-    loadCachedData();
-  }, []);
+  };
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -191,27 +111,17 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. Real-time Live Synchronization
+  // 1. Dauko Bayanai Daidai Da Na FundWalletScreen.js
   const fetchAgentDashboardData = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
       const token = await AsyncStorage.getItem("userToken");
-      const storedUserData = await AsyncStorage.getItem("userData");
 
       if (!token) {
         if (!isBackground) {
           navigation.reset({ index: 0, routes: [{ name: "Login" }] });
         }
         return;
-      }
-
-      let parsedLocalUser = {};
-      if (storedUserData) {
-        try {
-          parsedLocalUser = JSON.parse(storedUserData);
-        } catch (e) {
-          parsedLocalUser = {};
-        }
       }
 
       const config = {
@@ -226,24 +136,28 @@ const AgentDashboard = ({ navigation }) => {
         axios.get(`${BASE_URL}/user/profile`, config).catch(() => ({ data: { success: false } })),
         axios.get(`${BASE_URL}/agent/performance`, config).catch(() => ({ data: { data: null } })),
         axios.get(`${BASE_URL}/agent/my-supervisor`, config).catch(() => ({ data: { data: null } })),
-        axios.get(`${BASE_URL}/notifications`, config).catch(() =>
+        axios.get(`${BASE_URL}/notifications`, config).catch(() => 
           axios.get(`${BASE_URL}/notifications/my-notifications`, config).catch(() => ({ data: [] }))
         ),
       ]);
 
-      const user = profileRes.data?.user || profileRes.data?.data || parsedLocalUser;
-      if (user) {
+      if (profileRes.data && (profileRes.data.success || profileRes.data.user)) {
+        const user = profileRes.data.user || profileRes.data.data;
         setUserData(user);
-        await AsyncStorage.setItem("userData", JSON.stringify(user));
 
-        const activeAcc = extractVirtualAccount(user);
-        if (activeAcc && isValidAccountNumber(activeAcc.accountNumber)) {
-          setVirtualAccount(activeAcc);
-          await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(activeAcc));
+        // Ainihin duba asusun Virtual Account kamar na FundWallet
+        if (user.virtualAccount && user.virtualAccount.accountNumber) {
+          setVirtualAccount(cleanAccount(user.virtualAccount));
+        } else if (user.dva && user.dva.accountNumber) {
+          setVirtualAccount(cleanAccount(user.dva));
+        } else if (user.accountNumber && !String(user.accountNumber).toLowerCase().includes("pending")) {
+          setVirtualAccount(cleanAccount({
+            bankName: user.bankName || "Wema Bank",
+            accountNumber: user.accountNumber,
+            accountName: user.accountName || user.name
+          }));
         } else {
-          // Idan account din yana 'Initialization Pending', a bar shi a null don maballin ya fito
           setVirtualAccount(null);
-          await AsyncStorage.removeItem("userVirtualAccount");
         }
 
         const tg = user.targets || {};
@@ -260,8 +174,8 @@ const AgentDashboard = ({ navigation }) => {
         setPerformance(perfRes.data.data);
       }
 
-      if (supRes.data?.data || user?.assignedSupervisor) {
-        const sup = supRes.data?.data || user.assignedSupervisor;
+      if (supRes.data?.data || profileRes.data?.user?.assignedSupervisor) {
+        const sup = supRes.data?.data || profileRes.data?.user?.assignedSupervisor;
         setAssignedSupervisor(typeof sup === "object" ? sup : { name: "LGA Supervisor", phone: "" });
       }
 
@@ -283,14 +197,10 @@ const AgentDashboard = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       fetchAgentDashboardData();
-      const interval = setInterval(() => {
-        fetchAgentDashboardData(true);
-      }, 10000);
-      return () => clearInterval(interval);
     }, [fetchAgentDashboardData])
   );
 
-  const onManualRefresh = () => {
+  const onRefresh = () => {
     setRefreshing(true);
     fetchAgentDashboardData();
   };
@@ -311,66 +221,39 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. Kirkirar Virtual Account tare da kiyaye duk wani endpoint fallback
+  // 2. Ainihin handleGetVirtualAccount Na FundWalletScreen.js
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
-      const headers = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      };
 
-      let response;
-      let lastError = null;
-
-      try {
-        response = await axios.post(`${BASE_URL}/virtual-account/create`, {}, { headers });
-      } catch (err1) {
-        lastError = err1;
-        try {
-          response = await axios.post(`${BASE_URL}/wallet/generate-virtual-account`, {}, { headers });
-        } catch (err2) {
-          lastError = err2;
+      const response = await axios.post(
+        `${BASE_URL}/virtual-account/create`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+          },
         }
-      }
+      );
 
-      if (response && response.data && (response.data.success || response.status === 200)) {
-        const accData = response.data.data || response.data.virtualAccount || response.data.account;
-        const accNumber =
-          accData?.accountNumber ||
-          accData?.account_number ||
-          accData?.virtualAccountNumber ||
-          response.data?.accountNumber;
-
-        if (isValidAccountNumber(accNumber)) {
-          const formattedAcc = {
-            bankName: accData?.bankName || accData?.bank_name || "Wema Bank",
-            accountName: accData?.accountName || accData?.account_name || userData?.name || "Ayax Agent",
-            accountNumber: String(accNumber).trim(),
-          };
-
-          setVirtualAccount(formattedAcc);
-          await AsyncStorage.setItem("userVirtualAccount", JSON.stringify(formattedAcc));
-
-          if (Platform.OS === "android") {
-            ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
-          } else {
-            Alert.alert("Success", "Dedicated account generated successfully!");
-          }
-          await fetchAgentDashboardData(false);
-          return;
+      if (response.data && response.data.success) {
+        const createdAcc = cleanAccount(response.data.data || response.data.virtualAccount);
+        setVirtualAccount(createdAcc);
+        
+        if (Platform.OS === "android") {
+          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+        } else {
+          Alert.alert("Success", "Virtual account generated successfully!");
         }
+        await fetchAgentDashboardData(true);
+      } else {
+        Alert.alert("Notice", response.data?.message || "Could not provision account.");
       }
-
-      const errMsg =
-        lastError?.response?.data?.message ||
-        response?.data?.message ||
-        "Could not generate account. Please try again.";
-      Alert.alert("Notice", errMsg);
     } catch (error) {
-      Alert.alert("Error", error.response?.data?.message || "Could not generate virtual account.");
+      console.error("Virtual Account Error:", error.response?.data || error.message);
+      Alert.alert("Error", error.response?.data?.message || "Could not fetch or create virtual account. Try again later.");
     } finally {
       setLoadingAccount(false);
     }
@@ -457,7 +340,7 @@ const AgentDashboard = ({ navigation }) => {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onManualRefresh}
+            onRefresh={onRefresh}
             tintColor="#0284c7"
             colors={["#0284c7"]}
           />
@@ -577,7 +460,7 @@ const AgentDashboard = ({ navigation }) => {
         </View>
 
         <View style={styles.dvaCard}>
-          {virtualAccount && isValidAccountNumber(virtualAccount.accountNumber) ? (
+          {virtualAccount && virtualAccount.accountNumber ? (
             <View>
               <View style={styles.dvaTopRow}>
                 <View style={{ flex: 1 }}>
