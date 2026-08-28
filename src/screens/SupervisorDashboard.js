@@ -34,7 +34,7 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 const SupervisorDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("agents"); // 'agents' | 'targets' | 'live_feed'
+  const [activeTab, setActiveTab] = useState("agents"); // 'agents', 'targets', 'live_feed'
   const [searchQuery, setSearchQuery] = useState("");
 
   const [supervisorData, setSupervisorData] = useState({
@@ -61,19 +61,9 @@ const SupervisorDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal 1: Agent Performance Inspection Modal
+  // Agent Inspection Modal
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
-
-  // Modal 2: Direct Agent Registration & Instant Target Allocation Modal
-  const [registerModalVisible, setRegisterModalVisible] = useState(false);
-  const [newAgentName, setNewAgentName] = useState("");
-  const [newAgentPhone, setNewAgentPhone] = useState("");
-  const [newAgentEmail, setNewAgentEmail] = useState("");
-  const [newAgentPassword, setNewAgentPassword] = useState("Password123@");
-  const [initialDataQuota, setInitialDataQuota] = useState("100");
-  const [initialAirtimeQuota, setInitialAirtimeQuota] = useState("10000");
-  const [actionLoading, setActionLoading] = useState(false);
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -200,57 +190,8 @@ const SupervisorDashboard = ({ navigation }) => {
     }
   };
 
-  // Direct Agent Registration With Instant Quota Setup
-  const handleRegisterAgentWithQuota = async () => {
-    if (!newAgentName.trim() || !newAgentPhone.trim()) {
-      return showAlert("Validation Error", "Agent Full Name and Phone Number are required.");
-    }
-
-    setActionLoading(true);
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const res = await axios.post(
-        `${BASE_URL}/supervisor/register-agent`,
-        {
-          name: newAgentName.trim(),
-          phone: newAgentPhone.trim(),
-          email: newAgentEmail.trim() ? newAgentEmail.trim().toLowerCase() : undefined,
-          password: newAgentPassword.trim() || "Password123@",
-          state: supervisorData.state,
-          lga: supervisorData.lga,
-          role: "agent",
-          initialDataQuota: Number(initialDataQuota || 100),
-          initialAirtimeQuota: Number(initialAirtimeQuota || 10000),
-          month: supervisorData.targets.currentMonth,
-        },
-        { headers }
-      );
-
-      if (res.data?.success || res.status === 200 || res.status === 201) {
-        showAlert(
-          "Agent Registered 🎉",
-          `${newAgentName} has been enrolled in ${supervisorData.lga} LGA with an initial target quota of ${initialDataQuota} GB Data & ₦${Number(initialAirtimeQuota).toLocaleString()} Airtime.`
-        );
-        setRegisterModalVisible(false);
-        setNewAgentName("");
-        setNewAgentPhone("");
-        setNewAgentEmail("");
-        setNewAgentPassword("Password123@");
-        setInitialDataQuota("100");
-        setInitialAirtimeQuota("10000");
-        fetchSupervisorData();
-      }
-    } catch (err) {
-      showAlert("Registration Error", err.response?.data?.message || err.message);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const copyReferralCode = () => {
-    showAlert("Referral ID", `Official Onboarding Code: ${supervisorData.referralId}`);
+    showAlert("Referral ID", `Official Code: ${supervisorData.referralId}`);
   };
 
   const filteredAgents = supervisorData.agents.filter((ag) => {
@@ -269,7 +210,7 @@ const SupervisorDashboard = ({ navigation }) => {
         <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
         <ActivityIndicator size="large" color="#38bdf8" />
         <Text style={styles.loaderTitle}>FIELD SUPERVISOR DESK</Text>
-        <Text style={styles.loaderText}>Syncing Real-time LGA Territory & Quota Streams...</Text>
+        <Text style={styles.loaderText}>Syncing Real-time LGA Agents & Quota Streams...</Text>
       </View>
     );
   }
@@ -297,7 +238,7 @@ const SupervisorDashboard = ({ navigation }) => {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity
             style={[styles.avatarBtn, { marginRight: 8 }]}
-            onPress={() => setRegisterModalVisible(true)}
+            onPress={() => navigation.navigate("Signup")}
             activeOpacity={0.7}
           >
             <Ionicons name="person-add" size={16} color="#38bdf8" />
@@ -349,7 +290,7 @@ const SupervisorDashboard = ({ navigation }) => {
             color={activeTab === "live_feed" ? "#1e40af" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "live_feed" && styles.mainNavTabTextActive]}>
-            Live Stream
+            Live Feed
           </Text>
         </TouchableOpacity>
       </View>
@@ -364,20 +305,20 @@ const SupervisorDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* SUPERVISOR ONBOARDING CODE CARD */}
-          <View style={styles.idCardDark}>
+          {/* OFFICIAL SUPERVISOR IDENTIFICATION CARD */}
+          <View style={styles.idCard}>
             <View style={styles.idInfo}>
-              <Text style={styles.idLabelDark}>OFFICIAL ONBOARDING CODE</Text>
-              <Text style={styles.idValueDark}>{supervisorData.referralId}</Text>
-              <Text style={styles.idSubDark}>Provide this code to new agents registering in {supervisorData.lga} LGA</Text>
+              <Text style={styles.idLabel}>OFFICIAL AGENT ONBOARDING CODE</Text>
+              <Text style={styles.idValue}>{supervisorData.referralId}</Text>
+              <Text style={styles.idSub}>Provide this referral code to your new LGA agents during onboarding</Text>
             </View>
-            <TouchableOpacity style={styles.copyBtnDark} onPress={copyReferralCode} activeOpacity={0.8}>
-              <Ionicons name="copy-outline" size={15} color="#38bdf8" />
-              <Text style={styles.copyTextDark}>COPY CODE</Text>
+            <TouchableOpacity style={styles.copyBtn} onPress={copyReferralCode} activeOpacity={0.8}>
+              <Ionicons name="copy-outline" size={15} color="#ffffff" />
+              <Text style={styles.copyText}>COPY CODE</Text>
             </TouchableOpacity>
           </View>
 
-          {/* SUPERVISOR ASSIGNED QUOTA PROGRESS CARD */}
+          {/* SUPERVISOR ASSIGNED QUOTA PROGRESS CARD (DARK BLUE EXECUTIVE CARD) */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
@@ -417,6 +358,40 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
           </View>
 
+          {/* TELEMETRY SUMMARY CARDS */}
+          <View style={styles.telemetrySection}>
+            <View style={styles.metricGrid}>
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.metricLabelDark}>LGA Retail Agents</Text>
+                  <Ionicons name="people" size={16} color="#34d399" />
+                </View>
+                <Text style={styles.metricValueDark}>{supervisorData.agents.length}</Text>
+                <Text style={styles.metricSubDark}>Assigned Field Resellers</Text>
+              </View>
+
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.metricLabelDark}>Total Data Delivered</Text>
+                  <Ionicons name="server" size={15} color="#a78bfa" />
+                </View>
+                <Text style={styles.metricValueDark}>{supervisorData.targets.dataSold} GB</Text>
+                <Text style={styles.metricSubDark}>LGA Telecom Bundles</Text>
+              </View>
+
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.metricLabelDark}>Gross Airtime Sales</Text>
+                  <Ionicons name="call" size={14} color="#fbbf24" />
+                </View>
+                <Text style={styles.metricValueDark}>
+                  ₦{Number(supervisorData.targets.airtimeSold).toLocaleString()}
+                </Text>
+                <Text style={styles.metricSubDark}>VTU Gross Recharge Value</Text>
+              </View>
+            </View>
+          </View>
+
           {/* SEARCH BAR */}
           <View style={styles.searchBar}>
             <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
@@ -441,10 +416,10 @@ const SupervisorDashboard = ({ navigation }) => {
                 <Text style={styles.sectionHeaderLabel}>LGA RETAIL AGENTS DIRECTORY ({filteredAgents.length})</Text>
                 <TouchableOpacity
                   style={styles.actionPillBtn}
-                  onPress={() => setRegisterModalVisible(true)}
+                  onPress={() => navigation.navigate("Signup")}
                 >
                   <Ionicons name="person-add" size={13} color="#ffffff" />
-                  <Text style={styles.actionPillBtnText}>REGISTER AGENT & SET QUOTA</Text>
+                  <Text style={styles.actionPillBtnText}>REGISTER AGENT</Text>
                 </TouchableOpacity>
               </View>
 
@@ -488,7 +463,7 @@ const SupervisorDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* Performance Summary Metrics */}
+                      {/* Performance Metrics Row */}
                       <View style={styles.statsSummaryRow}>
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Data Delivered</Text>
@@ -501,14 +476,12 @@ const SupervisorDashboard = ({ navigation }) => {
                           </Text>
                         </View>
                         <View style={styles.summaryBox}>
-                          <Text style={styles.summaryBoxLabel}>Target Quota</Text>
-                          <Text style={[styles.summaryBoxValue, { color: "#059669" }]}>
-                            {ag.targets?.dataGoal ? `${ag.targets.dataGoal} GB` : "100 GB"}
-                          </Text>
+                          <Text style={styles.summaryBoxLabel}>Performance</Text>
+                          <Text style={[styles.summaryBoxValue, { color: "#059669" }]}>Active</Text>
                         </View>
                       </View>
 
-                      {/* Agent Contact Action */}
+                      {/* Action Row */}
                       <View style={styles.agentActionRow}>
                         <TouchableOpacity
                           style={styles.agentActionBtn}
@@ -522,6 +495,17 @@ const SupervisorDashboard = ({ navigation }) => {
                         </TouchableOpacity>
 
                         <TouchableOpacity
+                          style={styles.agentActionBtn}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            Linking.openURL(`https://wa.me/234${agPhone.replace(/^0/, "")}`);
+                          }}
+                        >
+                          <Ionicons name="logo-whatsapp" size={13} color="#059669" />
+                          <Text style={[styles.agentActionBtnText, { color: "#059669" }]}>WhatsApp</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                           style={[styles.agentActionBtn, styles.inspectPillBtn]}
                           onPress={() => {
                             setSelectedAgent(ag);
@@ -530,7 +514,7 @@ const SupervisorDashboard = ({ navigation }) => {
                         >
                           <Feather name="activity" size={12} color="#1e40af" />
                           <Text style={[styles.agentActionBtnText, { color: "#1e40af", fontWeight: "900" }]}>
-                            Inspect Performance
+                            Performance Profile
                           </Text>
                         </TouchableOpacity>
                       </View>
@@ -554,36 +538,36 @@ const SupervisorDashboard = ({ navigation }) => {
               </View>
 
               <View style={styles.targetDetailGrid}>
-                <View style={[styles.targetDetailCardDark, { borderLeftColor: "#38bdf8" }]}>
-                  <Text style={styles.targetDetailLabelDark}>Monthly Data Quota</Text>
-                  <Text style={[styles.targetDetailValueDark, { color: "#38bdf8" }]}>
+                <View style={[styles.targetDetailCard, { borderLeftColor: "#1e40af" }]}>
+                  <Text style={styles.targetDetailLabel}>Monthly Data Quota</Text>
+                  <Text style={[styles.targetDetailValue, { color: "#1e40af" }]}>
                     {supervisorData.targets.dataGoal} GB
                   </Text>
-                  <Text style={styles.targetDetailSubDark}>Target for {supervisorData.lga} LGA</Text>
+                  <Text style={styles.targetDetailSub}>Target for {supervisorData.lga} LGA</Text>
                 </View>
 
-                <View style={[styles.targetDetailCardDark, { borderLeftColor: "#fbbf24" }]}>
-                  <Text style={styles.targetDetailLabelDark}>Monthly Airtime Quota</Text>
-                  <Text style={[styles.targetDetailValueDark, { color: "#fbbf24" }]}>
+                <View style={[styles.targetDetailCard, { borderLeftColor: "#d97706" }]}>
+                  <Text style={styles.targetDetailLabel}>Monthly Airtime Quota</Text>
+                  <Text style={[styles.targetDetailValue, { color: "#d97706" }]}>
                     ₦{Number(supervisorData.targets.airtimeGoal).toLocaleString()}
                   </Text>
-                  <Text style={styles.targetDetailSubDark}>VTU Sales Goal</Text>
+                  <Text style={styles.targetDetailSub}>VTU Sales Goal</Text>
                 </View>
 
-                <View style={[styles.targetDetailCardDark, { borderLeftColor: "#34d399" }]}>
-                  <Text style={styles.targetDetailLabelDark}>Agent Headcount Quota</Text>
-                  <Text style={[styles.targetDetailValueDark, { color: "#34d399" }]}>
+                <View style={[styles.targetDetailCard, { borderLeftColor: "#059669" }]}>
+                  <Text style={styles.targetDetailLabel}>Agent Headcount Quota</Text>
+                  <Text style={[styles.targetDetailValue, { color: "#059669" }]}>
                     {supervisorData.targets.agentGoal} Agents
                   </Text>
-                  <Text style={styles.targetDetailSubDark}>LGA Network Expansion</Text>
+                  <Text style={styles.targetDetailSub}>LGA Network Expansion</Text>
                 </View>
 
-                <View style={[styles.targetDetailCardDark, { borderLeftColor: "#a78bfa" }]}>
-                  <Text style={styles.targetDetailLabelDark}>Assigned Territory</Text>
-                  <Text style={styles.targetDetailValueDark}>
+                <View style={[styles.targetDetailCard, { borderLeftColor: "#0284c7" }]}>
+                  <Text style={styles.targetDetailLabel}>Assigned Territory</Text>
+                  <Text style={styles.targetDetailValue}>
                     {supervisorData.lga} LGA, {supervisorData.state}
                   </Text>
-                  <Text style={styles.targetDetailSubDark}>Deployment Operational Territory</Text>
+                  <Text style={styles.targetDetailSub}>Deployment Operational Desk</Text>
                 </View>
               </View>
             </View>
@@ -691,7 +675,7 @@ const SupervisorDashboard = ({ navigation }) => {
                   <Feather name="activity" size={15} color="#059669" />
                 </View>
                 <Text style={[styles.navItemText, activeTab === "live_feed" && { color: "#059669", fontWeight: "900" }]}>
-                  Live Stream Feed
+                  Live Feed Logs
                 </Text>
               </TouchableOpacity>
 
@@ -701,13 +685,13 @@ const SupervisorDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setRegisterModalVisible(true);
+                  navigation.navigate("Signup");
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
                   <Ionicons name="person-add-outline" size={16} color="#1e40af" />
                 </View>
-                <Text style={styles.navItemText}>Register Agent & Set Quota</Text>
+                <Text style={styles.navItemText}>Register New Agent</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -750,7 +734,7 @@ const SupervisorDashboard = ({ navigation }) => {
               {/* Agent Performance Summary Banner */}
               <View style={styles.inspectSummaryBanner}>
                 <View style={styles.inspectBannerBox}>
-                  <Text style={styles.inspectBannerLabel}>Wallet Float</Text>
+                  <Text style={styles.inspectBannerLabel}>Wallet Balance</Text>
                   <Text style={[styles.inspectBannerValue, { color: "#059669" }]}>
                     ₦{Number(selectedAgent?.walletBalance || selectedAgent?.balance || 0).toLocaleString()}
                   </Text>
@@ -790,102 +774,6 @@ const SupervisorDashboard = ({ navigation }) => {
                   <Text style={[styles.inspectActionCardBtnText, { color: "#059669" }]}>WhatsApp Message</Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* =========================================================================
-          MODAL 2: REGISTER AGENT WITH DIRECT TARGET ALLOCATION (EXCLUSIVE WAY)
-         ========================================================================= */}
-      <Modal visible={registerModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
-            <View style={styles.modalHeaderRow}>
-              <View>
-                <Text style={styles.modalCardTitle}>Register Agent & Set Quota</Text>
-                <Text style={styles.modalCardSubtitle}>Create profile in {supervisorData.lga} LGA with targets</Text>
-              </View>
-              <TouchableOpacity onPress={() => setRegisterModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.formFieldLabel}>1. AGENT IDENTITY DETAILS</Text>
-
-              <Text style={styles.formFieldSubLabel}>FULL NAME</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. Ibrahim Musa"
-                placeholderTextColor="#94a3b8"
-                value={newAgentName}
-                onChangeText={setNewAgentName}
-              />
-
-              <Text style={styles.formFieldSubLabel}>PHONE NUMBER (LOGIN USERNAME)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. 08012345678"
-                placeholderTextColor="#94a3b8"
-                keyboardType="phone-pad"
-                value={newAgentPhone}
-                onChangeText={setNewAgentPhone}
-              />
-
-              <Text style={styles.formFieldSubLabel}>EMAIL ADDRESS (OPTIONAL)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. agent@ayaxdata.online"
-                placeholderTextColor="#94a3b8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={newAgentEmail}
-                onChangeText={setNewAgentEmail}
-              />
-
-              <Text style={styles.formFieldSubLabel}>LOGIN PASSWORD</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. Password123@"
-                placeholderTextColor="#94a3b8"
-                value={newAgentPassword}
-                onChangeText={setNewAgentPassword}
-              />
-
-              <Text style={styles.formFieldLabel}>2. INITIAL PERFORMANCE TARGET QUOTA</Text>
-
-              <Text style={styles.formFieldSubLabel}>MONTHLY DATA QUOTA (GB GOAL)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                keyboardType="numeric"
-                placeholder="e.g. 100"
-                placeholderTextColor="#94a3b8"
-                value={initialDataQuota}
-                onChangeText={setInitialDataQuota}
-              />
-
-              <Text style={styles.formFieldSubLabel}>MONTHLY AIRTIME QUOTA (₦ NAIRA GOAL)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                keyboardType="numeric"
-                placeholder="e.g. 10000"
-                placeholderTextColor="#94a3b8"
-                value={initialAirtimeQuota}
-                onChangeText={setInitialAirtimeQuota}
-              />
-
-              <TouchableOpacity
-                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
-                onPress={handleRegisterAgentWithQuota}
-                disabled={actionLoading}
-              >
-                {actionLoading ? (
-                  <ActivityIndicator color="#ffffff" />
-                ) : (
-                  <Text style={styles.primaryActionBtnText}>REGISTER AGENT & AUTHORIZE TARGET</Text>
-                )}
-              </TouchableOpacity>
             </ScrollView>
           </View>
         </View>
@@ -962,9 +850,8 @@ const styles = StyleSheet.create({
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
 
-  // Dark Blue Onboarding Card
-  idCardDark: {
-    backgroundColor: "#0f172a",
+  idCard: {
+    backgroundColor: "#ffffff",
     marginHorizontal: isLargeScreen ? 24 : 16,
     marginTop: 16,
     borderRadius: 14,
@@ -973,28 +860,26 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
     borderLeftWidth: 5,
-    borderLeftColor: "#38bdf8",
-    elevation: 3,
+    borderLeftColor: "#0284c7",
+    elevation: 2,
   },
   idInfo: { flex: 1, marginRight: 10 },
-  idLabelDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "900", letterSpacing: 0.8 },
-  idValueDark: { color: "#ffffff", fontSize: 20, fontWeight: "900", marginTop: 2 },
-  idSubDark: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
-  copyBtnDark: {
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+  idLabel: { color: "#64748b", fontSize: 9.5, fontWeight: "900", letterSpacing: 0.8 },
+  idValue: { color: "#0f172a", fontSize: 20, fontWeight: "900", marginTop: 2 },
+  idSub: { color: "#94a3b8", fontSize: 10.5, marginTop: 2 },
+  copyBtn: {
+    backgroundColor: "#0284c7",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
   },
-  copyTextDark: { color: "#38bdf8", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
+  copyText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
 
-  // Dark Blue Target Card
+  // Executive Target Card Dark
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
     marginHorizontal: isLargeScreen ? 24 : 16,
@@ -1045,6 +930,28 @@ const styles = StyleSheet.create({
   execProgressBarBgDark: { height: 7, backgroundColor: "#334155", borderRadius: 4, overflow: "hidden", marginVertical: 4 },
   execProgressBarFill: { height: 7, borderRadius: 4 },
   execPercentSubDark: { color: "#94a3b8", fontSize: 10, fontWeight: "700" },
+
+  // Telemetry Section
+  telemetrySection: { paddingHorizontal: isLargeScreen ? 24 : 16, marginTop: 12 },
+  metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  metricCard: {
+    width: isLargeScreen ? "31.5%" : "100%",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderLeftWidth: 4.5,
+    elevation: 3,
+  },
+  cardDarkBlueBg: {
+    backgroundColor: "#0f172a",
+    borderColor: "#1e293b",
+    borderLeftColor: "#38bdf8",
+  },
+  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  metricLabelDark: { fontSize: 11, fontWeight: "800", color: "#94a3b8" },
+  metricValueDark: { fontSize: 18, fontWeight: "900", marginVertical: 4, color: "#ffffff" },
+  metricSubDark: { fontSize: 10, fontWeight: "700", color: "#38bdf8" },
 
   searchBar: {
     flexDirection: "row",
@@ -1125,19 +1032,19 @@ const styles = StyleSheet.create({
   },
 
   targetDetailGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  targetDetailCardDark: {
+  targetDetailCard: {
     width: isLargeScreen ? "48.5%" : "100%",
-    backgroundColor: "#0f172a",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#1e293b",
+    borderColor: "#e2e8f0",
     borderLeftWidth: 4,
   },
-  targetDetailLabelDark: { color: "#94a3b8", fontSize: 10.5, fontWeight: "700" },
-  targetDetailValueDark: { fontSize: 16, fontWeight: "900", marginVertical: 4, color: "#ffffff" },
-  targetDetailSubDark: { color: "#64748b", fontSize: 10 },
+  targetDetailLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "700" },
+  targetDetailValue: { color: "#0f172a", fontSize: 16, fontWeight: "900", marginVertical: 4 },
+  targetDetailSub: { color: "#94a3b8", fontSize: 10 },
 
   logCard: {
     backgroundColor: "#ffffff",
@@ -1235,7 +1142,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: "100%",
-    maxWidth: 480,
+    maxWidth: 460,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     elevation: 8,
@@ -1264,8 +1171,7 @@ const styles = StyleSheet.create({
   inspectBannerLabel: { color: "#1e40af", fontSize: 10, fontWeight: "700" },
   inspectBannerValue: { fontSize: 14, fontWeight: "900", marginTop: 2 },
   inspectBannerDivider: { width: 1, height: 30, backgroundColor: "#bfdbfe" },
-  formFieldLabel: { color: "#1e40af", fontSize: 10.5, fontWeight: "900", letterSpacing: 0.8, marginTop: 12, marginBottom: 6 },
-  formFieldSubLabel: { color: "#475569", fontSize: 9.5, fontWeight: "800", marginTop: 8, marginBottom: 4 },
+  formFieldLabel: { color: "#475569", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 10, marginBottom: 6 },
   inspectActionGrid: { marginTop: 4 },
   inspectActionCardBtn: {
     flexDirection: "row",
@@ -1276,26 +1182,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   inspectActionCardBtnText: { fontSize: 12, fontWeight: "800", marginLeft: 10 },
-  textInputStyle: {
-    backgroundColor: "#f8fafc",
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 44,
-    color: "#0f172a",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  primaryActionBtn: {
-    backgroundColor: "#1e40af",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 18,
-    elevation: 2,
-  },
-  primaryActionBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
 });
 
 export default SupervisorDashboard;
