@@ -62,13 +62,17 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [prices, setPrices] = useState({});
   const [recentTx, setRecentTx] = useState([]);
   const [dataPlansList, setDataPlansList] = useState([]);
+  const [allUsersList, setAllUsersList] = useState([]);
+  const [companyActivities, setCompanyActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Tabs
-  const [activeMainTab, setActiveMainTab] = useState("overview");
+  const [activeMainTab, setActiveMainTab] = useState("overview"); // 'overview', 'tariffs', 'plans', 'users', 'history'
   const [selectedTariffCategory, setSelectedTariffCategory] = useState("All");
   const [tariffSearch, setTariffSearch] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userSearchQuery, setUserSearchQuery] = useState("");
 
   // Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -181,10 +185,15 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [telemetryRes, txRes, plansRes] = await Promise.all([
+      // Kwaso dukkan sassan tsarin kamfani (Overview, Transactions, Plans, All Users, Live Audit)
+      const [telemetryRes, txRes, plansRes, usersRes, logsRes] = await Promise.all([
         axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }),
-        axios.get(`${BASE_URL}/admin/transactions?limit=30`, { headers, timeout: 15000 }),
+        axios.get(`${BASE_URL}/admin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => ({ data: { transactions: [] } })),
         axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${BASE_URL}/superadmin/users?limit=200`, { headers, timeout: 15000 }).catch(() => 
+          axios.get(`${BASE_URL}/admin/users?limit=200`, { headers, timeout: 15000 }).catch(() => ({ data: { users: [] } }))
+        ),
+        axios.get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
       ]);
 
       if (telemetryRes.data?.stats) {
@@ -192,12 +201,20 @@ const SuperAdminDashboard = ({ navigation }) => {
         if (telemetryRes.data.prices) setPrices(telemetryRes.data.prices);
       }
 
-      if (txRes.data?.transactions) {
-        setRecentTx(txRes.data.transactions);
+      if (txRes.data?.transactions || txRes.data?.data) {
+        setRecentTx(txRes.data.transactions || txRes.data.data || []);
       }
 
-      if (plansRes.data?.data) {
-        setDataPlansList(plansRes.data.data);
+      if (plansRes.data?.data || plansRes.data?.plans) {
+        setDataPlansList(plansRes.data.data || plansRes.data.plans || []);
+      }
+
+      if (usersRes.data?.users || usersRes.data?.data) {
+        setAllUsersList(usersRes.data.users || usersRes.data.data || []);
+      }
+
+      if (logsRes.data?.logs) {
+        setCompanyActivities(logsRes.data.logs);
       }
     } catch (err) {
       if (!isBackground) {
@@ -660,6 +677,15 @@ const SuperAdminDashboard = ({ navigation }) => {
     return matchesCategory && matchesSearch;
   });
 
+  const filteredUsers = allUsersList.filter((u) => {
+    const roleMatch = userRoleFilter === "all" || (u.role || "user").toLowerCase() === userRoleFilter.toLowerCase();
+    const q = userSearchQuery.toLowerCase();
+    const nameMatch = (u.name || `${u.firstName || ""} ${u.surname || ""}`).toLowerCase().includes(q);
+    const phoneMatch = (u.phone || "").includes(q);
+    const emailMatch = (u.email || "").toLowerCase().includes(q);
+    return roleMatch && (nameMatch || phoneMatch || emailMatch);
+  });
+
   const openActionModal = (actionKey) => {
     toggleSidebar(false);
     switch (actionKey) {
@@ -759,7 +785,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </View>
 
-      {/* MAIN NAVIGATION TAB SWITCHER */}
+      {/* MAIN NAVIGATION TAB SWITCHER (OVERVIEW, TARIFFS, DATA PLANS, USERS/STAFF, AUDIT) */}
       <View style={styles.mainNavBar}>
         <TouchableOpacity
           style={[styles.mainNavTab, activeMainTab === "overview" && styles.mainNavTabActive]}
@@ -767,15 +793,10 @@ const SuperAdminDashboard = ({ navigation }) => {
         >
           <Feather
             name="grid"
-            size={14}
+            size={13}
             color={activeMainTab === "overview" ? "#00f0ff" : "#64748b"}
           />
-          <Text
-            style={[
-              styles.mainNavTabText,
-              activeMainTab === "overview" && styles.mainNavTabTextActive,
-            ]}
-          >
+          <Text style={[styles.mainNavTabText, activeMainTab === "overview" && styles.mainNavTabTextActive]}>
             Overview
           </Text>
         </TouchableOpacity>
@@ -786,16 +807,11 @@ const SuperAdminDashboard = ({ navigation }) => {
         >
           <MaterialIcons
             name="tune"
-            size={15}
+            size={14}
             color={activeMainTab === "tariffs" ? "#00f0ff" : "#64748b"}
           />
-          <Text
-            style={[
-              styles.mainNavTabText,
-              activeMainTab === "tariffs" && styles.mainNavTabTextActive,
-            ]}
-          >
-            Set Tariffs
+          <Text style={[styles.mainNavTabText, activeMainTab === "tariffs" && styles.mainNavTabTextActive]}>
+            Tariffs
           </Text>
         </TouchableOpacity>
 
@@ -805,16 +821,25 @@ const SuperAdminDashboard = ({ navigation }) => {
         >
           <Ionicons
             name="wifi"
-            size={15}
+            size={14}
             color={activeMainTab === "plans" ? "#00f0ff" : "#64748b"}
           />
-          <Text
-            style={[
-              styles.mainNavTabText,
-              activeMainTab === "plans" && styles.mainNavTabTextActive,
-            ]}
-          >
-            Data Packages
+          <Text style={[styles.mainNavTabText, activeMainTab === "plans" && styles.mainNavTabTextActive]}>
+            Data Plans
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainNavTab, activeMainTab === "users" && styles.mainNavTabActive]}
+          onPress={() => setActiveMainTab("users")}
+        >
+          <FontAwesome5
+            name="users-cog"
+            size={13}
+            color={activeMainTab === "users" ? "#00f0ff" : "#64748b"}
+          />
+          <Text style={[styles.mainNavTabText, activeMainTab === "users" && styles.mainNavTabTextActive]}>
+            All Staff ({allUsersList.length})
           </Text>
         </TouchableOpacity>
 
@@ -824,15 +849,10 @@ const SuperAdminDashboard = ({ navigation }) => {
         >
           <Feather
             name="activity"
-            size={14}
+            size={13}
             color={activeMainTab === "history" ? "#00f0ff" : "#64748b"}
           />
-          <Text
-            style={[
-              styles.mainNavTabText,
-              activeMainTab === "history" && styles.mainNavTabTextActive,
-            ]}
-          >
+          <Text style={[styles.mainNavTabText, activeMainTab === "history" && styles.mainNavTabTextActive]}>
             Audit Trail
           </Text>
         </TouchableOpacity>
@@ -900,11 +920,11 @@ const SuperAdminDashboard = ({ navigation }) => {
 
                   <View style={[styles.metricCard, { borderColor: "rgba(168, 85, 247, 0.3)" }]}>
                     <View style={styles.cardHeaderRow}>
-                      <Text style={styles.metricLabel}>Platform Users</Text>
+                      <Text style={styles.metricLabel}>Platform Users & Staff</Text>
                       <Ionicons name="people" size={18} color="#c084fc" />
                     </View>
                     <Text style={[styles.metricValue, { color: "#c084fc" }]}>
-                      {stats?.totalPlatformAccounts || stats?.totalUsers || 0}
+                      {allUsersList.length || stats?.totalPlatformAccounts || stats?.totalUsers || 0}
                     </Text>
                     <Text style={styles.metricSub}>
                       {stats?.totalSupervisors || 0} Supervisors • {stats?.totalAgents || 0} Agents
@@ -1014,15 +1034,15 @@ const SuperAdminDashboard = ({ navigation }) => {
                 <TouchableOpacity
                   style={styles.commandTile}
                   activeOpacity={0.8}
-                  onPress={() => setRoleModalVisible(true)}
+                  onPress={() => setActiveMainTab("users")}
                 >
                   <View style={[styles.tileIconContainer, { backgroundColor: "#7c3aed" }]}>
-                    <MaterialCommunityIcons name="account-convert" size={24} color="#ffffff" />
+                    <FontAwesome5 name="users" size={20} color="#ffffff" />
                   </View>
                   <View style={styles.tileInfo}>
-                    <Text style={styles.tileTitle}>Change User Role & Permissions</Text>
+                    <Text style={styles.tileTitle}>Company Staff & User Directorate</Text>
                     <Text style={styles.tileDescription}>
-                      Promote or demote users to Agent, Supervisor, Customer Service, or Admin.
+                      Monitor all State Managers, Supervisors, Agents, Admins, and Customer accounts.
                     </Text>
                   </View>
                   <Feather name="chevron-right" size={20} color="#64748b" />
@@ -1088,7 +1108,6 @@ const SuperAdminDashboard = ({ navigation }) => {
               <View style={styles.tariffTabContainer}>
                 <Text style={styles.sectionHeaderLabel}>SERVICE TARIFF CONFIGURATION MATRIX</Text>
 
-                {/* Horizontal Category Scroll */}
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -1118,7 +1137,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   )}
                 </ScrollView>
 
-                {/* Search Bar */}
                 <View style={styles.searchBar}>
                   <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
                   <TextInput
@@ -1251,14 +1269,154 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 4: AUDIT HISTORY */}
+          {/* TAB 4: ALL COMPANY STAFF & USERS DIRECTORATE */}
+          {activeMainTab === "users" && (
+            <View style={styles.tabWrapper}>
+              <View style={styles.tariffTabContainer}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionHeaderLabel}>COMPANY USERS & STAFF DIRECTORATE</Text>
+                  <Text style={{ color: "#00f0ff", fontSize: 11, fontWeight: "900" }}>
+                    {filteredUsers.length} REGISTERED
+                  </Text>
+                </View>
+
+                {/* Role Filter Pills */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                  {["all", "leader", "supervisor", "agent", "user", "admin", "customer_service"].map((roleKey) => (
+                    <TouchableOpacity
+                      key={roleKey}
+                      style={[styles.categoryTab, userRoleFilter === roleKey && styles.categoryTabActive]}
+                      onPress={() => setUserRoleFilter(roleKey)}
+                    >
+                      <Text style={[styles.categoryTabText, userRoleFilter === roleKey && styles.categoryTabTextActive]}>
+                        {roleKey === "all" ? "ALL ROLES" : roleKey.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* User Search Bar */}
+                <View style={styles.searchBar}>
+                  <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search staff or user by name, phone, email, or role..."
+                    placeholderTextColor="#64748b"
+                    value={userSearchQuery}
+                    onChangeText={setUserSearchQuery}
+                  />
+                </View>
+
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map((item) => {
+                    const uName = item.name || `${item.firstName || ""} ${item.surname || ""}`.trim() || "User Node";
+                    const uRole = (item.role || "user").toUpperCase();
+                    const isStaff = uRole === "LEADER" || uRole === "SUPERVISOR" || uRole === "AGENT" || uRole === "ADMIN";
+
+                    return (
+                      <View key={item._id || item.id} style={styles.userEntityCard}>
+                        <View style={styles.userEntityTop}>
+                          <View style={styles.userAvatarBox}>
+                            <FontAwesome5
+                              name={uRole === "LEADER" ? "crown" : uRole === "SUPERVISOR" ? "user-tie" : uRole === "AGENT" ? "store" : "user"}
+                              size={15}
+                              color="#00f0ff"
+                            />
+                          </View>
+                          <View style={{ marginLeft: 12, flex: 1 }}>
+                            <Text style={styles.userEntityName}>{uName}</Text>
+                            <Text style={styles.userEntitySub}>
+                              📞 {item.phone || "No phone"} • ✉️ {item.email || "No email"}
+                            </Text>
+                            {item.state && (
+                              <Text style={styles.userEntityLocation}>
+                                📍 {item.state} {item.lga ? `(${item.lga} LGA)` : ""}
+                              </Text>
+                            )}
+                          </View>
+
+                          <View style={{ alignItems: "flex-end" }}>
+                            <View style={[styles.roleBadge, { backgroundColor: isStaff ? "rgba(0, 240, 255, 0.15)" : "#1e293b" }]}>
+                              <Text style={[styles.roleBadgeText, { color: isStaff ? "#00f0ff" : "#94a3b8" }]}>
+                                {uRole}
+                              </Text>
+                            </View>
+                            <Text style={styles.userWalletBalance}>
+                              ₦{Number(item.walletBalance || item.balance || 0).toLocaleString()}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Fast Actions Bar on User */}
+                        <View style={styles.userEntityActionsRow}>
+                          <TouchableOpacity
+                            style={styles.userEntityActionBtn}
+                            onPress={() => {
+                              setWalletUserId(item.phone || item._id);
+                              setWalletModalVisible(true);
+                            }}
+                          >
+                            <Ionicons name="wallet-outline" size={13} color="#10b981" />
+                            <Text style={[styles.userEntityActionText, { color: "#10b981" }]}>Adjust Wallet</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.userEntityActionBtn}
+                            onPress={() => {
+                              setRoleUserId(item.phone || item._id);
+                              setSelectedRole((item.role || "agent").toLowerCase());
+                              setRoleModalVisible(true);
+                            }}
+                          >
+                            <MaterialCommunityIcons name="account-convert" size={14} color="#a78bfa" />
+                            <Text style={[styles.userEntityActionText, { color: "#a78bfa" }]}>Role</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.userEntityActionBtn}
+                            onPress={() => {
+                              setPwdUserId(item.phone || item._id);
+                              setPasswordModalVisible(true);
+                            }}
+                          >
+                            <MaterialIcons name="lock-reset" size={14} color="#818cf8" />
+                            <Text style={[styles.userEntityActionText, { color: "#818cf8" }]}>Reset Security</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.userEntityActionBtn}
+                            onPress={() => {
+                              setLockUserId(item.phone || item._id);
+                              setLockModalVisible(true);
+                            }}
+                          >
+                            <MaterialIcons name="block" size={13} color="#f87171" />
+                            <Text style={[styles.userEntityActionText, { color: "#f87171" }]}>Freeze/Lock</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptyFeed}>
+                    <FontAwesome5 name="user-slash" size={36} color="#475569" />
+                    <Text style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>
+                      No user accounts found matching this criteria.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* TAB 5: AUDIT & ALL COMPANY ACTIVITIES */}
           {activeMainTab === "history" && (
             <View style={styles.tabWrapper}>
               <View style={styles.historyTabContainer}>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeaderLabel}>REAL-TIME TRANSACTION & AUDIT LOGS</Text>
+                  <Text style={styles.sectionHeaderLabel}>ALL COMPANY TRANSACTIONS & OPERATIONS</Text>
                   <Text style={{ color: "#00f0ff", fontSize: 11, fontWeight: "bold" }}>
-                    {recentTx.length} RECORDS
+                    {recentTx.length} TRANSACTIONS
                   </Text>
                 </View>
 
@@ -1375,6 +1533,21 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
                 <Text style={[styles.navItemText, activeMainTab === "overview" && { color: "#00f0ff" }]}>
                   Master Dashboard
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.navItem, activeMainTab === "users" && styles.navItemActive]}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setActiveMainTab("users");
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(124, 58, 237, 0.2)" }]}>
+                  <FontAwesome5 name="users" size={15} color="#a78bfa" />
+                </View>
+                <Text style={[styles.navItemText, activeMainTab === "users" && { color: "#00f0ff" }]}>
+                  All Staff & Entities
                 </Text>
               </TouchableOpacity>
 
@@ -1677,7 +1850,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: DATA PLAN MANAGER (CREATE / EDIT) */}
+      {/* MODAL 3: DATA PLAN MANAGER */}
       <Modal visible={planManagerModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1873,12 +2046,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 style={[styles.toggleBtn, walletActionType === "credit" && styles.creditActiveToggle]}
                 onPress={() => setWalletActionType("credit")}
               >
-                <Text
-                  style={[
-                    styles.toggleBtnText,
-                    walletActionType === "credit" && styles.activeToggleText,
-                  ]}
-                >
+                <Text style={[styles.toggleBtnText, walletActionType === "credit" && styles.activeToggleText]}>
                   + Credit
                 </Text>
               </TouchableOpacity>
@@ -1886,12 +2054,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 style={[styles.toggleBtn, walletActionType === "debit" && styles.debitActiveToggle]}
                 onPress={() => setWalletActionType("debit")}
               >
-                <Text
-                  style={[
-                    styles.toggleBtnText,
-                    walletActionType === "debit" && styles.activeToggleText,
-                  ]}
-                >
+                <Text style={[styles.toggleBtnText, walletActionType === "debit" && styles.activeToggleText]}>
                   - Debit
                 </Text>
               </TouchableOpacity>
@@ -2044,18 +2207,13 @@ const SuperAdminDashboard = ({ navigation }) => {
 
             <Text style={styles.formFieldLabel}>ASSIGN ROLE</Text>
             <View style={styles.pillGrid}>
-              {["user", "agent", "supervisor", "customer_service", "admin"].map((r) => (
+              {["user", "agent", "supervisor", "leader", "customer_service", "admin"].map((r) => (
                 <TouchableOpacity
                   key={r}
                   style={[styles.pillBtn, selectedRole === r && styles.activePillBtn]}
                   onPress={() => setSelectedRole(r)}
                 >
-                  <Text
-                    style={[
-                      styles.pillBtnText,
-                      selectedRole === r && styles.activePillBtnText,
-                    ]}
-                  >
+                  <Text style={[styles.pillBtnText, selectedRole === r && styles.activePillBtnText]}>
                     {r.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
@@ -2224,12 +2382,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                     style={[styles.pillBtn, dispatchNetwork === net && styles.activePillBtn]}
                     onPress={() => setDispatchNetwork(net)}
                   >
-                    <Text
-                      style={[
-                        styles.pillBtnText,
-                        dispatchNetwork === net && styles.activePillBtnText,
-                      ]}
-                    >
+                    <Text style={[styles.pillBtnText, dispatchNetwork === net && styles.activePillBtnText]}>
                       {net}
                     </Text>
                   </TouchableOpacity>
@@ -2411,11 +2564,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#0b1120",
     borderBottomWidth: 1,
     borderBottomColor: "#1e293b",
-    paddingHorizontal: isLargeScreen ? 32 : 12,
+    paddingHorizontal: isLargeScreen ? 32 : 8,
   },
   mainNavTab: {
     flex: 1,
-    maxWidth: isLargeScreen ? 180 : undefined,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -2428,9 +2580,9 @@ const styles = StyleSheet.create({
   },
   mainNavTabText: {
     color: "#64748b",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    marginLeft: 6,
+    marginLeft: 4,
   },
   mainNavTabTextActive: {
     color: "#00f0ff",
@@ -2628,6 +2780,83 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.3)",
   },
+
+  // Users Directorate Cards
+  userEntityCard: {
+    backgroundColor: "#0b1120",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  userEntityTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  userAvatarBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#0f172a",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  userEntityName: {
+    color: "#f8fafc",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  userEntitySub: {
+    color: "#64748b",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  userEntityLocation: {
+    color: "#00f0ff",
+    fontSize: 10.5,
+    marginTop: 1,
+    fontWeight: "700",
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  roleBadgeText: {
+    fontSize: 9.5,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  userWalletBalance: {
+    color: "#10b981",
+    fontSize: 13.5,
+    fontWeight: "900",
+  },
+  userEntityActionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#172033",
+    paddingTop: 8,
+  },
+  userEntityActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+  },
+  userEntityActionText: {
+    fontSize: 10.5,
+    fontWeight: "800",
+    marginLeft: 4,
+  },
+
   historyTabContainer: { padding: isLargeScreen ? 24 : 16 },
   historyCard: {
     backgroundColor: "#0b1120",
