@@ -41,6 +41,7 @@ try {
 const { width } = Dimensions.get("window");
 const isLargeScreen = width >= 1024;
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+const VIRTUAL_ACC_KEY = "userVirtualAccount";
 
 const AgentDashboard = ({ navigation }) => {
   const contextValue = useContext(ThemeContext) || {};
@@ -53,7 +54,7 @@ const AgentDashboard = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // Dedicated Virtual Account States (Daidai da FundWallet)
+  // Dedicated Virtual Account States
   const [virtualAccount, setVirtualAccount] = useState(null);
   const [loadingAccount, setLoadingAccount] = useState(false);
 
@@ -80,19 +81,97 @@ const AgentDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 320);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Filter don goge Initialization Pending
-  const cleanAccount = (acc) => {
-    if (!acc) return null;
-    const num = acc.accountNumber || acc.account_number;
-    if (!num || String(num).toLowerCase().includes("pending") || String(num).length < 7) {
-      return null;
+  // Validation don gano sahihiyar lambar asusu
+  const isValidAccountNumber = (accNo) => {
+    if (!accNo) return false;
+    const str = String(accNo).trim();
+    if (
+      str.toLowerCase().includes("pending") ||
+      str.toLowerCase().includes("null") ||
+      str.toLowerCase().includes("undefined") ||
+      str.length < 7
+    ) {
+      return false;
     }
-    return {
-      bankName: acc.bankName || acc.bank_name || "Wema Bank",
-      accountName: acc.accountName || acc.account_name || userData?.name || "Ayax Agent",
-      accountNumber: String(num).trim(),
-    };
+    return true;
   };
+
+  const extractVirtualAccount = (user) => {
+    if (!user) return null;
+
+    const rawNum =
+      user.virtualAccount?.accountNumber ||
+      user.virtualAccount?.account_number ||
+      user.dva?.accountNumber ||
+      user.dva?.account_number ||
+      user.accountNumber ||
+      user.virtualAccountNumber;
+
+    if (isValidAccountNumber(rawNum)) {
+      return {
+        bankName:
+          user.virtualAccount?.bankName ||
+          user.virtualAccount?.bank_name ||
+          user.dva?.bankName ||
+          user.dva?.bank_name ||
+          user.bankName ||
+          "Wema Bank",
+        accountName:
+          user.virtualAccount?.accountName ||
+          user.virtualAccount?.account_name ||
+          user.dva?.accountName ||
+          user.dva?.account_name ||
+          user.accountName ||
+          user.name ||
+          "Ayax Agent",
+        accountNumber: String(rawNum).trim(),
+      };
+    } else if (Array.isArray(user.virtualAccounts) && user.virtualAccounts.length > 0) {
+      const first = user.virtualAccounts[0];
+      const firstNum = first.accountNumber || first.account_number;
+      if (isValidAccountNumber(firstNum)) {
+        return {
+          bankName: first.bankName || first.bank_name || "Wema Bank",
+          accountName: first.accountName || first.account_name || user.name,
+          accountNumber: String(firstNum).trim(),
+        };
+      }
+    }
+    return null;
+  };
+
+  // 1. Dauko adanannen asusu nan take ba tare da jiran internet ba
+  useEffect(() => {
+    const loadCachedData = async () => {
+      try {
+        const [cachedAcc, cachedUser] = await Promise.all([
+          AsyncStorage.getItem(VIRTUAL_ACC_KEY),
+          AsyncStorage.getItem("userData"),
+        ]);
+
+        if (cachedAcc) {
+          const parsed = JSON.parse(cachedAcc);
+          if (isValidAccountNumber(parsed?.accountNumber)) {
+            setVirtualAccount(parsed);
+          }
+        }
+        if (cachedUser) {
+          const parsedUser = JSON.parse(cachedUser);
+          setUserData(parsedUser);
+          if (!cachedAcc) {
+            const extracted = extractVirtualAccount(parsedUser);
+            if (extracted) {
+              setVirtualAccount(extracted);
+              await AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(extracted));
+            }
+          }
+        }
+      } catch (e) {
+        console.log("Cache load error:", e.message);
+      }
+    };
+    loadCachedData();
+  }, []);
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -111,17 +190,27 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 1. Dauko Bayanai Daidai Da Na FundWalletScreen.js
+  // 2. Real-time Live Synchronization (Ba zai taba goge asusu mai aiki ba)
   const fetchAgentDashboardData = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
       const token = await AsyncStorage.getItem("userToken");
+      const storedUserData = await AsyncStorage.getItem("userData");
 
       if (!token) {
         if (!isBackground) {
           navigation.reset({ index: 0, routes: [{ name: "Login" }] });
         }
         return;
+      }
+
+      let parsedLocalUser = {};
+      if (storedUserData) {
+        try {
+          parsedLocalUser = JSON.parse(storedUserData);
+        } catch (e) {
+          parsedLocalUser = {};
+        }
       }
 
       const config = {
@@ -136,28 +225,29 @@ const AgentDashboard = ({ navigation }) => {
         axios.get(`${BASE_URL}/user/profile`, config).catch(() => ({ data: { success: false } })),
         axios.get(`${BASE_URL}/agent/performance`, config).catch(() => ({ data: { data: null } })),
         axios.get(`${BASE_URL}/agent/my-supervisor`, config).catch(() => ({ data: { data: null } })),
-        axios.get(`${BASE_URL}/notifications`, config).catch(() => 
+        axios.get(`${BASE_URL}/notifications`, config).catch(() =>
           axios.get(`${BASE_URL}/notifications/my-notifications`, config).catch(() => ({ data: [] }))
         ),
       ]);
 
-      if (profileRes.data && (profileRes.data.success || profileRes.data.user)) {
-        const user = profileRes.data.user || profileRes.data.data;
+      const user = profileRes.data?.user || profileRes.data?.data || parsedLocalUser;
+      if (user) {
         setUserData(user);
+        await AsyncStorage.setItem("userData", JSON.stringify(user));
 
-        // Ainihin duba asusun Virtual Account kamar na FundWallet
-        if (user.virtualAccount && user.virtualAccount.accountNumber) {
-          setVirtualAccount(cleanAccount(user.virtualAccount));
-        } else if (user.dva && user.dva.accountNumber) {
-          setVirtualAccount(cleanAccount(user.dva));
-        } else if (user.accountNumber && !String(user.accountNumber).toLowerCase().includes("pending")) {
-          setVirtualAccount(cleanAccount({
-            bankName: user.bankName || "Wema Bank",
-            accountNumber: user.accountNumber,
-            accountName: user.accountName || user.name
-          }));
+        const activeAcc = extractVirtualAccount(user);
+        if (activeAcc && isValidAccountNumber(activeAcc.accountNumber)) {
+          setVirtualAccount(activeAcc);
+          await AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(activeAcc));
         } else {
-          setVirtualAccount(null);
+          // Idan backend bai turo ba, duba storage kada ka goge wanda aka riga aka kirkira!
+          const cached = await AsyncStorage.getItem(VIRTUAL_ACC_KEY);
+          if (cached) {
+            const parsedCached = JSON.parse(cached);
+            if (isValidAccountNumber(parsedCached?.accountNumber)) {
+              setVirtualAccount(parsedCached);
+            }
+          }
         }
 
         const tg = user.targets || {};
@@ -174,8 +264,8 @@ const AgentDashboard = ({ navigation }) => {
         setPerformance(perfRes.data.data);
       }
 
-      if (supRes.data?.data || profileRes.data?.user?.assignedSupervisor) {
-        const sup = supRes.data?.data || profileRes.data?.user?.assignedSupervisor;
+      if (supRes.data?.data || user?.assignedSupervisor) {
+        const sup = supRes.data?.data || user.assignedSupervisor;
         setAssignedSupervisor(typeof sup === "object" ? sup : { name: "LGA Supervisor", phone: "" });
       }
 
@@ -197,10 +287,14 @@ const AgentDashboard = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       fetchAgentDashboardData();
+      const interval = setInterval(() => {
+        fetchAgentDashboardData(true);
+      }, 15000);
+      return () => clearInterval(interval);
     }, [fetchAgentDashboardData])
   );
 
-  const onRefresh = () => {
+  const onManualRefresh = () => {
     setRefreshing(true);
     fetchAgentDashboardData();
   };
@@ -221,39 +315,45 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. Ainihin handleGetVirtualAccount Na FundWalletScreen.js
+  // 3. Kirkirar Virtual Account da Adana shi Dindindin
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
       const token = await AsyncStorage.getItem("userToken");
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      };
 
-      const response = await axios.post(
-        `${BASE_URL}/virtual-account/create`,
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-        }
-      );
+      const response = await axios.post(`${BASE_URL}/virtual-account/create`, {}, { headers });
 
       if (response.data && response.data.success) {
-        const createdAcc = cleanAccount(response.data.data || response.data.virtualAccount);
-        setVirtualAccount(createdAcc);
-        
-        if (Platform.OS === "android") {
-          ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
-        } else {
-          Alert.alert("Success", "Virtual account generated successfully!");
+        const accData = response.data.data || response.data.virtualAccount || response.data.account;
+        const accNum = accData?.accountNumber || accData?.account_number;
+
+        if (isValidAccountNumber(accNum)) {
+          const formattedAcc = {
+            bankName: accData?.bankName || accData?.bank_name || "Wema Bank",
+            accountName: accData?.accountName || accData?.account_name || userData?.name || "Ayax Agent",
+            accountNumber: String(accNum).trim(),
+          };
+
+          setVirtualAccount(formattedAcc);
+          await AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(formattedAcc));
+
+          if (Platform.OS === "android") {
+            ToastAndroid.show("Virtual account ready!", ToastAndroid.SHORT);
+          } else {
+            Alert.alert("Success", "Dedicated account generated successfully!");
+          }
+          await fetchAgentDashboardData(true);
+          return;
         }
-        await fetchAgentDashboardData(true);
-      } else {
-        Alert.alert("Notice", response.data?.message || "Could not provision account.");
       }
+      Alert.alert("Notice", response.data?.message || "Could not generate account. Please try again.");
     } catch (error) {
       console.error("Virtual Account Error:", error.response?.data || error.message);
-      Alert.alert("Error", error.response?.data?.message || "Could not fetch or create virtual account. Try again later.");
+      Alert.alert("Error", error.response?.data?.message || "Could not generate virtual account.");
     } finally {
       setLoadingAccount(false);
     }
@@ -340,7 +440,7 @@ const AgentDashboard = ({ navigation }) => {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={onManualRefresh}
             tintColor="#0284c7"
             colors={["#0284c7"]}
           />
@@ -460,7 +560,7 @@ const AgentDashboard = ({ navigation }) => {
         </View>
 
         <View style={styles.dvaCard}>
-          {virtualAccount && virtualAccount.accountNumber ? (
+          {virtualAccount && isValidAccountNumber(virtualAccount.accountNumber) ? (
             <View>
               <View style={styles.dvaTopRow}>
                 <View style={{ flex: 1 }}>
@@ -843,6 +943,7 @@ const styles = StyleSheet.create({
   actionBtnText: { color: "#0369a1", fontWeight: "900", fontSize: 11.5, marginLeft: 6, letterSpacing: 0.5 },
   supportBtnText: { color: "#ffffff", fontWeight: "900", fontSize: 11.5, marginLeft: 6, letterSpacing: 0.5 },
 
+  // EXECUTIVE TARGET CARD DARK
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
     borderRadius: 16,
