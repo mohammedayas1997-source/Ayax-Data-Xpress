@@ -185,11 +185,17 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      // Kwaso dukkan sassan tsarin kamfani (Overview, Transactions, Plans, All Users, Live Audit)
+      // Kwaso dukkan sassan tsarin kamfani ta hanyar kofofin SuperAdmin
       const [telemetryRes, txRes, plansRes, usersRes, logsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }),
-        axios.get(`${BASE_URL}/admin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => ({ data: { transactions: [] } })),
-        axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } })),
+        axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }).catch(() => 
+          axios.get(`${BASE_URL}/superadmin/stats`, { headers, timeout: 15000 })
+        ),
+        axios.get(`${BASE_URL}/admin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => 
+          axios.get(`${BASE_URL}/superadmin/transactions?limit=100`, { headers, timeout: 15000 }).catch(() => ({ data: { transactions: [] } }))
+        ),
+        axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => 
+          axios.get(`${BASE_URL}/superadmin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } }))
+        ),
         axios.get(`${BASE_URL}/superadmin/users?limit=200`, { headers, timeout: 15000 }).catch(() => 
           axios.get(`${BASE_URL}/admin/users?limit=200`, { headers, timeout: 15000 }).catch(() => ({ data: { users: [] } }))
         ),
@@ -288,7 +294,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Tariff Deployed", res.data.message);
+        showAlert("Tariff Deployed", res.data.message || "Pricing updated successfully.");
         setPrices((prev) => ({ ...prev, [targetTariffService.key]: Number(newTariffPrice) }));
         setPricingModalVisible(false);
         setNewTariffPrice("");
@@ -323,7 +329,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Broadcast Sent 🚀", res.data.message);
+        showAlert("Broadcast Sent 🚀", res.data.message || "Notification delivered.");
         setNotificationModalVisible(false);
         setNotifTitle("");
         setNotifMessage("");
@@ -357,7 +363,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Ledger Synced", res.data.message);
+        showAlert("Ledger Synced", res.data.message || "Wallet adjusted successfully.");
         setWalletModalVisible(false);
         setWalletUserId("");
         setWalletAmount("");
@@ -392,7 +398,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Executive Refund Executed", res.data.message);
+        showAlert("Executive Refund Executed", res.data.message || "Refund processed.");
         setRefundModalVisible(false);
         setRefundUserId("");
         setRefundTxRef("");
@@ -426,7 +432,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Role Updated", res.data.message);
+        showAlert("Role Updated", res.data.message || "User role modified.");
         setRoleModalVisible(false);
         setRoleUserId("");
         fetchMasterTelemetry();
@@ -458,7 +464,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Credentials Reset", res.data.message);
+        showAlert("Credentials Reset", res.data.message || "Security credentials updated.");
         setPasswordModalVisible(false);
         setPwdUserId("");
         setPwdNew("");
@@ -491,7 +497,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Security State Changed", res.data.message);
+        showAlert("Security State Changed", res.data.message || "Account state toggled.");
         setLockModalVisible(false);
         setLockUserId("");
         setLockReason("");
@@ -514,7 +520,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/admin/assign-target`,
+        `${BASE_URL}/superadmin/assign-target`,
         {
           supervisorId: targetSupervisorId.trim(),
           agentGoal: Number(targetAgentGoal),
@@ -525,7 +531,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Target Deployed 🎯", res.data.message);
+        showAlert("Target Deployed 🎯", res.data.message || "Targets allocated successfully.");
         setTargetModalVisible(false);
         setTargetSupervisorId("");
       }
@@ -536,7 +542,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 9. Save or Edit Data Plan Package
+  // 9. Save or Edit Data Plan Package (Calls SuperAdmin Route)
   const handleSaveDataPlan = async () => {
     if (!planCode.trim() || !planUserPrice || isNaN(Number(planUserPrice))) {
       return showAlert("Validation Error", "Plan Code and User Selling Price are required.");
@@ -558,16 +564,16 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       let res;
       if (editingPlanId) {
-        res = await axios.put(`${BASE_URL}/admin/plans/${editingPlanId}`, planPayload, {
+        res = await axios.put(`${BASE_URL}/superadmin/plans/${editingPlanId}`, planPayload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } else {
-        res = await axios.post(`${BASE_URL}/admin/set-plan`, planPayload, {
+        res = await axios.post(`${BASE_URL}/superadmin/set-plan`, planPayload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Plan Matrix Saved", res.data.message || "Data plan updated successfully.");
         setPlanManagerModalVisible(false);
         setEditingPlanId(null);
@@ -585,7 +591,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 10. Delete Data Plan
+  // 10. Delete Data Plan (Calls SuperAdmin Route)
   const handleDeleteDataPlan = async (planId) => {
     if (!planId) return;
     const confirmDelete = Platform.OS === "web"
@@ -597,11 +603,11 @@ const SuperAdminDashboard = ({ navigation }) => {
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.delete(`${BASE_URL}/admin/plans/${planId}`, {
+      const res = await axios.delete(`${BASE_URL}/superadmin/plans/${planId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.data?.success) {
+      if (res.data?.success || res.status === 200) {
         showAlert("Plan Expunged", "Data package deleted successfully.");
         fetchMasterTelemetry();
       }
@@ -635,7 +641,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success) {
-        showAlert("Campaign Queued", res.data.message);
+        showAlert("Campaign Queued", res.data.message || "Bulk dispatch queued.");
         setDispatchModalVisible(false);
         setDispatchRecipients("");
         setSendToAll(false);
@@ -658,7 +664,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       });
 
       if (res.data?.success) {
-        showAlert("Forensic Clean Complete", res.data.message);
+        showAlert("Forensic Clean Complete", res.data.message || "Audit trail pruned.");
         setPurgeModalVisible(false);
       }
     } catch (err) {
@@ -785,7 +791,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </View>
 
-      {/* MAIN NAVIGATION TAB SWITCHER (OVERVIEW, TARIFFS, DATA PLANS, USERS/STAFF, AUDIT) */}
+      {/* MAIN NAVIGATION TAB SWITCHER */}
       <View style={styles.mainNavBar}>
         <TouchableOpacity
           style={[styles.mainNavTab, activeMainTab === "overview" && styles.mainNavTabActive]}
