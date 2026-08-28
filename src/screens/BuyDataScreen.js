@@ -57,12 +57,42 @@ const BuyDataScreen = ({ navigation }) => {
     fetchUserRole();
   }, []);
 
+  // 1. Dauko Plans tare da Headers da Fallback ga kowane mai amfani
   const fetchLivePlans = useCallback(async (net) => {
     setLoadingPlans(true);
     try {
-      const res = await axios.get(`${BASE_URL}/superadmin/plans?network=${net}`);
-      if (res.data?.success) {
-        setAvailablePlans(res.data.data || []);
+      const token = await AsyncStorage.getItem("userToken");
+      const config = {
+        headers: {
+          Authorization: token ? `Bearer ${token}` : undefined,
+          Accept: "application/json",
+        },
+        timeout: 15000,
+      };
+
+      let res;
+      // Gwada kiran kofar superadmin ko kuma public plans endpoint
+      try {
+        res = await axios.get(`${BASE_URL}/superadmin/plans?network=${net}`, config);
+      } catch (err1) {
+        try {
+          res = await axios.get(`${BASE_URL}/data/plans?network=${net}`, config);
+        } catch (err2) {
+          res = await axios.get(`${BASE_URL}/admin/plans?network=${net}`, config);
+        }
+      }
+
+      if (res && res.data) {
+        const rawPlans = res.data.data || res.data.plans || [];
+        const plansArray = Array.isArray(rawPlans) ? rawPlans : [];
+
+        // Tace plans bisa ga Network da aka zaba
+        const networkFiltered = plansArray.filter((p) => {
+          const pNet = String(p.network || p.networkName || "").toUpperCase();
+          return pNet === String(net).toUpperCase();
+        });
+
+        setAvailablePlans(networkFiltered.length > 0 ? networkFiltered : plansArray);
       }
     } catch (err) {
       console.log("Error loading plans:", err.message);
@@ -77,9 +107,12 @@ const BuyDataScreen = ({ navigation }) => {
     setShowPlansDropdown(false);
   }, [selectedNetwork, fetchLivePlans]);
 
+  // Tace plans dangane da Plan Type (SME, GIFTING, CG, etc.)
   const filteredPlans = availablePlans.filter((p) => {
     if (selectedPlanType === "ALL") return true;
-    return p.planType === selectedPlanType;
+    const pType = String(p.planType || "").toUpperCase();
+    const sType = String(selectedPlanType).toUpperCase();
+    return pType.includes(sType) || sType.includes(pType);
   });
 
   const handleInitiatePurchase = () => {
@@ -110,15 +143,15 @@ const BuyDataScreen = ({ navigation }) => {
       const cleanPlanCode = selectedPlan?.planCode || selectedPlan?.code || "1000";
       const finalAmount =
         userRole === "agent"
-          ? selectedPlan?.agentPrice || selectedPlan?.price || 0
-          : selectedPlan?.userPrice || selectedPlan?.price || 0;
+          ? (selectedPlan?.agentPrice ?? selectedPlan?.price ?? selectedPlan?.userPrice ?? 0)
+          : (selectedPlan?.userPrice ?? selectedPlan?.price ?? 0);
 
       const requestBody = {
         network: netName,
         networkId: selectedPlan?.networkId || null,
         planCode: cleanPlanCode,
         phoneNumber: phoneNumber.trim(),
-        amount: finalAmount,
+        amount: Number(finalAmount),
         validity: selectedPlan?.validity || "30 Days",
         transactionPin: pin.trim(),
       };
@@ -137,7 +170,7 @@ const BuyDataScreen = ({ navigation }) => {
         setPin("");
         showAlert(
           "Purchase Successful 🎉",
-          `${selectedPlan?.planLabel || "Data"} dispatched to ${phoneNumber} successfully!`,
+          `${selectedPlan?.name || selectedPlan?.planCode || "Data"} dispatched to ${phoneNumber} successfully!`,
           () => {
             setPhoneNumber("");
             setSelectedPlan(null);
@@ -239,14 +272,14 @@ const BuyDataScreen = ({ navigation }) => {
             <View style={{ flex: 1 }}>
               <Text style={styles.dropdownSelectedTitle} numberOfLines={1}>
                 {selectedPlan
-                  ? `${selectedPlan.planLabel || selectedPlan.name} (₦${Number(
-                      userRole === "agent" ? selectedPlan.agentPrice : selectedPlan.userPrice
+                  ? `${selectedPlan.name || selectedPlan.planCode} (₦${Number(
+                      userRole === "agent" ? (selectedPlan.agentPrice ?? selectedPlan.userPrice) : selectedPlan.userPrice
                     ).toLocaleString()})`
                   : `AVAILABLE PLANS (${selectedNetwork})`}
               </Text>
               <Text style={styles.dropdownSelectedSubtitle}>
                 {selectedPlan
-                  ? `Expires: ${selectedPlan.validity || "30 Days"} • ${selectedPlan.planType}`
+                  ? `Expires: ${selectedPlan.validity || "30"} Days • ${selectedPlan.planType || "SME"}`
                   : "Tap here to view and select plan"}
               </Text>
             </View>
@@ -271,33 +304,36 @@ const BuyDataScreen = ({ navigation }) => {
             ) : (
               filteredPlans.map((plan) => {
                 const isSelected = selectedPlan?._id === plan._id;
-                const finalPrice = userRole === "agent" ? plan.agentPrice : plan.userPrice;
-                const validity = plan.validity || (plan.planType === "DAILY" ? "1 Day" : "30 Days");
+                const finalPrice =
+                  userRole === "agent"
+                    ? (plan.agentPrice ?? plan.userPrice ?? plan.price)
+                    : (plan.userPrice ?? plan.price);
+                const validity = plan.validity ? `${plan.validity} Days` : "30 Days";
 
                 return (
                   <TouchableOpacity
-                    key={plan._id}
+                    key={plan._id || plan.planCode}
                     style={[styles.planCard, isSelected && styles.planCardActive]}
                     onPress={() => {
                       setSelectedPlan(plan);
-                      setShowPlansDropdown(false); // Rufe jerin idan an zaba
+                      setShowPlansDropdown(false);
                     }}
                     activeOpacity={0.8}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.planTitle, isSelected && { color: "#fff" }]}>
-                        {plan.planLabel || `${plan.networkName} ${plan.planCode}`}
+                        {plan.name || `${plan.network || selectedNetwork} ${plan.planCode}`}
                       </Text>
                       <View style={styles.metaRow}>
                         <Text style={styles.planTypeTag}>
-                          {plan.planType} • {plan.sizeGB ? `${plan.sizeGB}GB` : plan.volume || ""}
+                          {plan.planType || "SME"} • Code: {plan.planCode}
                         </Text>
                         <Text style={styles.validityTag}>⏳ {validity}</Text>
                       </View>
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={[styles.planPrice, isSelected && { color: "#10b981" }]}>
-                        ₦{Number(finalPrice).toLocaleString()}
+                        ₦{Number(finalPrice || 0).toLocaleString()}
                       </Text>
                       {isSelected && (
                         <Text style={{ color: "#10b981", fontSize: 10, fontWeight: "900", marginTop: 2 }}>
@@ -321,7 +357,7 @@ const BuyDataScreen = ({ navigation }) => {
           <Text style={styles.submitBtnText}>
             PURCHASE DATA (₦
             {selectedPlan
-              ? (userRole === "agent" ? selectedPlan.agentPrice : selectedPlan.userPrice).toLocaleString()
+              ? Number(userRole === "agent" ? (selectedPlan.agentPrice ?? selectedPlan.userPrice) : selectedPlan.userPrice).toLocaleString()
               : "0"}
             )
           </Text>
