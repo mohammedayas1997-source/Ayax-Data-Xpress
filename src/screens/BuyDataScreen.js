@@ -27,6 +27,9 @@ const BuyDataScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userRole, setUserRole] = useState("user");
 
+  // State na buɗe da rufe dropdown ɗin Data Plans
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   // PIN Modal
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
@@ -108,6 +111,7 @@ const BuyDataScreen = ({ navigation }) => {
   useEffect(() => {
     fetchLivePlans(selectedNetwork);
     setSelectedPlan(null);
+    setIsDropdownOpen(false); // Rufe dropdown a duk lokacin da aka sauya Network
   }, [selectedNetwork, fetchLivePlans]);
 
   // Tace plans dangane da Plan Type
@@ -125,7 +129,7 @@ const BuyDataScreen = ({ navigation }) => {
       return showAlert("Error", "Please enter a valid 11-digit recipient phone number.");
     }
     if (!selectedPlan) {
-      return showAlert("Error", "Please tap to select a data bundle from the list below.");
+      return showAlert("Error", "Please tap on the Select Data Bundle button to choose a plan.");
     }
     setPinModalVisible(true);
   };
@@ -260,64 +264,105 @@ const BuyDataScreen = ({ navigation }) => {
           onChangeText={setPhoneNumber}
         />
 
-        {/* Available Plans List (A Bude a Filin Waje) */}
-        <View style={styles.plansHeaderRow}>
-          <Text style={styles.sectionLabel}>SELECT DATA BUNDLE ({selectedNetwork})</Text>
-          <Text style={styles.planCountBadge}>{filteredPlans.length} Available</Text>
-        </View>
-
-        <View style={styles.plansContainer}>
-          {loadingPlans ? (
-            <ActivityIndicator size="small" color="#00f0ff" style={{ marginVertical: 20 }} />
-          ) : filteredPlans.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Feather name="wifi-off" size={26} color="#64748b" />
-              <Text style={styles.emptyText}>No data plans found for {selectedNetwork}.</Text>
+        {/* 2. MABALLIN SELECT DATA BUNDLE (DROPDOWN TOGGLE) */}
+        <Text style={styles.sectionLabel}>DATA BUNDLE PACKAGE</Text>
+        <TouchableOpacity
+          style={[styles.dropdownBtn, isDropdownOpen && styles.dropdownBtnActive]}
+          onPress={() => setIsDropdownOpen(!isDropdownOpen)}
+          activeOpacity={0.8}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 10 }}>
+            <MaterialCommunityIcons
+              name={selectedPlan ? "check-circle" : "layers-triple-outline"}
+              size={22}
+              color={selectedPlan ? "#10b981" : "#00f0ff"}
+              style={{ marginRight: 10 }}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dropdownBtnTitle} numberOfLines={1}>
+                {selectedPlan
+                  ? `${selectedPlan.name || selectedPlan.planLabel || selectedPlan.planCode} (₦${Number(
+                      userRole === "agent"
+                        ? (selectedPlan.agentPrice ?? selectedPlan.userPrice ?? selectedPlan.price)
+                        : (selectedPlan.userPrice ?? selectedPlan.price)
+                    ).toLocaleString()})`
+                  : `Select Data Bundle (${selectedNetwork})`}
+              </Text>
+              <Text style={styles.dropdownBtnSubtitle}>
+                {selectedPlan
+                  ? `Validity: ${selectedPlan.validity || "30 Days"} • Type: ${selectedPlan.planType || "SME"}`
+                  : `Tap to open available plans (${filteredPlans.length})`}
+              </Text>
             </View>
-          ) : (
-            filteredPlans.map((plan) => {
-              const isSelected = selectedPlan?._id === plan._id;
-              const finalPrice =
-                userRole === "agent"
-                  ? (plan.agentPrice ?? plan.userPrice ?? plan.price ?? 0)
-                  : (plan.userPrice ?? plan.price ?? 0);
-              const planTitle = plan.name || plan.planLabel || `${plan.network || selectedNetwork} ${plan.planCode}`;
-              const validity = plan.validity ? (String(plan.validity).includes("Day") ? plan.validity : `${plan.validity} Days`) : "30 Days";
+          </View>
+          <Ionicons
+            name={isDropdownOpen ? "chevron-up" : "chevron-down"}
+            size={22}
+            color={isDropdownOpen ? "#00f0ff" : "#94a3b8"}
+          />
+        </TouchableOpacity>
 
-              return (
-                <TouchableOpacity
-                  key={plan._id || plan.planCode || Math.random().toString()}
-                  style={[styles.planCard, isSelected && styles.planCardActive]}
-                  onPress={() => setSelectedPlan(plan)}
-                  activeOpacity={0.8}
-                >
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={[styles.planTitle, isSelected && { color: "#fff" }]} numberOfLines={1}>
-                      {planTitle}
-                    </Text>
-                    <View style={styles.metaRow}>
-                      <Text style={styles.planTypeTag}>
-                        {plan.planType || "SME"} • Code: {plan.planCode || "N/A"}
+        {/* 3. JERIN DATA PLANS (SAI AN DANNA MABALLIN YAKE FITOWA) */}
+        {isDropdownOpen && (
+          <View style={styles.plansContainer}>
+            {loadingPlans ? (
+              <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                <ActivityIndicator size="small" color="#00f0ff" />
+                <Text style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Loading plans...</Text>
+              </View>
+            ) : filteredPlans.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Feather name="wifi-off" size={26} color="#64748b" />
+                <Text style={styles.emptyText}>No active data plans found for {selectedNetwork}.</Text>
+              </View>
+            ) : (
+              filteredPlans.map((plan) => {
+                const isSelected = selectedPlan?._id === plan._id;
+                const finalPrice =
+                  userRole === "agent"
+                    ? (plan.agentPrice ?? plan.userPrice ?? plan.price ?? 0)
+                    : (plan.userPrice ?? plan.price ?? 0);
+                const planTitle = plan.name || plan.planLabel || `${plan.network || selectedNetwork} ${plan.planCode}`;
+                const validity = plan.validity ? (String(plan.validity).includes("Day") ? plan.validity : `${plan.validity} Days`) : "30 Days";
+
+                return (
+                  <TouchableOpacity
+                    key={plan._id || plan.planCode || Math.random().toString()}
+                    style={[styles.planCard, isSelected && styles.planCardActive]}
+                    onPress={() => {
+                      setSelectedPlan(plan);
+                      setIsDropdownOpen(false); // Rufe jerin plans nan take idan mutum ya zaba
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={[styles.planTitle, isSelected && { color: "#fff" }]} numberOfLines={1}>
+                        {planTitle}
                       </Text>
-                      <Text style={styles.validityTag}>⏳ {validity}</Text>
-                    </View>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={[styles.planPrice, isSelected && { color: "#10b981" }]}>
-                      ₦{Number(finalPrice).toLocaleString()}
-                    </Text>
-                    {isSelected && (
-                      <View style={styles.selectedBadge}>
-                        <Ionicons name="checkmark-circle" size={14} color="#10b981" />
-                        <Text style={styles.selectedBadgeText}>SELECTED</Text>
+                      <View style={styles.metaRow}>
+                        <Text style={styles.planTypeTag}>
+                          {plan.planType || "SME"} • Code: {plan.planCode || "N/A"}
+                        </Text>
+                        <Text style={styles.validityTag}>⏳ {validity}</Text>
                       </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </View>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={[styles.planPrice, isSelected && { color: "#10b981" }]}>
+                        ₦{Number(finalPrice).toLocaleString()}
+                      </Text>
+                      {isSelected && (
+                        <View style={styles.selectedBadge}>
+                          <Ionicons name="checkmark-circle" size={13} color="#10b981" />
+                          <Text style={styles.selectedBadgeText}>SELECTED</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        )}
 
         {/* Purchase Button */}
         <TouchableOpacity
@@ -397,8 +442,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "900" },
   sectionLabel: { color: "#64748b", fontSize: 11, fontWeight: "900", letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
-  plansHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 16, marginBottom: 8 },
-  planCountBadge: { color: "#00f0ff", fontSize: 11, fontWeight: "800" },
   networkGrid: { flexDirection: "row", justifyContent: "space-between" },
   networkBtn: {
     flex: 1,
@@ -436,13 +479,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
+  dropdownBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#0b1120",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  dropdownBtnActive: {
+    borderColor: "#00f0ff",
+    backgroundColor: "#071328",
+  },
+  dropdownBtnTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "900" },
+  dropdownBtnSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
   plansContainer: {
     backgroundColor: "#070c18",
     borderRadius: 14,
     padding: 10,
     borderWidth: 1,
     borderColor: "#1e293b",
-    marginBottom: 12,
+    marginTop: 8,
+    marginBottom: 4,
   },
   planCard: {
     flexDirection: "row",
