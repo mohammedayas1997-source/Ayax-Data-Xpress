@@ -49,7 +49,7 @@ const NsdDashboard = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState("states");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Bulk State Selection
+  // Selective / Bulk State Selection
   const [selectedStateNames, setSelectedStateNames] = useState([]);
 
   // Sidebar Drawer
@@ -63,9 +63,9 @@ const NsdDashboard = ({ navigation }) => {
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
   const [inspectLoading, setInspectLoading] = useState(false);
 
-  // Modal 2: Target Deployment Modal
+  // Modal 2: Target Deployment Modal (Single, Selected Few, ko All 36 States)
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single");
+  const [targetMode, setTargetMode] = useState("single"); // 'single' | 'selected' | 'all'
   const [targetStateItem, setTargetStateItem] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("10000");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("500000");
@@ -189,6 +189,7 @@ const NsdDashboard = ({ navigation }) => {
 
   const activeStatesList = statesData.filter((s) => s.hasLeader);
 
+  // Zaɓar Dukkan Jihohi ko Cirewa
   const handleSelectAllStates = () => {
     if (selectedStateNames.length === activeStatesList.length) {
       setSelectedStateNames([]);
@@ -197,6 +198,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
+  // Zaɓar Jiha Ɗaya ko Cire ta
   const handleToggleStateSelect = (stateName) => {
     if (selectedStateNames.includes(stateName)) {
       setSelectedStateNames(selectedStateNames.filter((s) => s !== stateName));
@@ -268,6 +270,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
+  // DEPLOY TARGET GA STATE MANAGER (SINGLE, SELECTED FEW, KO ALL 36 STATES)
   const handleDeployNationalTarget = async () => {
     setActionLoading(true);
     try {
@@ -275,7 +278,6 @@ const NsdDashboard = ({ navigation }) => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const payload = {
-        mode: targetMode,
         dataGoal: Number(targetDataGoal),
         airtimeGoal: Number(targetAirtimeGoal),
         agentGoal: Number(targetNewAgentGoal),
@@ -289,21 +291,32 @@ const NsdDashboard = ({ navigation }) => {
           setActionLoading(false);
           return;
         }
+        payload.mode = "single";
         payload.leaderId = targetStateItem.leaderId;
         payload.state = targetStateItem.state;
+      } else if (targetMode === "selected") {
+        payload.mode = "bulk";
+        payload.states = selectedStateNames;
       } else {
-        payload.states = selectedStateNames.length > 0 ? selectedStateNames : ALL_NIGERIAN_STATES;
+        // All 36 States
+        payload.mode = "bulk";
+        payload.states = ALL_NIGERIAN_STATES;
       }
 
       const res = await axios.post(`${BASE_URL}/super-leader/assign-target`, payload, { headers });
 
       if (res.data?.success || res.status === 200) {
+        const targetDesc = `${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors`;
+        
         showAlert(
           "Targets Deployed 🎯",
-          targetMode === "bulk"
-            ? `Allocated target (${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors) across selected States.`
-            : `Allocated target (${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors) to ${targetStateItem?.state} State Manager.`
+          targetMode === "single"
+            ? `Allocated target (${targetDesc}) to ${targetStateItem?.state} State Manager.`
+            : targetMode === "selected"
+            ? `Allocated custom target (${targetDesc}) to ${selectedStateNames.length} selected States (${selectedStateNames.join(", ")}).`
+            : `Allocated target (${targetDesc}) across all 36 States & FCT.`
         );
+
         setTargetModalVisible(false);
         setTargetStateItem(null);
         setSelectedStateNames([]);
@@ -553,11 +566,11 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.targetBannerActionRow}>
+              {/* Maballin Tura Target zuwa Jihohi 36 Gaba Daya */}
               <TouchableOpacity
                 style={styles.targetBannerBtnPrimary}
                 onPress={() => {
-                  setTargetMode("bulk");
-                  setSelectedStateNames(activeStatesList.map((s) => s.state));
+                  setTargetMode("all");
                   setTargetModalVisible(true);
                 }}
               >
@@ -565,20 +578,26 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.targetBannerBtnTextPrimary}>DEPLOY TO ALL 36 STATES</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.targetBannerBtnSecondary}
-                onPress={() => {
-                  setActiveTab("managers");
-                }}
-              >
-                <Feather name="edit" size={14} color="#1e40af" />
-                <Text style={styles.targetBannerBtnTextSecondary}>SELECT STATE</Text>
-              </TouchableOpacity>
+              {/* Maballin Tura Target ga Jihohin da aka yi wa Select Kalilan */}
+              {selectedStateNames.length > 0 && (
+                <TouchableOpacity
+                  style={styles.targetBannerBtnSelected}
+                  onPress={() => {
+                    setTargetMode("selected");
+                    setTargetModalVisible(true);
+                  }}
+                >
+                  <FontAwesome5 name="check-double" size={13} color="#ffffff" />
+                  <Text style={styles.targetBannerBtnTextSelected}>
+                    DEPLOY SELECTED ({selectedStateNames.length})
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
           {/* =========================================================================
-              NIGERIA EXECUTIVE TELEMETRY (ALL DARK BLUE CARDS BACKGROUND)
+              NIGERIA EXECUTIVE TELEMETRY (DARK BLUE CARDS BACKGROUND)
              ========================================================================= */}
           <View style={styles.telemetrySection}>
             <View style={styles.sectionHeaderRow}>
@@ -593,7 +612,7 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.metricGrid}>
-              {/* CARD 1: STATE MANAGERS (DARK BLUE BACKGROUND) */}
+              {/* CARD 1: STATE MANAGERS */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>State Managers (SM)</Text>
@@ -607,7 +626,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>36 States & FCT Coverage</Text>
               </View>
 
-              {/* CARD 2: FIELD SUPERVISORS (DARK BLUE BACKGROUND) */}
+              {/* CARD 2: FIELD SUPERVISORS */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>Field Supervisors (FS)</Text>
@@ -619,7 +638,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>LGA Network Coordinators</Text>
               </View>
 
-              {/* CARD 3: TOTAL RETAIL AGENTS (DARK BLUE BACKGROUND) */}
+              {/* CARD 3: TOTAL RETAIL AGENTS */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>Total Retail Agents</Text>
@@ -633,7 +652,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>Active Field Resellers</Text>
               </View>
 
-              {/* CARD 4: NATIONAL DATA VOLUME (DARK BLUE BACKGROUND) */}
+              {/* CARD 4: NATIONAL DATA VOLUME */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>National Data Sold</Text>
@@ -647,7 +666,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>Delivered Telecom Bundles</Text>
               </View>
 
-              {/* CARD 5: NATIONAL AIRTIME (DARK BLUE BACKGROUND) */}
+              {/* CARD 5: NATIONAL AIRTIME */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>National Airtime Sold</Text>
@@ -661,7 +680,7 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>Gross Recharge VTU Value</Text>
               </View>
 
-              {/* CARD 6: COVERAGE (DARK BLUE BACKGROUND) */}
+              {/* CARD 6: COVERAGE */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>State Coverage Rate</Text>
@@ -697,30 +716,50 @@ const NsdDashboard = ({ navigation }) => {
           {/* TAB 1: 36 STATES GRID */}
           {activeTab === "states" && (
             <View style={styles.tabContentWrapper}>
+              {/* SELECTIVE & BULK ACTION RIBBON */}
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
-                    name={selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0 ? "check-box" : "check-box-outline-blank"}
+                    name={
+                      selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
+                        ? "check-box"
+                        : "check-box-outline-blank"
+                    }
                     size={20}
                     color="#1e40af"
                   />
                   <Text style={styles.bulkSelectBtnText}>
                     {selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
                       ? "Deselect All"
-                      : `Select States (${selectedStateNames.length}/${activeStatesList.length})`}
+                      : selectedStateNames.length > 0
+                      ? `Selected (${selectedStateNames.length}/${activeStatesList.length})`
+                      : "Select Specific States"}
                   </Text>
                 </TouchableOpacity>
 
-                {selectedStateNames.length > 0 && (
+                {selectedStateNames.length > 0 ? (
                   <TouchableOpacity
                     style={styles.bulkTargetBtn}
                     onPress={() => {
-                      setTargetMode("bulk");
+                      setTargetMode("selected");
                       setTargetModalVisible(true);
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Target ({selectedStateNames.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>
+                      Deploy Target to ({selectedStateNames.length}) States
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.bulkTargetBtn, { backgroundColor: "#0284c7" }]}
+                    onPress={() => {
+                      setTargetMode("all");
+                      setTargetModalVisible(true);
+                    }}
+                  >
+                    <MaterialCommunityIcons name="target" size={14} color="#ffffff" />
+                    <Text style={styles.bulkTargetBtnText}>Deploy to All 36 States</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -743,18 +782,17 @@ const NsdDashboard = ({ navigation }) => {
                       style={[styles.stateCard, isSelected && styles.cardSelected]}
                     >
                       <View style={styles.stateCardHeader}>
-                        {st.hasLeader && (
-                          <TouchableOpacity
-                            style={{ marginRight: 6 }}
-                            onPress={() => handleToggleStateSelect(st.state)}
-                          >
-                            <MaterialIcons
-                              name={isSelected ? "check-box" : "check-box-outline-blank"}
-                              size={20}
-                              color={isSelected ? "#1e40af" : "#94a3b8"}
-                            />
-                          </TouchableOpacity>
-                        )}
+                        {/* Checkbox Domin Zaban Jihohi Kalilan */}
+                        <TouchableOpacity
+                          style={{ marginRight: 6 }}
+                          onPress={() => handleToggleStateSelect(st.state)}
+                        >
+                          <MaterialIcons
+                            name={isSelected ? "check-box" : "check-box-outline-blank"}
+                            size={22}
+                            color={isSelected ? "#1e40af" : "#94a3b8"}
+                          />
+                        </TouchableOpacity>
 
                         <Text style={styles.stateNameTitle}>{st.state.toUpperCase()}</Text>
                         <View
@@ -810,15 +848,15 @@ const NsdDashboard = ({ navigation }) => {
                               </Text>
                             </View>
                             <View style={styles.stateTargetMiniItem}>
-                              <Text style={styles.stateTargetMiniLabel}>New Agents Goal</Text>
+                              <Text style={styles.stateTargetMiniLabel}>New Agents</Text>
                               <Text style={[styles.stateTargetMiniVal, { color: "#059669" }]}>
-                                {st.stateAgentGoal || 50} Agents
+                                {st.stateAgentGoal || 50}
                               </Text>
                             </View>
                             <View style={styles.stateTargetMiniItem}>
-                              <Text style={styles.stateTargetMiniLabel}>New FS Goal</Text>
+                              <Text style={styles.stateTargetMiniLabel}>New FS</Text>
                               <Text style={[styles.stateTargetMiniVal, { color: "#0284c7" }]}>
-                                {st.stateSupervisorGoal || 10} FS
+                                {st.stateSupervisorGoal || 10}
                               </Text>
                             </View>
                           </View>
@@ -837,7 +875,7 @@ const NsdDashboard = ({ navigation }) => {
                               }}
                             >
                               <FontAwesome5 name="bullseye" size={11} color="#ffffff" />
-                              <Text style={styles.stateDeployTargetBtnText}>Set Targets</Text>
+                              <Text style={styles.stateDeployTargetBtnText}>Set Target</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -876,14 +914,18 @@ const NsdDashboard = ({ navigation }) => {
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
-                    name={selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0 ? "check-box" : "check-box-outline-blank"}
+                    name={
+                      selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
+                        ? "check-box"
+                        : "check-box-outline-blank"
+                    }
                     size={20}
                     color="#1e40af"
                   />
                   <Text style={styles.bulkSelectBtnText}>
                     {selectedStateNames.length === activeStatesList.length && activeStatesList.length > 0
                       ? "Deselect All"
-                      : `Select All (${selectedStateNames.length}/${activeStatesList.length})`}
+                      : `Selected (${selectedStateNames.length}/${activeStatesList.length})`}
                   </Text>
                 </TouchableOpacity>
 
@@ -891,12 +933,12 @@ const NsdDashboard = ({ navigation }) => {
                   <TouchableOpacity
                     style={styles.bulkTargetBtn}
                     onPress={() => {
-                      setTargetMode("bulk");
+                      setTargetMode("selected");
                       setTargetModalVisible(true);
                     }}
                   >
                     <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Targets ({selectedStateNames.length})</Text>
+                    <Text style={styles.bulkTargetBtnText}>Deploy to ({selectedStateNames.length}) Selected</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -990,7 +1032,7 @@ const NsdDashboard = ({ navigation }) => {
                         }}
                       >
                         <FontAwesome5 name="edit" size={12} color="#1e40af" />
-                        <Text style={[styles.managerActionBtnText, { color: "#1e40af" }]}>Set/Edit Targets</Text>
+                        <Text style={[styles.managerActionBtnText, { color: "#1e40af" }]}>Set Target</Text>
                       </TouchableOpacity>
 
                       <TouchableOpacity
@@ -1147,15 +1189,14 @@ const NsdDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setTargetMode("bulk");
-                  setSelectedStateNames(activeStatesList.map((s) => s.state));
+                  setTargetMode("all");
                   setTargetModalVisible(true);
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#fef3c7" }]}>
                   <FontAwesome5 name="bullseye" size={14} color="#d97706" />
                 </View>
-                <Text style={styles.navItemText}>Deploy State Targets</Text>
+                <Text style={styles.navItemText}>Deploy National Targets</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1279,21 +1320,25 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ASSIGN NATIONAL TARGETS */}
+      {/* MODAL 2: ASSIGN TARGETS (SINGLE, SELECTED FEW, OR ALL 36 STATES) */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={styles.modalCardTitle}>
-                  {targetMode === "bulk"
-                    ? `Deploy Nationwide Quotas (${selectedStateNames.length} States)`
-                    : `Deploy State Targets (${targetStateItem?.state} State)`}
+                  {targetMode === "single"
+                    ? `Set Targets: ${targetStateItem?.state} State`
+                    : targetMode === "selected"
+                    ? `Deploy Targets to (${selectedStateNames.length}) Selected States`
+                    : "Deploy Targets to ALL 36 States & FCT"}
                 </Text>
-                <Text style={styles.modalCardSubtitle}>
-                  {targetMode === "bulk"
-                    ? `Applying quotas across selected state directorates`
-                    : `State Director: ${targetStateItem?.leaderName} (${targetStateItem?.leaderPhone})`}
+                <Text style={styles.modalCardSubtitle} numberOfLines={2}>
+                  {targetMode === "single"
+                    ? `Manager: ${targetStateItem?.leaderName} (${targetStateItem?.leaderPhone})`
+                    : targetMode === "selected"
+                    ? `Selected: ${selectedStateNames.join(", ")}`
+                    : "Nationwide uniform performance quota allocation"}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
@@ -1354,7 +1399,11 @@ const NsdDashboard = ({ navigation }) => {
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.primaryActionBtnText}>
-                    {targetMode === "bulk" ? "AUTHORIZE NATIONWIDE TARGET ALLOCATION" : "AUTHORIZE & DEPLOY TARGETS"}
+                    {targetMode === "single"
+                      ? "AUTHORIZE & DEPLOY TARGET"
+                      : targetMode === "selected"
+                      ? `DEPLOY TARGET TO ${selectedStateNames.length} STATES`
+                      : "AUTHORIZE NATIONWIDE (36 STATES) ALLOCATION"}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1599,18 +1648,16 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   targetBannerBtnTextPrimary: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 5 },
-  targetBannerBtnSecondary: {
-    flex: 0.45,
+  targetBannerBtnSelected: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#eff6ff",
+    backgroundColor: "#059669",
     paddingVertical: 8,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
   },
-  targetBannerBtnTextSecondary: { color: "#1e40af", fontSize: 11, fontWeight: "800", marginLeft: 4 },
+  targetBannerBtnTextSelected: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 5 },
 
   // Telemetry Section
   telemetrySection: { padding: isLargeScreen ? 24 : 16 },
@@ -1697,11 +1744,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1e40af",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
   },
-  bulkTargetBtnText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
+  bulkTargetBtnText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 5 },
 
   actionPillBtn: {
     flexDirection: "row",
@@ -1726,7 +1773,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
   },
-  cardSelected: { borderColor: "#1e40af", backgroundColor: "#f0f7ff" },
+  cardSelected: { borderColor: "#1e40af", backgroundColor: "#eff6ff" },
   stateCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   stateNameTitle: { color: "#0f172a", fontSize: 13, fontWeight: "800", flex: 1 },
   stateStatusBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },

@@ -65,7 +65,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [selectedLga, setSelectedLga] = useState("All LGAs");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Bulk Selection States
+  // Bulk Selection States (Don zabar kadan ko duka)
   const [selectedSupIds, setSelectedSupIds] = useState([]);
   const [selectedAgentIds, setSelectedAgentIds] = useState([]);
 
@@ -80,7 +80,7 @@ const LeaderDashboard = ({ navigation }) => {
 
   // Modal 2: Target Modal
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single_sup");
+  const [targetMode, setTargetMode] = useState("single_sup"); // 'single_sup', 'bulk_sup', 'single_agent', 'bulk_agent'
   const [targetRecipient, setTargetRecipient] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("500");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
@@ -237,6 +237,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // Select All ko Deselect Supervisors
   const handleSelectAllSupervisors = () => {
     if (selectedSupIds.length === supervisors.length) {
       setSelectedSupIds([]);
@@ -245,6 +246,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // Zabar supervisor guda daya (Single/Multi Select)
   const handleToggleSupervisorSelect = (id) => {
     if (selectedSupIds.includes(id)) {
       setSelectedSupIds(selectedSupIds.filter((item) => item !== id));
@@ -253,6 +255,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // Select All ko Deselect Agents
   const handleSelectAllAgents = () => {
     if (selectedAgentIds.length === agents.length) {
       setSelectedAgentIds([]);
@@ -261,6 +264,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // Zabar Agent guda daya (Single/Multi Select)
   const handleToggleAgentSelect = (id) => {
     if (selectedAgentIds.includes(id)) {
       setSelectedAgentIds(selectedAgentIds.filter((item) => item !== id));
@@ -269,6 +273,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // Aikin Tura Target (Ga Mutum Daya, Zaɓaɓɓu Kaɗan, ko Duka Gaba Ɗaya)
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -288,11 +293,11 @@ const LeaderDashboard = ({ navigation }) => {
         payload.supervisorId = targetRecipient?._id || targetRecipient?.id;
         payload.lga = targetRecipient?.lga;
       } else if (targetMode === "bulk_sup") {
-        payload.supervisorIds = selectedSupIds;
+        payload.supervisorIds = selectedSupIds.length > 0 ? selectedSupIds : supervisors.map((s) => s._id || s.id);
       } else if (targetMode === "single_agent") {
         payload.agentId = targetRecipient?._id || targetRecipient?.id;
       } else if (targetMode === "bulk_agent") {
-        payload.agentIds = selectedAgentIds;
+        payload.agentIds = selectedAgentIds.length > 0 ? selectedAgentIds : agents.map((a) => a._id || a.id);
       }
 
       const res = await axios.post(`${BASE_URL}/leader/assign-target`, payload, { headers });
@@ -639,109 +644,105 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW */}
-          <View style={styles.executiveTargetCard}>
-            <View style={styles.execHeaderRow}>
+          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (DARK BLUE EXECUTIVE CARD) */}
+          <View style={styles.executiveTargetCardDark}>
+            <View style={styles.execHeaderRowDark}>
               <View>
-                <Text style={styles.execBadgeText}>OFFICIAL NSD STATE QUOTA ALLOCATION</Text>
-                <Text style={styles.execTitleText}>{myStateTarget.currentMonth.toUpperCase()} TARGET PROGRESS</Text>
+                <Text style={styles.execBadgeTextDark}>OFFICIAL NSD STATE QUOTA ALLOCATION</Text>
+                <Text style={styles.execTitleTextDark}>{myStateTarget.currentMonth.toUpperCase()} TARGET PROGRESS</Text>
               </View>
-              <View style={styles.cycleBadge}>
-                <Ionicons name="calendar" size={12} color="#1e40af" />
-                <Text style={styles.cycleBadgeText}>{myStateTarget.currentMonth}</Text>
+              <View style={styles.cycleBadgeDark}>
+                <Ionicons name="calendar" size={12} color="#38bdf8" />
+                <Text style={styles.cycleBadgeTextDark}>{myStateTarget.currentMonth}</Text>
               </View>
             </View>
 
             <View style={styles.execMetricsGrid}>
               {/* Data Target */}
-              <View style={[styles.execMetricBox, { backgroundColor: "#f0f7ff", borderColor: "#bfdbfe" }]}>
-                <Text style={[styles.execMetricLabel, { color: "#1e40af" }]}>DATA QUOTA (GB)</Text>
-                <Text style={[styles.execMetricValue, { color: "#1e40af" }]}>
+              <View style={styles.execMetricBoxDark}>
+                <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>DATA QUOTA (GB)</Text>
+                <Text style={styles.execMetricValueDark}>
                   {myStateTarget.dataSold} / {myStateTarget.dataGoal} GB
                 </Text>
-                <View style={styles.execProgressBarBg}>
-                  <View style={[styles.execProgressBarFill, { width: `${dataProgress}%`, backgroundColor: "#1e40af" }]} />
+                <View style={styles.execProgressBarBgDark}>
+                  <View style={[styles.execProgressBarFill, { width: `${dataProgress}%`, backgroundColor: "#38bdf8" }]} />
                 </View>
-                <Text style={styles.execPercentSub}>{dataProgress}% Completed</Text>
+                <Text style={styles.execPercentSubDark}>{dataProgress}% Completed</Text>
               </View>
 
               {/* Airtime Target */}
-              <View style={[styles.execMetricBox, { backgroundColor: "#fffbeb", borderColor: "#fde68a" }]}>
-                <Text style={[styles.execMetricLabel, { color: "#d97706" }]}>AIRTIME SALES (₦)</Text>
-                <Text style={[styles.execMetricValue, { color: "#d97706" }]}>
+              <View style={styles.execMetricBoxDark}>
+                <Text style={[styles.execMetricLabelDark, { color: "#fbbf24" }]}>AIRTIME SALES (₦)</Text>
+                <Text style={styles.execMetricValueDark}>
                   ₦{Number(myStateTarget.airtimeSold).toLocaleString()} / ₦{Number(myStateTarget.airtimeGoal).toLocaleString()}
                 </Text>
-                <View style={styles.execProgressBarBg}>
-                  <View style={[styles.execProgressBarFill, { width: `${airtimeProgress}%`, backgroundColor: "#d97706" }]} />
+                <View style={styles.execProgressBarBgDark}>
+                  <View style={[styles.execProgressBarFill, { width: `${airtimeProgress}%`, backgroundColor: "#fbbf24" }]} />
                 </View>
-                <Text style={styles.execPercentSub}>{airtimeProgress}% Completed</Text>
+                <Text style={styles.execPercentSubDark}>{airtimeProgress}% Completed</Text>
               </View>
 
               {/* New Agents Goal */}
-              <View style={[styles.execMetricBox, { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0" }]}>
-                <Text style={[styles.execMetricLabel, { color: "#059669" }]}>NEW AGENTS TARGET</Text>
-                <Text style={[styles.execMetricValue, { color: "#059669" }]}>
+              <View style={styles.execMetricBoxDark}>
+                <Text style={[styles.execMetricLabelDark, { color: "#34d399" }]}>NEW AGENTS TARGET</Text>
+                <Text style={styles.execMetricValueDark}>
                   {stats.totalAgents} / {myStateTarget.agentGoal || 50}
                 </Text>
-                <Text style={styles.execPercentSub}>Registered Retail Outlets</Text>
+                <Text style={styles.execPercentSubDark}>Registered Retail Outlets</Text>
               </View>
 
               {/* New Supervisors Goal */}
-              <View style={[styles.execMetricBox, { backgroundColor: "#f0fdfa", borderColor: "#99f6e4" }]}>
-                <Text style={[styles.execMetricLabel, { color: "#0d9488" }]}>SUPERVISORS TARGET</Text>
-                <Text style={[styles.execMetricValue, { color: "#0d9488" }]}>
+              <View style={styles.execMetricBoxDark}>
+                <Text style={[styles.execMetricLabelDark, { color: "#2dd4bf" }]}>SUPERVISORS TARGET</Text>
+                <Text style={styles.execMetricValueDark}>
                   {stats.totalSupervisors} / {myStateTarget.supervisorGoal || currentLgaList.length}
                 </Text>
-                <Text style={styles.execPercentSub}>LGA Network Leads</Text>
+                <Text style={styles.execPercentSubDark}>LGA Network Leads</Text>
               </View>
             </View>
           </View>
 
-          {/* SECTION 2: SUMMARY METRICS */}
+          {/* SECTION 2: SUMMARY METRICS (DARK BLUE BACKGROUNDS) */}
           <View style={styles.telemetrySection}>
             <View style={styles.metricGrid}>
-              <View style={[styles.metricCard, styles.cardBlueBg]}>
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={[styles.metricLabel, { color: "#1e3a8a" }]}>Field Supervisors</Text>
-                  <FontAwesome5 name="user-tie" size={13} color="#1e40af" />
+                  <Text style={styles.metricLabelDark}>Field Supervisors</Text>
+                  <FontAwesome5 name="user-tie" size={13} color="#38bdf8" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#1e40af" }]}>{stats.totalSupervisors}</Text>
-                <Text style={[styles.metricSub, { color: "#3b82f6" }]}>Across {stats.activeLgasCount} LGAs</Text>
+                <Text style={styles.metricValueDark}>{stats.totalSupervisors}</Text>
+                <Text style={styles.metricSubDark}>Across {stats.activeLgasCount} LGAs</Text>
               </View>
 
-              <View style={[styles.metricCard, styles.cardGreenBg]}>
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={[styles.metricLabel, { color: "#065f46" }]}>Retail Agents</Text>
-                  <Ionicons name="people" size={15} color="#059669" />
+                  <Text style={styles.metricLabelDark}>Retail Agents</Text>
+                  <Ionicons name="people" size={15} color="#34d399" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#059669" }]}>{stats.totalAgents}</Text>
-                <Text style={[styles.metricSub, { color: "#059669" }]}>Active Resellers</Text>
+                <Text style={styles.metricValueDark}>{stats.totalAgents}</Text>
+                <Text style={styles.metricSubDark}>Active Resellers</Text>
               </View>
 
-              <View style={[styles.metricCard, styles.cardPurpleBg]}>
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={[styles.metricLabel, { color: "#5b21b6" }]}>Data Delivered</Text>
-                  <Ionicons name="server" size={14} color="#7c3aed" />
+                  <Text style={styles.metricLabelDark}>Data Delivered</Text>
+                  <Ionicons name="server" size={14} color="#a78bfa" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#7c3aed" }]}>
+                <Text style={styles.metricValueDark}>
                   {Number(stats.overallDataSold || 0).toLocaleString()} GB
                 </Text>
-                <Text style={[styles.metricSub, { color: "#7c3aed" }]}>
-                Retail Data Volume
-                </Text>
+                <Text style={styles.metricSubDark}>Retail Data Volume</Text>
               </View>
 
-              <View style={[styles.metricCard, styles.cardAmberBg]}>
+              <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
-                  <Text style={[styles.metricLabel, { color: "#92400e" }]}>Airtime Sales</Text>
-                  <Ionicons name="call" size={13} color="#d97706" />
+                  <Text style={styles.metricLabelDark}>Airtime Sales</Text>
+                  <Ionicons name="call" size={13} color="#fbbf24" />
                 </View>
-                <Text style={[styles.metricValue, { color: "#d97706" }]}>
+                <Text style={styles.metricValueDark}>
                   ₦{Number(stats.overallAirtimeSold || 0).toLocaleString()}
                 </Text>
-                <Text style={[styles.metricSub, { color: "#d97706" }]}>
-                Gross VTU Volume
-              </Text>
+                <Text style={styles.metricSubDark}>Gross VTU Volume</Text>
               </View>
             </View>
           </View>
@@ -766,17 +767,18 @@ const LeaderDashboard = ({ navigation }) => {
           {/* TAB 1: FIELD SUPERVISORS */}
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
+              {/* Bulk Selection Ribbon */}
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllSupervisors}>
                   <MaterialIcons
-                    name={selectedSupIds.length === supervisors.length && supervisors.length > 0 ? "check-box" : "check-box-outline-blank"}
+                    name={selectedSupIds.length === filteredSupervisors.length && filteredSupervisors.length > 0 ? "check-box" : "check-box-outline-blank"}
                     size={20}
                     color="#1e40af"
                   />
                   <Text style={styles.bulkSelectBtnText}>
-                    {selectedSupIds.length === supervisors.length && supervisors.length > 0
+                    {selectedSupIds.length === filteredSupervisors.length && filteredSupervisors.length > 0
                       ? "Deselect All"
-                      : `Select Supervisors (${selectedSupIds.length}/${supervisors.length})`}
+                      : `Select Supervisors (${selectedSupIds.length}/${filteredSupervisors.length})`}
                   </Text>
                 </TouchableOpacity>
 
@@ -928,17 +930,18 @@ const LeaderDashboard = ({ navigation }) => {
           {/* TAB 2: AGENTS LIST */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
+              {/* Bulk Selection Ribbon */}
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllAgents}>
                   <MaterialIcons
-                    name={selectedAgentIds.length === agents.length && agents.length > 0 ? "check-box" : "check-box-outline-blank"}
+                    name={selectedAgentIds.length === filteredAgents.length && filteredAgents.length > 0 ? "check-box" : "check-box-outline-blank"}
                     size={20}
                     color="#059669"
                   />
                   <Text style={[styles.bulkSelectBtnText, { color: "#059669" }]}>
-                    {selectedAgentIds.length === agents.length && agents.length > 0
+                    {selectedAgentIds.length === filteredAgents.length && filteredAgents.length > 0
                       ? "Deselect All"
-                      : `Select Agents (${selectedAgentIds.length}/${agents.length})`}
+                      : `Select Agents (${selectedAgentIds.length}/${filteredAgents.length})`}
                   </Text>
                 </TouchableOpacity>
 
@@ -1410,10 +1413,14 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={styles.modalCardTitle}>
                   {targetMode.includes("sup")
                     ? targetMode === "bulk_sup"
-                      ? `Deploy Target to ${selectedSupIds.length} Supervisors`
+                      ? selectedSupIds.length > 0
+                        ? `Deploy Target to Selected (${selectedSupIds.length} FS)`
+                        : `Deploy Target to All (${supervisors.length} FS)`
                       : `Set Target for Supervisor ${targetRecipient?.name}`
                     : targetMode === "bulk_agent"
-                    ? `Deploy Quota to ${selectedAgentIds.length} Agents`
+                    ? selectedAgentIds.length > 0
+                      ? `Deploy Quota to Selected (${selectedAgentIds.length} Agents)`
+                      : `Deploy Quota to All (${agents.length} Agents)`
                     : `Set Quota for Agent ${targetRecipient?.name}`}
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
@@ -1740,60 +1747,63 @@ const styles = StyleSheet.create({
   },
   bannerActionBtnTextSecondary: { color: "#059669", fontSize: 10.5, fontWeight: "900", marginLeft: 6 },
 
-  executiveTargetCard: {
-    backgroundColor: "#ffffff",
+  // EXECUTIVE DARK BLUE CARDS
+  executiveTargetCardDark: {
+    backgroundColor: "#0f172a",
     marginHorizontal: isLargeScreen ? 24 : 16,
     marginTop: 12,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#1e293b",
     borderLeftWidth: 5,
-    borderLeftColor: "#1e40af",
-    elevation: 3,
+    borderLeftColor: "#38bdf8",
+    elevation: 4,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
   },
-  execHeaderRow: {
+  execHeaderRowDark: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
+    borderBottomColor: "#1e293b",
     paddingBottom: 10,
     marginBottom: 12,
   },
-  execBadgeText: { color: "#64748b", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.8 },
-  execTitleText: { color: "#0f172a", fontSize: 13.5, fontWeight: "900", marginTop: 2 },
-  cycleBadge: {
+  execBadgeTextDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.8 },
+  execTitleTextDark: { color: "#ffffff", fontSize: 13.5, fontWeight: "900", marginTop: 2 },
+  cycleBadgeDark: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#eff6ff",
+    backgroundColor: "rgba(56, 189, 248, 0.12)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: "#bfdbfe",
+    borderColor: "rgba(56, 189, 248, 0.25)",
   },
-  cycleBadgeText: { color: "#1e40af", fontSize: 10.5, fontWeight: "800", marginLeft: 4 },
+  cycleBadgeTextDark: { color: "#38bdf8", fontSize: 10.5, fontWeight: "800", marginLeft: 4 },
   execMetricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  execMetricBox: {
+  execMetricBoxDark: {
     width: isLargeScreen ? "23.5%" : "48.5%",
     borderRadius: 10,
     padding: 10,
     marginVertical: 4,
+    backgroundColor: "#1e293b",
     borderWidth: 1,
+    borderColor: "#334155",
   },
-  execMetricLabel: { fontSize: 9.5, fontWeight: "800" },
-  execMetricValue: { fontSize: 14.5, fontWeight: "900", marginVertical: 3 },
-  execProgressBarBg: { height: 6, backgroundColor: "#e2e8f0", borderRadius: 3, overflow: "hidden", marginVertical: 3 },
+  execMetricLabelDark: { fontSize: 9.5, fontWeight: "800" },
+  execMetricValueDark: { fontSize: 14.5, fontWeight: "900", marginVertical: 3, color: "#ffffff" },
+  execProgressBarBgDark: { height: 6, backgroundColor: "#334155", borderRadius: 3, overflow: "hidden", marginVertical: 3 },
   execProgressBarFill: { height: 6, borderRadius: 3 },
-  execPercentSub: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
+  execPercentSubDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "700" },
 
   bulkActionRibbon: {
     flexDirection: "row",
@@ -1827,20 +1837,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderLeftWidth: 4,
-    elevation: 2,
+    elevation: 3,
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
-  cardBlueBg: { backgroundColor: "#f0f7ff", borderColor: "#bfdbfe", borderLeftColor: "#1e40af" },
-  cardGreenBg: { backgroundColor: "#ecfdf5", borderColor: "#a7f3d0", borderLeftColor: "#059669" },
-  cardPurpleBg: { backgroundColor: "#f5f3ff", borderColor: "#ddd6fe", borderLeftColor: "#7c3aed" },
-  cardAmberBg: { backgroundColor: "#fffbeb", borderColor: "#fde68a", borderLeftColor: "#d97706" },
+  cardDarkBlueBg: {
+    backgroundColor: "#0f172a",
+    borderColor: "#1e293b",
+    borderLeftColor: "#38bdf8",
+  },
 
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  metricLabel: { fontSize: 11, fontWeight: "800" },
-  metricValue: { fontSize: 18, fontWeight: "900", marginVertical: 4 },
-  metricSub: { fontSize: 10, fontWeight: "700" },
+  metricLabelDark: { fontSize: 11, fontWeight: "800", color: "#94a3b8" },
+  metricValueDark: { fontSize: 18, fontWeight: "900", marginVertical: 4, color: "#ffffff" },
+  metricSubDark: { fontSize: 10, fontWeight: "700", color: "#38bdf8" },
 
   searchBar: {
     flexDirection: "row",
