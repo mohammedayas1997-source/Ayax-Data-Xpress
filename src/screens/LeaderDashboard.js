@@ -65,7 +65,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [selectedLga, setSelectedLga] = useState("All LGAs");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Bulk Selection States (Don zabar kadan ko duka)
+  // Bulk Selection States a Main Screen
   const [selectedSupIds, setSelectedSupIds] = useState([]);
   const [selectedAgentIds, setSelectedAgentIds] = useState([]);
 
@@ -78,10 +78,16 @@ const LeaderDashboard = ({ navigation }) => {
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
-  // Modal 2: Target Modal
+  // =========================================================================
+  // ADVANCED TARGET COMMAND MODAL STATES (LGA, SUPERVISOR, & AGENTS)
+  // =========================================================================
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single_sup"); // 'single_sup', 'bulk_sup', 'single_agent', 'bulk_agent'
-  const [targetRecipient, setTargetRecipient] = useState(null);
+  const [targetCategory, setTargetCategory] = useState("supervisor"); // 'supervisor', 'agent', 'lga'
+  const [targetScope, setTargetScope] = useState("selected"); // 'all', 'selected', 'by_lga'
+  const [targetSelectedLgas, setTargetSelectedLgas] = useState([]); // Selected LGAs
+  const [targetSelectedPeopleIds, setTargetSelectedPeopleIds] = useState([]); // Selected Sup or Agent IDs
+  
+  // Quota Inputs
   const [targetDataGoal, setTargetDataGoal] = useState("500");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
   const [targetAgentGoal, setTargetAgentGoal] = useState("10");
@@ -237,43 +243,41 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Select All ko Deselect Supervisors
-  const handleSelectAllSupervisors = () => {
-    if (selectedSupIds.length === supervisors.length) {
-      setSelectedSupIds([]);
+  // Helper don Zabar Mutane a cikin Modal
+  const handleToggleModalPerson = (id) => {
+    if (targetSelectedPeopleIds.includes(id)) {
+      setTargetSelectedPeopleIds(targetSelectedPeopleIds.filter((item) => item !== id));
     } else {
-      setSelectedSupIds(supervisors.map((s) => s._id || s.id));
+      setTargetSelectedPeopleIds([...targetSelectedPeopleIds, id]);
     }
   };
 
-  // Zabar supervisor guda daya (Single/Multi Select)
-  const handleToggleSupervisorSelect = (id) => {
-    if (selectedSupIds.includes(id)) {
-      setSelectedSupIds(selectedSupIds.filter((item) => item !== id));
+  const handleSelectAllModalPeople = () => {
+    const pool = targetCategory === "supervisor" ? supervisors : agents;
+    if (targetSelectedPeopleIds.length === pool.length) {
+      setTargetSelectedPeopleIds([]);
     } else {
-      setSelectedSupIds([...selectedSupIds, id]);
+      setTargetSelectedPeopleIds(pool.map((p) => p._id || p.id));
     }
   };
 
-  // Select All ko Deselect Agents
-  const handleSelectAllAgents = () => {
-    if (selectedAgentIds.length === agents.length) {
-      setSelectedAgentIds([]);
+  const handleToggleModalLga = (lga) => {
+    if (targetSelectedLgas.includes(lga)) {
+      setTargetSelectedLgas(targetSelectedLgas.filter((item) => item !== lga));
     } else {
-      setSelectedAgentIds(agents.map((a) => a._id || a.id));
+      setTargetSelectedLgas([...targetSelectedLgas, lga]);
     }
   };
 
-  // Zabar Agent guda daya (Single/Multi Select)
-  const handleToggleAgentSelect = (id) => {
-    if (selectedAgentIds.includes(id)) {
-      setSelectedAgentIds(selectedAgentIds.filter((item) => item !== id));
+  const handleSelectAllModalLgas = () => {
+    if (targetSelectedLgas.length === currentLgaList.length) {
+      setTargetSelectedLgas([]);
     } else {
-      setSelectedAgentIds([...selectedAgentIds, id]);
+      setTargetSelectedLgas([...currentLgaList]);
     }
   };
 
-  // Aikin Tura Target (Ga Mutum Daya, Zaɓaɓɓu Kaɗan, ko Duka Gaba Ɗaya)
+  // AIKIN TURA TARGET GA MUTANE KAƊAN, KOWACE LGA, KO DUKA GABA DAYA
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -281,7 +285,8 @@ const LeaderDashboard = ({ navigation }) => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const payload = {
-        mode: targetMode,
+        category: targetCategory,
+        scope: targetScope,
         dataGoal: Number(targetDataGoal),
         airtimeGoal: Number(targetAirtimeGoal),
         agentGoal: Number(targetAgentGoal),
@@ -289,25 +294,39 @@ const LeaderDashboard = ({ navigation }) => {
         state: managerState,
       };
 
-      if (targetMode === "single_sup") {
-        payload.supervisorId = targetRecipient?._id || targetRecipient?.id;
-        payload.lga = targetRecipient?.lga;
-      } else if (targetMode === "bulk_sup") {
-        payload.supervisorIds = selectedSupIds.length > 0 ? selectedSupIds : supervisors.map((s) => s._id || s.id);
-      } else if (targetMode === "single_agent") {
-        payload.agentId = targetRecipient?._id || targetRecipient?.id;
-      } else if (targetMode === "bulk_agent") {
-        payload.agentIds = selectedAgentIds.length > 0 ? selectedAgentIds : agents.map((a) => a._id || a.id);
+      if (targetCategory === "lga") {
+        if (targetScope === "by_lga" && targetSelectedLgas.length === 0) {
+          showAlert("Validation Error", "Please select at least one LGA.");
+          setActionLoading(false);
+          return;
+        }
+        payload.lgas = targetScope === "all" ? currentLgaList : targetSelectedLgas;
+      } else if (targetCategory === "supervisor") {
+        if (targetScope === "selected" && targetSelectedPeopleIds.length === 0) {
+          showAlert("Validation Error", "Please select at least one Supervisor.");
+          setActionLoading(false);
+          return;
+        }
+        payload.supervisorIds = targetScope === "all" ? supervisors.map((s) => s._id || s.id) : targetSelectedPeopleIds;
+      } else if (targetCategory === "agent") {
+        if (targetScope === "selected" && targetSelectedPeopleIds.length === 0) {
+          showAlert("Validation Error", "Please select at least one Retail Agent.");
+          setActionLoading(false);
+          return;
+        }
+        payload.agentIds = targetScope === "all" ? agents.map((a) => a._id || a.id) : targetSelectedPeopleIds;
       }
 
       const res = await axios.post(`${BASE_URL}/leader/assign-target`, payload, { headers });
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Targets Deployed 🎯", "Quota allocation successfully updated.");
+        showAlert(
+          "Targets Deployed 🎯",
+          `Successfully allocated target (${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime) across the specified recipients.`
+        );
         setTargetModalVisible(false);
-        setTargetRecipient(null);
-        setSelectedSupIds([]);
-        setSelectedAgentIds([]);
+        setTargetSelectedPeopleIds([]);
+        setTargetSelectedLgas([]);
         fetchDashboardData();
       }
     } catch (err) {
@@ -326,8 +345,9 @@ const LeaderDashboard = ({ navigation }) => {
         await axios.post(
           `${BASE_URL}/leader/assign-target`,
           {
-            mode: type === "supervisor" ? "single_sup" : "single_agent",
-            [type === "supervisor" ? "supervisorId" : "agentId"]: recipientId,
+            category: type,
+            scope: "selected",
+            [type === "supervisor" ? "supervisorIds" : "agentIds"]: [recipientId],
             dataGoal: 0,
             airtimeGoal: 0,
             agentGoal: 0,
@@ -605,7 +625,7 @@ const LeaderDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* DIRECT TARGET COMMAND BANNER */}
+          {/* DIRECT TARGET COMMAND BANNER (BABBAN MABALLIN SAMAR DA TARGET) */}
           <View style={styles.targetCommandBanner}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={styles.targetBannerIconWrap}>
@@ -613,7 +633,7 @@ const LeaderDashboard = ({ navigation }) => {
               </View>
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.targetBannerTitle}>State Quota Command Desk</Text>
-                <Text style={styles.targetBannerSub}>Deploy Data, Airtime & Recruitment quotas</Text>
+                <Text style={styles.targetBannerSub}>Deploy custom targets to selected LGA, Supervisors, or Agents</Text>
               </View>
             </View>
 
@@ -621,25 +641,37 @@ const LeaderDashboard = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.bannerActionBtnPrimary}
                 onPress={() => {
-                  setTargetMode("bulk_sup");
-                  setSelectedSupIds(supervisors.map((s) => s._id || s.id));
+                  setTargetCategory("supervisor");
+                  setTargetScope("selected");
                   setTargetModalVisible(true);
                 }}
               >
                 <FontAwesome5 name="user-tie" size={12} color="#ffffff" />
-                <Text style={styles.bannerActionBtnTextPrimary}>TARGET ALL SUPERVISORS</Text>
+                <Text style={styles.bannerActionBtnTextPrimary}>TARGET SUPERVISORS</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.bannerActionBtnSecondary}
                 onPress={() => {
-                  setTargetMode("bulk_agent");
-                  setSelectedAgentIds(agents.map((a) => a._id || a.id));
+                  setTargetCategory("agent");
+                  setTargetScope("selected");
                   setTargetModalVisible(true);
                 }}
               >
                 <Ionicons name="people" size={14} color="#059669" />
-                <Text style={styles.bannerActionBtnTextSecondary}>TARGET ALL AGENTS</Text>
+                <Text style={styles.bannerActionBtnTextSecondary}>TARGET AGENTS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bannerActionBtnTertiary}
+                onPress={() => {
+                  setTargetCategory("lga");
+                  setTargetScope("by_lga");
+                  setTargetModalVisible(true);
+                }}
+              >
+                <MaterialCommunityIcons name="map-marker-radius" size={14} color="#0284c7" />
+                <Text style={styles.bannerActionBtnTextTertiary}>TARGET LGAS</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -767,35 +799,6 @@ const LeaderDashboard = ({ navigation }) => {
           {/* TAB 1: FIELD SUPERVISORS */}
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
-              {/* Bulk Selection Ribbon */}
-              <View style={styles.bulkActionRibbon}>
-                <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllSupervisors}>
-                  <MaterialIcons
-                    name={selectedSupIds.length === filteredSupervisors.length && filteredSupervisors.length > 0 ? "check-box" : "check-box-outline-blank"}
-                    size={20}
-                    color="#1e40af"
-                  />
-                  <Text style={styles.bulkSelectBtnText}>
-                    {selectedSupIds.length === filteredSupervisors.length && filteredSupervisors.length > 0
-                      ? "Deselect All"
-                      : `Select Supervisors (${selectedSupIds.length}/${filteredSupervisors.length})`}
-                  </Text>
-                </TouchableOpacity>
-
-                {selectedSupIds.length > 0 && (
-                  <TouchableOpacity
-                    style={styles.bulkTargetBtn}
-                    onPress={() => {
-                      setTargetMode("bulk_sup");
-                      setTargetModalVisible(true);
-                    }}
-                  >
-                    <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Targets ({selectedSupIds.length} FS)</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>FIELD SUPERVISORS DIRECTORY ({filteredSupervisors.length})</Text>
                 <TouchableOpacity style={styles.actionPillBtn} onPress={() => setEnrollModalVisible(true)}>
@@ -809,25 +812,10 @@ const LeaderDashboard = ({ navigation }) => {
                   const supId = item._id || item.id;
                   const supName = item.name || `${item.firstName || ""} ${item.surname || ""}` || "Field Supervisor";
                   const supLga = item.lga || "Unassigned LGA";
-                  const isSelected = selectedSupIds.includes(supId);
 
                   return (
-                    <View
-                      key={supId}
-                      style={[styles.supCard, isSelected && styles.cardSelected]}
-                    >
+                    <View key={supId} style={styles.supCard}>
                       <View style={styles.supCardHeader}>
-                        <TouchableOpacity
-                          style={{ marginRight: 10 }}
-                          onPress={() => handleToggleSupervisorSelect(supId)}
-                        >
-                          <MaterialIcons
-                            name={isSelected ? "check-box" : "check-box-outline-blank"}
-                            size={22}
-                            color={isSelected ? "#1e40af" : "#94a3b8"}
-                          />
-                        </TouchableOpacity>
-
                         <View style={styles.supMainInfo}>
                           <View style={styles.supAvatar}>
                             <FontAwesome5 name="user-tie" size={16} color="#1e40af" />
@@ -882,8 +870,9 @@ const LeaderDashboard = ({ navigation }) => {
                         <TouchableOpacity
                           style={styles.supActionBtn}
                           onPress={() => {
-                            setTargetRecipient(item);
-                            setTargetMode("single_sup");
+                            setTargetCategory("supervisor");
+                            setTargetScope("selected");
+                            setTargetSelectedPeopleIds([supId]);
                             setTargetDataGoal(String(item.dataGoal || 500));
                             setTargetAirtimeGoal(String(item.airtimeGoal || 50000));
                             setTargetAgentGoal(String(item.agentGoal || 10));
@@ -930,35 +919,6 @@ const LeaderDashboard = ({ navigation }) => {
           {/* TAB 2: AGENTS LIST */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
-              {/* Bulk Selection Ribbon */}
-              <View style={styles.bulkActionRibbon}>
-                <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllAgents}>
-                  <MaterialIcons
-                    name={selectedAgentIds.length === filteredAgents.length && filteredAgents.length > 0 ? "check-box" : "check-box-outline-blank"}
-                    size={20}
-                    color="#059669"
-                  />
-                  <Text style={[styles.bulkSelectBtnText, { color: "#059669" }]}>
-                    {selectedAgentIds.length === filteredAgents.length && filteredAgents.length > 0
-                      ? "Deselect All"
-                      : `Select Agents (${selectedAgentIds.length}/${filteredAgents.length})`}
-                  </Text>
-                </TouchableOpacity>
-
-                {selectedAgentIds.length > 0 && (
-                  <TouchableOpacity
-                    style={[styles.bulkTargetBtn, { backgroundColor: "#059669" }]}
-                    onPress={() => {
-                      setTargetMode("bulk_agent");
-                      setTargetModalVisible(true);
-                    }}
-                  >
-                    <FontAwesome5 name="bullseye" size={12} color="#ffffff" />
-                    <Text style={styles.bulkTargetBtnText}>Deploy Bulk Quotas ({selectedAgentIds.length} Agents)</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>GRASSROOT RETAIL AGENTS ({filteredAgents.length})</Text>
               </View>
@@ -966,22 +926,10 @@ const LeaderDashboard = ({ navigation }) => {
               {filteredAgents.length > 0 ? (
                 filteredAgents.map((ag) => {
                   const agId = ag._id || ag.id;
-                  const isSelected = selectedAgentIds.includes(agId);
 
                   return (
-                    <View key={agId} style={[styles.agentCard, isSelected && styles.cardSelected]}>
+                    <View key={agId} style={styles.agentCard}>
                       <View style={styles.agentCardTop}>
-                        <TouchableOpacity
-                          style={{ marginRight: 10 }}
-                          onPress={() => handleToggleAgentSelect(agId)}
-                        >
-                          <MaterialIcons
-                            name={isSelected ? "check-box" : "check-box-outline-blank"}
-                            size={20}
-                            color={isSelected ? "#059669" : "#94a3b8"}
-                          />
-                        </TouchableOpacity>
-
                         <View style={{ flex: 1 }}>
                           <Text style={styles.agentNameText}>{ag.name || "Retail Agent"}</Text>
                           <Text style={styles.agentSupervisorTag}>
@@ -1011,8 +959,9 @@ const LeaderDashboard = ({ navigation }) => {
                         <TouchableOpacity
                           style={styles.agentActionMiniBtn}
                           onPress={() => {
-                            setTargetRecipient(ag);
-                            setTargetMode("single_agent");
+                            setTargetCategory("agent");
+                            setTargetScope("selected");
+                            setTargetSelectedPeopleIds([agId]);
                             setTargetDataGoal(String(ag.dataGoal || 100));
                             setTargetAirtimeGoal(String(ag.airtimeGoal || 10000));
                             setTargetModalVisible(true);
@@ -1100,15 +1049,29 @@ const LeaderDashboard = ({ navigation }) => {
                             {agentsInLga.length} Agents • {totalLgaData} GB Sold
                           </Text>
 
-                          <TouchableOpacity
-                            style={styles.lgaAppointBtn}
-                            onPress={() => {
-                              setNewSupLga(lgaName);
-                              setEnrollModalVisible(true);
-                            }}
-                          >
-                            <Text style={styles.lgaAppointBtnText}>+ Add More FS</Text>
-                          </TouchableOpacity>
+                          <View style={{ flexDirection: "row", marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[styles.lgaAppointBtn, { flex: 1, marginRight: 4 }]}
+                              onPress={() => {
+                                setTargetCategory("lga");
+                                setTargetScope("by_lga");
+                                setTargetSelectedLgas([lgaName]);
+                                setTargetModalVisible(true);
+                              }}
+                            >
+                              <Text style={styles.lgaAppointBtnText}>Set Target</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={[styles.lgaAppointBtn, { flex: 1, marginLeft: 4, backgroundColor: "#f1f5f9" }]}
+                              onPress={() => {
+                                setNewSupLga(lgaName);
+                                setEnrollModalVisible(true);
+                              }}
+                            >
+                              <Text style={[styles.lgaAppointBtnText, { color: "#475569" }]}>+ Add FS</Text>
+                            </TouchableOpacity>
+                          </View>
                         </>
                       ) : (
                         <View style={{ alignItems: "center", paddingVertical: 10 }}>
@@ -1270,8 +1233,8 @@ const LeaderDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setTargetMode("bulk_sup");
-                  setSelectedSupIds(supervisors.map((s) => s._id || s.id));
+                  setTargetCategory("supervisor");
+                  setTargetScope("selected");
                   setTargetModalVisible(true);
                 }}
               >
@@ -1285,8 +1248,8 @@ const LeaderDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setTargetMode("bulk_agent");
-                  setSelectedAgentIds(agents.map((a) => a._id || a.id));
+                  setTargetCategory("agent");
+                  setTargetScope("selected");
                   setTargetModalVisible(true);
                 }}
               >
@@ -1404,27 +1367,17 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: TARGET DEPLOYMENT MODAL */}
+      {/* =========================================================================
+          MODAL 2: ADVANCED TARGET DEPLOYMENT (LGA, SUPERVISORS, KAƊAN KO DUKA)
+         ========================================================================= */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>
-                  {targetMode.includes("sup")
-                    ? targetMode === "bulk_sup"
-                      ? selectedSupIds.length > 0
-                        ? `Deploy Target to Selected (${selectedSupIds.length} FS)`
-                        : `Deploy Target to All (${supervisors.length} FS)`
-                      : `Set Target for Supervisor ${targetRecipient?.name}`
-                    : targetMode === "bulk_agent"
-                    ? selectedAgentIds.length > 0
-                      ? `Deploy Quota to Selected (${selectedAgentIds.length} Agents)`
-                      : `Deploy Quota to All (${agents.length} Agents)`
-                    : `Set Quota for Agent ${targetRecipient?.name}`}
-                </Text>
+                <Text style={styles.modalCardTitle}>Deploy Custom Targets</Text>
                 <Text style={styles.modalCardSubtitle}>
-                  {targetMode.includes("sup") ? "Field Supervisor Targets" : "Grassroot Retail Agent Quotas"}
+                  State Operations: {managerState} Quota Allocation
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetModalVisible(false)}>
@@ -1432,11 +1385,170 @@ const LeaderDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380 }}>
-              <Text style={styles.formFieldLabel}>TARGET MONTH / CYCLE</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* STEP 1: SELECT TARGET RECIPIENT TYPE */}
+              <Text style={styles.formFieldLabel}>1. SELECT TARGET CATEGORY</Text>
+              <View style={styles.toggleSegmentRow}>
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetCategory === "supervisor" && styles.toggleSegmentBtnActive]}
+                  onPress={() => {
+                    setTargetCategory("supervisor");
+                    setTargetSelectedPeopleIds([]);
+                  }}
+                >
+                  <FontAwesome5 name="user-tie" size={12} color={targetCategory === "supervisor" ? "#ffffff" : "#64748b"} />
+                  <Text style={[styles.toggleSegmentText, targetCategory === "supervisor" && styles.toggleSegmentTextActive]}>
+                    Supervisors ({supervisors.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetCategory === "agent" && styles.toggleSegmentBtnActive]}
+                  onPress={() => {
+                    setTargetCategory("agent");
+                    setTargetSelectedPeopleIds([]);
+                  }}
+                >
+                  <Ionicons name="people" size={14} color={targetCategory === "agent" ? "#ffffff" : "#64748b"} />
+                  <Text style={[styles.toggleSegmentText, targetCategory === "agent" && styles.toggleSegmentTextActive]}>
+                    Agents ({agents.length})
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetCategory === "lga" && styles.toggleSegmentBtnActive]}
+                  onPress={() => {
+                    setTargetCategory("lga");
+                    setTargetSelectedLgas([]);
+                  }}
+                >
+                  <MaterialCommunityIcons name="map-marker-radius" size={14} color={targetCategory === "lga" ? "#ffffff" : "#64748b"} />
+                  <Text style={[styles.toggleSegmentText, targetCategory === "lga" && styles.toggleSegmentTextActive]}>
+                    LGAs ({currentLgaList.length})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* STEP 2: SCOPE SELECTION (ZABAR MUTANE KADAN KO DUKA) */}
+              <Text style={styles.formFieldLabel}>2. SELECT SCOPE (RECIPIENTS)</Text>
+              <View style={styles.toggleSegmentRow}>
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetScope === "selected" && styles.toggleSegmentBtnActive]}
+                  onPress={() => setTargetScope("selected")}
+                >
+                  <Text style={[styles.toggleSegmentText, targetScope === "selected" && styles.toggleSegmentTextActive]}>
+                    Select Specific (Kaɗan)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, targetScope === "all" && styles.toggleSegmentBtnActive]}
+                  onPress={() => {
+                    setTargetScope("all");
+                    if (targetCategory === "supervisor") setTargetSelectedPeopleIds(supervisors.map((s) => s._id || s.id));
+                    if (targetCategory === "agent") setTargetSelectedPeopleIds(agents.map((a) => a._id || a.id));
+                    if (targetCategory === "lga") setTargetSelectedLgas([...currentLgaList]);
+                  }}
+                >
+                  <Text style={[styles.toggleSegmentText, targetScope === "all" && styles.toggleSegmentTextActive]}>
+                    Select All in State (Duka)
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* CHECKBOX LIST DON ZABAR MUTANE KADAN (SPECIFIC SELECTION) */}
+              {targetScope === "selected" && targetCategory !== "lga" && (
+                <View style={styles.selectionListBox}>
+                  <View style={styles.selectionListHeader}>
+                    <Text style={styles.selectionListHeaderTitle}>
+                      {targetCategory === "supervisor" ? "Select Supervisors" : "Select Agents"} ({targetSelectedPeopleIds.length} chosen)
+                    </Text>
+                    <TouchableOpacity onPress={handleSelectAllModalPeople}>
+                      <Text style={styles.selectionListSelectAllText}>
+                        {targetSelectedPeopleIds.length === (targetCategory === "supervisor" ? supervisors.length : agents.length)
+                          ? "Deselect All"
+                          : "Select All"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                    {(targetCategory === "supervisor" ? supervisors : agents).map((item) => {
+                      const id = item._id || item.id;
+                      const name = item.name || `${item.firstName || ""} ${item.surname || ""}` || "User";
+                      const isChecked = targetSelectedPeopleIds.includes(id);
+
+                      return (
+                        <TouchableOpacity
+                          key={id}
+                          style={[styles.personCheckItem, isChecked && styles.personCheckItemActive]}
+                          onPress={() => handleToggleModalPerson(id)}
+                        >
+                          <MaterialIcons
+                            name={isChecked ? "check-box" : "check-box-outline-blank"}
+                            size={20}
+                            color={isChecked ? "#1e40af" : "#94a3b8"}
+                          />
+                          <View style={{ marginLeft: 8, flex: 1 }}>
+                            <Text style={styles.personCheckName}>{name}</Text>
+                            <Text style={styles.personCheckSub}>
+                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* CHECKBOX LIST DON ZABAR LGA (KOWANE LGA) */}
+              {targetCategory === "lga" && (
+                <View style={styles.selectionListBox}>
+                  <View style={styles.selectionListHeader}>
+                    <Text style={styles.selectionListHeaderTitle}>
+                      Select Target LGAs ({targetSelectedLgas.length} chosen)
+                    </Text>
+                    <TouchableOpacity onPress={handleSelectAllModalLgas}>
+                      <Text style={styles.selectionListSelectAllText}>
+                        {targetSelectedLgas.length === currentLgaList.length ? "Deselect All" : "Select All LGAs"}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView style={{ maxHeight: 160 }} nestedScrollEnabled>
+                    <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                      {currentLgaList.map((lga) => {
+                        const isChecked = targetSelectedLgas.includes(lga);
+                        return (
+                          <TouchableOpacity
+                            key={lga}
+                            style={[styles.lgaCheckItem, isChecked && styles.lgaCheckItemActive]}
+                            onPress={() => handleToggleModalLga(lga)}
+                          >
+                            <MaterialIcons
+                              name={isChecked ? "check-box" : "check-box-outline-blank"}
+                              size={18}
+                              color={isChecked ? "#1e40af" : "#94a3b8"}
+                            />
+                            <Text style={[styles.lgaCheckText, isChecked && { color: "#1e40af", fontWeight: "bold" }]}>
+                              {lga}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* STEP 3: QUOTA VALUES INPUTS */}
+              <Text style={styles.formFieldLabel}>3. TARGET QUOTA GOALS</Text>
+              
+              <Text style={styles.formFieldSubLabel}>TARGET MONTH / CYCLE</Text>
               <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
 
-              <Text style={styles.formFieldLabel}>DATA VOLUME QUOTA (GB GOAL)</Text>
+              <Text style={styles.formFieldSubLabel}>DATA VOLUME GOAL (GB)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 keyboardType="numeric"
@@ -1446,7 +1558,7 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setTargetDataGoal}
               />
 
-              <Text style={styles.formFieldLabel}>AIRTIME SALES QUOTA (₦ NAIRA GOAL)</Text>
+              <Text style={styles.formFieldSubLabel}>AIRTIME SALES GOAL (₦)</Text>
               <TextInput
                 style={styles.textInputStyle}
                 keyboardType="numeric"
@@ -1456,9 +1568,9 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setTargetAirtimeGoal}
               />
 
-              {targetMode.includes("sup") && (
+              {targetCategory === "supervisor" && (
                 <>
-                  <Text style={styles.formFieldLabel}>NEW AGENT RECRUITMENT TARGET (HEADCOUNT)</Text>
+                  <Text style={styles.formFieldSubLabel}>NEW AGENTS RECRUITMENT GOAL (HEADCOUNT)</Text>
                   <TextInput
                     style={styles.textInputStyle}
                     keyboardType="numeric"
@@ -1479,7 +1591,7 @@ const LeaderDashboard = ({ navigation }) => {
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text style={styles.primaryActionBtnText}>
-                    {targetMode.includes("bulk") ? "AUTHORIZE BULK TARGETS" : "AUTHORIZE & DEPLOY TARGET"}
+                    AUTHORIZE & DEPLOY TARGET QUOTAS
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1730,9 +1842,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#1e40af",
     paddingVertical: 8,
     borderRadius: 8,
-    marginRight: 6,
+    marginRight: 4,
   },
-  bannerActionBtnTextPrimary: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 6 },
+  bannerActionBtnTextPrimary: { color: "#ffffff", fontSize: 10, fontWeight: "900", marginLeft: 4 },
   bannerActionBtnSecondary: {
     flex: 1,
     flexDirection: "row",
@@ -1743,11 +1855,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#a7f3d0",
-    marginLeft: 6,
+    marginHorizontal: 4,
   },
-  bannerActionBtnTextSecondary: { color: "#059669", fontSize: 10.5, fontWeight: "900", marginLeft: 6 },
+  bannerActionBtnTextSecondary: { color: "#059669", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+  bannerActionBtnTertiary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    marginLeft: 4,
+  },
+  bannerActionBtnTextTertiary: { color: "#0284c7", fontSize: 10, fontWeight: "900", marginLeft: 4 },
 
-  // EXECUTIVE DARK BLUE CARDS
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
     marginHorizontal: isLargeScreen ? 24 : 16,
@@ -1759,9 +1883,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 5,
     borderLeftColor: "#38bdf8",
     elevation: 4,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
   },
   execHeaderRowDark: {
     flexDirection: "row",
@@ -1805,29 +1926,6 @@ const styles = StyleSheet.create({
   execProgressBarFill: { height: 6, borderRadius: 3 },
   execPercentSubDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "700" },
 
-  bulkActionRibbon: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    padding: 10,
-    borderRadius: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#cbd5e1",
-  },
-  bulkSelectBtn: { flexDirection: "row", alignItems: "center" },
-  bulkSelectBtnText: { color: "#1e40af", fontSize: 11.5, fontWeight: "800", marginLeft: 6 },
-  bulkTargetBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1e40af",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  bulkTargetBtnText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
-
   telemetrySection: { paddingHorizontal: isLargeScreen ? 24 : 16, marginTop: 12 },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   metricCard: {
@@ -1838,16 +1936,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 4,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
   },
   cardDarkBlueBg: {
     backgroundColor: "#0f172a",
     borderColor: "#1e293b",
     borderLeftColor: "#38bdf8",
   },
-
   cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   metricLabelDark: { fontSize: 11, fontWeight: "800", color: "#94a3b8" },
   metricValueDark: { fontSize: 18, fontWeight: "900", marginVertical: 4, color: "#ffffff" },
@@ -1887,11 +1981,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
   },
-  cardSelected: { borderColor: "#1e40af", backgroundColor: "#f0f7ff" },
   supCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   supMainInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
   supAvatar: {
@@ -2122,7 +2212,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: "100%",
-    maxWidth: 460,
+    maxWidth: 480,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     elevation: 8,
@@ -2139,13 +2229,127 @@ const styles = StyleSheet.create({
   modalCardTitle: { color: "#0f172a", fontSize: 15, fontWeight: "900" },
   modalCardSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
   formFieldLabel: {
-    color: "#475569",
-    fontSize: 10,
+    color: "#1e40af",
+    fontSize: 10.5,
     fontWeight: "900",
     letterSpacing: 0.8,
     marginTop: 12,
     marginBottom: 6,
   },
+  formFieldSubLabel: {
+    color: "#475569",
+    fontSize: 9.5,
+    fontWeight: "800",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+
+  // Toggle Segment Buttons
+  toggleSegmentRow: {
+    flexDirection: "row",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 10,
+  },
+  toggleSegmentBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  toggleSegmentBtnActive: {
+    backgroundColor: "#1e40af",
+    elevation: 2,
+  },
+  toggleSegmentText: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 4,
+  },
+  toggleSegmentTextActive: {
+    color: "#ffffff",
+    fontWeight: "900",
+  },
+
+  // Specific Selection List Box (Checkboxes)
+  selectionListBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    marginBottom: 12,
+  },
+  selectionListHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    paddingBottom: 6,
+    marginBottom: 6,
+  },
+  selectionListHeaderTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#0f172a",
+  },
+  selectionListSelectAllText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#1e40af",
+  },
+  personCheckItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 4,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  personCheckItemActive: {
+    borderColor: "#1e40af",
+    backgroundColor: "#eff6ff",
+  },
+  personCheckName: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  personCheckSub: {
+    color: "#64748b",
+    fontSize: 10,
+  },
+
+  lgaCheckItem: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 6,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  lgaCheckItemActive: {
+    borderColor: "#1e40af",
+    backgroundColor: "#eff6ff",
+  },
+  lgaCheckText: {
+    color: "#475569",
+    fontSize: 11,
+    marginLeft: 6,
+  },
+
   lgaTab: {
     paddingHorizontal: 12,
     paddingVertical: 6,
