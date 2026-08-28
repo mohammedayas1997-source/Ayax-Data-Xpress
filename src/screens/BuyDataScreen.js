@@ -27,9 +27,6 @@ const BuyDataScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userRole, setUserRole] = useState("user");
 
-  // State na buɗe/rufe jerin tsare-tsare (Accordion)
-  const [showPlansDropdown, setShowPlansDropdown] = useState(false);
-
   // PIN Modal
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
@@ -57,7 +54,7 @@ const BuyDataScreen = ({ navigation }) => {
     fetchUserRole();
   }, []);
 
-  // 1. Dauko Plans tare da ingantaccen Network Matching
+  // 1. Dauko Plans daga Database
   const fetchLivePlans = useCallback(async (net) => {
     setLoadingPlans(true);
     try {
@@ -71,7 +68,6 @@ const BuyDataScreen = ({ navigation }) => {
       };
 
       let res;
-      // Kira kofar da ta dace da kowa
       try {
         res = await axios.get(`${BASE_URL}/data/plans`, config);
       } catch (err1) {
@@ -86,7 +82,7 @@ const BuyDataScreen = ({ navigation }) => {
         const rawPlans = res.data.data || res.data.plans || (Array.isArray(res.data) ? res.data : []);
         const plansArray = Array.isArray(rawPlans) ? rawPlans : [];
 
-        // Ingantaccen Network Matching (mai gane MTN, Airtel, Glo, 9mobile a kowace siga)
+        // Tace plans bisa ga Network
         const currentNet = String(net).toUpperCase().trim();
         const networkFiltered = plansArray.filter((p) => {
           const pNet = String(p.network || p.networkName || p.network_name || "").toUpperCase();
@@ -100,7 +96,6 @@ const BuyDataScreen = ({ navigation }) => {
           );
         });
 
-        // Idan an samu wanda yayi daidai da Network a saka su, idan ba a samu ba a bar list din
         setAvailablePlans(networkFiltered.length > 0 ? networkFiltered : plansArray);
       }
     } catch (err) {
@@ -113,10 +108,9 @@ const BuyDataScreen = ({ navigation }) => {
   useEffect(() => {
     fetchLivePlans(selectedNetwork);
     setSelectedPlan(null);
-    setShowPlansDropdown(false);
   }, [selectedNetwork, fetchLivePlans]);
 
-  // Tace plans dangane da Plan Type (SME, GIFTING, CG, etc.)
+  // Tace plans dangane da Plan Type
   const filteredPlans = availablePlans.filter((p) => {
     if (selectedPlanType === "ALL") return true;
     const pType = String(p.planType || p.type || "").toUpperCase();
@@ -131,7 +125,7 @@ const BuyDataScreen = ({ navigation }) => {
       return showAlert("Error", "Please enter a valid 11-digit recipient phone number.");
     }
     if (!selectedPlan) {
-      return showAlert("Error", "Please tap on AVAILABLE PLANS to select a data bundle.");
+      return showAlert("Error", "Please tap to select a data bundle from the list below.");
     }
     setPinModalVisible(true);
   };
@@ -221,7 +215,7 @@ const BuyDataScreen = ({ navigation }) => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
         {/* Network Selector */}
         <Text style={styles.sectionLabel}>SELECT NETWORK</Text>
         <View style={styles.networkGrid}>
@@ -266,101 +260,64 @@ const BuyDataScreen = ({ navigation }) => {
           onChangeText={setPhoneNumber}
         />
 
-        {/* Available Plans Selector Header Button */}
-        <Text style={styles.sectionLabel}>CHOOSE DATA PLAN</Text>
-        <TouchableOpacity
-          style={styles.dropdownToggleBtn}
-          onPress={() => setShowPlansDropdown(!showPlansDropdown)}
-          activeOpacity={0.8}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-            <MaterialCommunityIcons
-              name={selectedPlan ? "check-circle" : "layers-outline"}
-              size={20}
-              color={selectedPlan ? "#10b981" : "#00f0ff"}
-              style={{ marginRight: 10 }}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.dropdownSelectedTitle} numberOfLines={1}>
-                {selectedPlan
-                  ? `${selectedPlan.name || selectedPlan.planLabel || selectedPlan.planCode} (₦${Number(
-                      userRole === "agent"
-                        ? (selectedPlan.agentPrice ?? selectedPlan.userPrice ?? selectedPlan.price)
-                        : (selectedPlan.userPrice ?? selectedPlan.price)
-                    ).toLocaleString()})`
-                  : `AVAILABLE PLANS (${selectedNetwork})`}
-              </Text>
-              <Text style={styles.dropdownSelectedSubtitle}>
-                {selectedPlan
-                  ? `Expires: ${selectedPlan.validity || "30 Days"} • ${selectedPlan.planType || "SME"}`
-                  : `Tap to choose from ${filteredPlans.length} plans`}
-              </Text>
+        {/* Available Plans List (A Bude a Filin Waje) */}
+        <View style={styles.plansHeaderRow}>
+          <Text style={styles.sectionLabel}>SELECT DATA BUNDLE ({selectedNetwork})</Text>
+          <Text style={styles.planCountBadge}>{filteredPlans.length} Available</Text>
+        </View>
+
+        <View style={styles.plansContainer}>
+          {loadingPlans ? (
+            <ActivityIndicator size="small" color="#00f0ff" style={{ marginVertical: 20 }} />
+          ) : filteredPlans.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Feather name="wifi-off" size={26} color="#64748b" />
+              <Text style={styles.emptyText}>No data plans found for {selectedNetwork}.</Text>
             </View>
-          </View>
-          <Ionicons
-            name={showPlansDropdown ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#94a3b8"
-          />
-        </TouchableOpacity>
+          ) : (
+            filteredPlans.map((plan) => {
+              const isSelected = selectedPlan?._id === plan._id;
+              const finalPrice =
+                userRole === "agent"
+                  ? (plan.agentPrice ?? plan.userPrice ?? plan.price ?? 0)
+                  : (plan.userPrice ?? plan.price ?? 0);
+              const planTitle = plan.name || plan.planLabel || `${plan.network || selectedNetwork} ${plan.planCode}`;
+              const validity = plan.validity ? (String(plan.validity).includes("Day") ? plan.validity : `${plan.validity} Days`) : "30 Days";
 
-        {/* Jerin Tsare-tsare (Available Plans List) */}
-        {showPlansDropdown && (
-          <View style={styles.plansContainer}>
-            {loadingPlans ? (
-              <ActivityIndicator size="small" color="#00f0ff" style={{ marginVertical: 20 }} />
-            ) : filteredPlans.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Feather name="wifi-off" size={26} color="#64748b" />
-                <Text style={styles.emptyText}>No data plans found for {selectedNetwork}.</Text>
-              </View>
-            ) : (
-              filteredPlans.map((plan) => {
-                const isSelected = selectedPlan?._id === plan._id;
-                const finalPrice =
-                  userRole === "agent"
-                    ? (plan.agentPrice ?? plan.userPrice ?? plan.price ?? 0)
-                    : (plan.userPrice ?? plan.price ?? 0);
-                const planTitle = plan.name || plan.planLabel || `${plan.network || selectedNetwork} ${plan.planCode}`;
-                const validity = plan.validity ? (String(plan.validity).includes("Day") ? plan.validity : `${plan.validity} Days`) : "30 Days";
-
-                return (
-                  <TouchableOpacity
-                    key={plan._id || plan.planCode || Math.random().toString()}
-                    style={[styles.planCard, isSelected && styles.planCardActive]}
-                    onPress={() => {
-                      setSelectedPlan(plan);
-                      setShowPlansDropdown(false);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <Text style={[styles.planTitle, isSelected && { color: "#fff" }]} numberOfLines={1}>
-                        {planTitle}
+              return (
+                <TouchableOpacity
+                  key={plan._id || plan.planCode || Math.random().toString()}
+                  style={[styles.planCard, isSelected && styles.planCardActive]}
+                  onPress={() => setSelectedPlan(plan)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text style={[styles.planTitle, isSelected && { color: "#fff" }]} numberOfLines={1}>
+                      {planTitle}
+                    </Text>
+                    <View style={styles.metaRow}>
+                      <Text style={styles.planTypeTag}>
+                        {plan.planType || "SME"} • Code: {plan.planCode || "N/A"}
                       </Text>
-                      <View style={styles.metaRow}>
-                        <Text style={styles.planTypeTag}>
-                          {plan.planType || "SME"} • Code: {plan.planCode || "N/A"}
-                        </Text>
-                        <Text style={styles.validityTag}>⏳ {validity}</Text>
+                      <Text style={styles.validityTag}>⏳ {validity}</Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={[styles.planPrice, isSelected && { color: "#10b981" }]}>
+                      ₦{Number(finalPrice).toLocaleString()}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.selectedBadge}>
+                        <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+                        <Text style={styles.selectedBadgeText}>SELECTED</Text>
                       </View>
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={[styles.planPrice, isSelected && { color: "#10b981" }]}>
-                        ₦{Number(finalPrice).toLocaleString()}
-                      </Text>
-                      {isSelected && (
-                        <Text style={{ color: "#10b981", fontSize: 10, fontWeight: "900", marginTop: 2 }}>
-                          SELECTED
-                        </Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </View>
-        )}
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
 
         {/* Purchase Button */}
         <TouchableOpacity
@@ -440,6 +397,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "900" },
   sectionLabel: { color: "#64748b", fontSize: 11, fontWeight: "900", letterSpacing: 0.8, marginTop: 16, marginBottom: 8 },
+  plansHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 16, marginBottom: 8 },
+  planCountBadge: { color: "#00f0ff", fontSize: 11, fontWeight: "800" },
   networkGrid: { flexDirection: "row", justifyContent: "space-between" },
   networkBtn: {
     flex: 1,
@@ -477,20 +436,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
   },
-  dropdownToggleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#0b1120",
-    borderWidth: 1,
-    borderColor: "#00f0ff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    marginBottom: 10,
-  },
-  dropdownSelectedTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "900" },
-  dropdownSelectedSubtitle: { color: "#64748b", fontSize: 11, marginTop: 2 },
   plansContainer: {
     backgroundColor: "#070c18",
     borderRadius: 14,
@@ -516,6 +461,8 @@ const styles = StyleSheet.create({
   planTypeTag: { color: "#64748b", fontSize: 11, marginRight: 10 },
   validityTag: { color: "#eab308", fontSize: 11, fontWeight: "700" },
   planPrice: { color: "#00f0ff", fontSize: 15, fontWeight: "900" },
+  selectedBadge: { flexDirection: "row", alignItems: "center", marginTop: 2 },
+  selectedBadgeText: { color: "#10b981", fontSize: 10, fontWeight: "900", marginLeft: 3 },
   emptyCard: { backgroundColor: "#0b1120", padding: 20, borderRadius: 12, alignItems: "center", borderWidth: 1, borderColor: "#1e293b" },
   emptyText: { color: "#64748b", fontSize: 12, marginTop: 6, textAlign: "center" },
   submitBtn: { backgroundColor: "#0284c7", paddingVertical: 16, borderRadius: 14, alignItems: "center", marginTop: 15 },
