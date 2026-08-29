@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import axios from "axios";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 
-const SignupScreen = ({ navigation }) => {
+const SignupScreen = ({ route, navigation }) => {
   const [firstName, setFirstName] = useState("");
   const [surname, setSurname] = useState("");
   const [otherName, setOtherName] = useState("");
@@ -35,6 +35,19 @@ const SignupScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Karbo Referral Code da LGA idan daga Supervisor Dashboard aka shigo
+  useEffect(() => {
+    if (route?.params) {
+      const { referralCode, referredBy, state: paramState, lga: paramLga, role: paramRole } = route.params;
+      if (referralCode || referredBy) {
+        setSupervisorId(referralCode || referredBy);
+      }
+      if (paramState) setState(paramState);
+      if (paramLga) setLga(paramLga);
+      if (paramRole) setRole(paramRole);
+    }
+  }, [route?.params]);
 
   const showAlert = (title, message, buttons = []) => {
     if (Platform.OS === "web") {
@@ -148,6 +161,7 @@ const SignupScreen = ({ navigation }) => {
         firstName: firstName.trim(),
         surname: surname.trim(),
         otherName: otherName.trim(),
+        name: `${firstName.trim()} ${surname.trim()}`.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
         password: password,
@@ -158,15 +172,18 @@ const SignupScreen = ({ navigation }) => {
         registrationData.state = state.trim();
         registrationData.lga = lga.trim();
         registrationData.address = address.trim();
-        if (supervisorId)
+        if (supervisorId) {
           registrationData.supervisorId = supervisorId.toUpperCase().trim();
+          registrationData.referralCode = supervisorId.toUpperCase().trim();
+          registrationData.referredBy = supervisorId.toUpperCase().trim();
+        }
         if (image) registrationData.businessImage = image;
       }
 
-      // 1. Yin rijistar mai amfani
+      // 1. Yin rijistar mai amfani a asalin Auth Register Endpoint
       const response = await axios({
         method: "POST",
-        url: "https://ayax-data-xpress-server.onrender.com/api/v1/virtual-account/create",
+        url: "https://ayax-data-xpress-server.onrender.com/api/v1/auth/register",
         data: registrationData,
         headers: {
           "Content-Type": "application/json",
@@ -191,11 +208,11 @@ const SignupScreen = ({ navigation }) => {
           await AsyncStorage.setItem("userToken", token);
         }
 
-        // 2. KIRKIRAR ACCOUNT NUMBER NAN TAKE BATARE DA BATA LOKACI BA
+        // 2. Kirkirar Virtual Account Number
         try {
           const accountRes = await axios({
             method: "POST",
-            url: "https://ayax-data-xpress-server.onrender.com/api/v1/user/create-virtual-account", // Tabbatar da cewa wannan shine daidai endpoint din kirkiro account number a server dinka
+            url: "https://ayax-data-xpress-server.onrender.com/api/v1/user/create-virtual-account",
             headers: {
               "Content-Type": "application/json",
               Accept: "application/json",
@@ -204,17 +221,14 @@ const SignupScreen = ({ navigation }) => {
             timeout: 60000,
           });
 
-          // Idan server ta dawo da bayanai account number, sai mu hada su da userPayload
           if (accountRes.data && (accountRes.data.accountNumber || accountRes.data.data)) {
             const accData = accountRes.data.accountNumber || accountRes.data.data;
             userPayload = { ...userPayload, ...accData };
           }
         } catch (accError) {
           console.error("Account Number Generation Error:", accError.response?.data || accError.message);
-          // Ba za mu katse tafiyar ba idan account generation din ya samu matsala a wajen request din, amma zamu iya cigaba da adana wadanda aka samu
         }
 
-        // Adana bayanan karshe a AsyncStorage
         await AsyncStorage.setItem("userData", JSON.stringify(userPayload));
 
         setLoading(false);
