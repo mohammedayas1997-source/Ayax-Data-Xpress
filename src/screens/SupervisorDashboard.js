@@ -124,6 +124,7 @@ const SupervisorDashboard = ({ navigation }) => {
       role: "agent",
       referralCode: supervisorProfile.referralCode,
       referredBy: supervisorProfile.referralCode,
+      supervisorId: supervisorProfile.referralCode,
       state: supervisorProfile.state,
       lga: supervisorProfile.lga,
       assignedSupervisor: supervisorProfile.phone,
@@ -178,18 +179,18 @@ const SupervisorDashboard = ({ navigation }) => {
         
         // Duba Agents ta kowace hanya domin kar a rasa ko guda daya
         const fetchedAgents =
+          dashData.agents ||
           agentsRes.data?.agents ||
           agentsRes.data?.data?.agents ||
           agentsRes.data?.data ||
-          dashData.agents ||
           (Array.isArray(agentsRes.data) ? agentsRes.data : []) ||
           [];
 
         const fetchedLogs =
+          dashData.activityLogs ||
           logsRes.data?.logs ||
           logsRes.data?.data?.logs ||
           logsRes.data?.data ||
-          dashData.activityLogs ||
           (Array.isArray(logsRes.data) ? logsRes.data : []) ||
           [];
 
@@ -202,19 +203,24 @@ const SupervisorDashboard = ({ navigation }) => {
           parsedUser.targets ||
           {};
 
-        const currentPhone = dashData.phone || parsedUser.phone || "";
+        const currentPhone = String(dashData.phone || parsedUser.phone || "").trim();
+        const currentName = dashData.name || parsedUser.name || `${dashData.firstName || parsedUser.firstName || "Field"} ${dashData.surname || parsedUser.surname || "Supervisor"}`.trim();
+        const currentEmail = dashData.email || parsedUser.email || (currentPhone ? `${currentPhone}@ayaxdata.online` : "supervisor@ayaxdata.online");
+        const currentLga = dashData.lga || parsedUser.lga || "Ajingi";
+        const currentState = dashData.state || parsedUser.state || "Kano";
+
         const cleanRefCode =
           dashData.referralCode ||
           parsedUser.referralCode ||
           dashData.referralId ||
-          `AYX-${String(dashData.lga || parsedUser.lga || "LGA").toUpperCase()}-${String(currentPhone).slice(-4)}`;
+          `AYX-${String(currentLga).toUpperCase()}-${String(currentPhone).slice(-4)}`;
 
         setSupervisorProfile({
-          name: dashData.name || parsedUser.name || "Field Supervisor",
+          name: currentName,
           phone: currentPhone,
-          email: dashData.email || parsedUser.email || `${currentPhone}@ayaxdata.online`,
-          state: dashData.state || parsedUser.state || "Kano",
-          lga: dashData.lga || parsedUser.lga || "Ajingi",
+          email: currentEmail,
+          state: currentState,
+          lga: currentLga,
           referralCode: cleanRefCode,
         });
 
@@ -267,7 +273,7 @@ const SupervisorDashboard = ({ navigation }) => {
     [navigation]
   );
 
-  // Da zarar Supervisor ya shigo shafin ko ya dawo daga wani shafin (kamar SignupScreen), zai sabunta kansa
+  // Auto-refresh a lokacin da aka dawo kan shafin
   useFocusEffect(
     useCallback(() => {
       fetchDashboardData(true);
@@ -467,7 +473,26 @@ const SupervisorDashboard = ({ navigation }) => {
       >
         <View style={styles.contentCenterWrapper}>
           
-          {/* SECTION 1: SUPERVISOR'S TARGET MONITORING CARD (DAGA STATE MANAGER) */}
+          {/* SECTION 1: SUPERVISOR PROFILE & CONTACT DETAILS CARD (NUNA SUNA, EMAIL, DA PHONE) */}
+          <View style={styles.supervisorProfileCard}>
+            <View style={styles.supervisorAvatarWrap}>
+              <FontAwesome5 name="user-tie" size={24} color="#1e40af" />
+            </View>
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text style={styles.supervisorProfileName}>{supervisorProfile.name}</Text>
+              <Text style={styles.supervisorProfileDetail}>
+                📞 Phone: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.phone || "Not set"}</Text>
+              </Text>
+              <Text style={styles.supervisorProfileDetail}>
+                ✉️ Email: <Text style={{ color: "#0284c7", fontWeight: "700" }}>{supervisorProfile.email}</Text>
+              </Text>
+              <Text style={styles.supervisorProfileDetail}>
+                📍 Jurisdiction: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.lga} LGA, {supervisorProfile.state} State</Text>
+              </Text>
+            </View>
+          </View>
+
+          {/* SECTION 2: SUPERVISOR'S TARGET MONITORING CARD (DAGA STATE MANAGER) */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
@@ -525,7 +550,7 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 2: REFERRAL CODE & OUTLET INVITATION CARD */}
+          {/* SECTION 3: REFERRAL CODE & OUTLET INVITATION CARD */}
           <View style={styles.referralBannerCard}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 10 }}>
@@ -544,7 +569,7 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 3: SUMMARY ACTIONS ROW */}
+          {/* SECTION 4: SUMMARY ACTIONS ROW */}
           <View style={styles.actionRowContainer}>
             <TouchableOpacity
               style={styles.actionBtnFull}
@@ -992,6 +1017,31 @@ const styles = StyleSheet.create({
   scrollArea: { flex: 1, width: "100%" },
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
+
+  supervisorProfileCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    marginHorizontal: isLargeScreen ? 24 : 16,
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 2,
+  },
+  supervisorAvatarWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  supervisorProfileName: { color: "#0f172a", fontSize: 15, fontWeight: "900", marginBottom: 2 },
+  supervisorProfileDetail: { color: "#64748b", fontSize: 11.5, marginTop: 1 },
 
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
