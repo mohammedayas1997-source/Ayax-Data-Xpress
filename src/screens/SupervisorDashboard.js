@@ -177,13 +177,22 @@ const SupervisorDashboard = ({ navigation }) => {
 
         const dashData = supDashRes.data?.data || supDashRes.data || {};
         
-        const fetchedAgents =
-          dashData.agents ||
-          agentsRes.data?.agents ||
-          agentsRes.data?.data?.agents ||
-          agentsRes.data?.data ||
-          (Array.isArray(agentsRes.data) ? agentsRes.data : []) ||
-          [];
+        // CIKAKKEN GYARA: Tace duk inda aka dawo da agents din kar a rasa kowa
+        const listA = Array.isArray(dashData.agents) ? dashData.agents : [];
+        const listB = Array.isArray(agentsRes.data?.agents) ? agentsRes.data.agents : [];
+        const listC = Array.isArray(agentsRes.data?.data) ? agentsRes.data.data : [];
+        const listD = Array.isArray(agentsRes.data) ? agentsRes.data : [];
+
+        let combinedAgents = [...listA, ...listB, ...listC, ...listD];
+        // Cire duplicates ta hanyar _id ko id
+        const uniqueAgentsMap = new Map();
+        combinedAgents.forEach((ag) => {
+          const id = ag._id || ag.id;
+          if (id && !uniqueAgentsMap.has(String(id))) {
+            uniqueAgentsMap.set(String(id), ag);
+          }
+        });
+        const fetchedAgents = Array.from(uniqueAgentsMap.values());
 
         const fetchedLogs =
           dashData.activityLogs ||
