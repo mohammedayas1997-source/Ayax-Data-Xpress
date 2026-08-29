@@ -26,6 +26,7 @@ import {
 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { useFocusEffect } from "@react-navigation/native";
 
 const { width } = Dimensions.get("window");
 const isLargeScreen = width >= 1024;
@@ -102,8 +103,8 @@ const SupervisorDashboard = ({ navigation }) => {
   };
 
   const showAlert = (title, message) => {
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.alert(`${title}: ${message}`);
+    if (Platform.OS === "web") {
+      alert(`${title}\n\n${message}`);
     } else {
       Alert.alert(title, message);
     }
@@ -129,7 +130,6 @@ const SupervisorDashboard = ({ navigation }) => {
     };
 
     if (navigation && typeof navigation.navigate === "function") {
-      // Duba ko 'Signup' ko 'Register' ko 'SignupScreen' sunan route din yake
       try {
         navigation.navigate("Signup", registrationParams);
       } catch (e1) {
@@ -170,17 +170,32 @@ const SupervisorDashboard = ({ navigation }) => {
         const [supDashRes, targetRes, agentsRes, logsRes] = await Promise.all([
           axios.get(`${BASE_URL}/supervisor/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/supervisor/my-target`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
-          axios.get(`${BASE_URL}/supervisor/agents`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
-          axios.get(`${BASE_URL}/supervisor/activity-logs`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
+          axios.get(`${BASE_URL}/supervisor/agents`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
+          axios.get(`${BASE_URL}/supervisor/activity-logs`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
         ]);
 
         const dashData = supDashRes.data?.data || supDashRes.data || {};
-        const fetchedAgents = agentsRes.data?.agents || dashData.agents || [];
-        const fetchedLogs = logsRes.data?.logs || dashData.activityLogs || [];
+        
+        // Duba Agents ta kowace hanya domin kar a rasa ko guda daya
+        const fetchedAgents =
+          agentsRes.data?.agents ||
+          agentsRes.data?.data?.agents ||
+          agentsRes.data?.data ||
+          dashData.agents ||
+          (Array.isArray(agentsRes.data) ? agentsRes.data : []) ||
+          [];
 
-        // Kwaso Target din da State Manager ya tura wa wannan Supervisor
+        const fetchedLogs =
+          logsRes.data?.logs ||
+          logsRes.data?.data?.logs ||
+          logsRes.data?.data ||
+          dashData.activityLogs ||
+          (Array.isArray(logsRes.data) ? logsRes.data : []) ||
+          [];
+
         const fetchedTarget =
           targetRes.data?.targets ||
+          targetRes.data?.data?.targets ||
           targetRes.data?.data ||
           dashData.myTarget ||
           dashData.targets ||
@@ -250,6 +265,13 @@ const SupervisorDashboard = ({ navigation }) => {
       }
     },
     [navigation]
+  );
+
+  // Da zarar Supervisor ya shigo shafin ko ya dawo daga wani shafin (kamar SignupScreen), zai sabunta kansa
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboardData(true);
+    }, [fetchDashboardData])
   );
 
   useEffect(() => {
