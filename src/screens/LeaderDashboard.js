@@ -99,7 +99,8 @@ const LeaderDashboard = ({ navigation }) => {
   const [newSupName, setNewSupName] = useState("");
   const [newSupPhone, setNewSupPhone] = useState("");
   const [newSupEmail, setNewSupEmail] = useState("");
-  const [newSupLga, setNewSupLga] = useState("");
+  // Madadin: const [newSupLga, setNewSupLga] = useState("");
+  const [newSupLga, setNewSupLga] = useState(currentLgaList[0] || "Central");
   const [newSupPassword, setNewSupPassword] = useState("Password123@");
 
   // Modal 4: Broadcast Directive
@@ -499,10 +500,11 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // ENROLL FIELD SUPERVISOR
   const handleEnrollSupervisor = async () => {
-    if (!newSupName.trim() || !newSupPhone.trim() || !newSupLga) {
-      return showAlert("Validation Error", "Name, Phone Number, and LGA are required.");
+    const selectedLga = newSupLga || currentLgaList[0] || "Central";
+
+    if (!newSupName.trim() || !newSupPhone.trim()) {
+      return showAlert("Validation Error", "Full Name and Phone Number are required.");
     }
 
     setActionLoading(true);
@@ -516,20 +518,22 @@ const LeaderDashboard = ({ navigation }) => {
           email: newSupEmail.trim() ? newSupEmail.trim().toLowerCase() : undefined,
           password: newSupPassword.trim() || "Password123@",
           state: managerState,
-          lga: newSupLga,
+          lga: selectedLga,
           role: "supervisor",
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (res.data?.success || res.status === 200) {
-        showAlert("Supervisor Enrolled 🎉", `${newSupName} has been created and assigned to ${newSupLga} LGA, ${managerState} State. They can now log in using their credentials.`);
+      if (res.data?.success || res.status === 200 || res.status === 201) {
+        showAlert(
+          "Supervisor Enrolled 🎉",
+          `${newSupName} has been officially deployed to ${selectedLga} LGA, ${managerState} State.`
+        );
         setEnrollModalVisible(false);
         setNewSupName("");
         setNewSupPhone("");
         setNewSupEmail("");
-        setNewSupLga("");
-        setNewSupPassword("Password123@");
+        setNewSupLga(currentLgaList[0] || "Central");
         fetchDashboardData();
       }
     } catch (err) {
