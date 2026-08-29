@@ -70,11 +70,18 @@ const LeaderDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
+  // =========================================================================
+  // SMART AUTO-SPLIT PORTAL & MANUAL EDIT STATES
+  // =========================================================================
+  const [targetPortalVisible, setTargetPortalVisible] = useState(false);
+  const [splitMode, setSplitMode] = useState("supervisor"); // 'supervisor' | 'agent'
+  const [allocatedList, setAllocatedList] = useState([]);
+
   // Modal 1: Inspection Modal
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
-  // Modal 2: Advanced Target Command Modal States
+  // Modal 2: Advanced Target Command Modal States (Custom Target)
   const [targetModalVisible, setTargetModalVisible] = useState(false);
   const [targetCategory, setTargetCategory] = useState("supervisor"); // 'supervisor' | 'agent' | 'lga'
   const [targetScope, setTargetScope] = useState("selected"); // 'selected' | 'all' | 'by_lga'
@@ -173,6 +180,7 @@ const LeaderDashboard = ({ navigation }) => {
         // Duba Target din da NSD ya tura ta hanyoyi guda 4 domin kar ya salwanta
         const fetchedMyTarget =
           targetRes.data?.targets ||
+          targetRes.data?.data?.assignedTargets ||
           targetRes.data?.data ||
           dashData.myTargets ||
           dashData.leaderTargets ||
@@ -251,6 +259,84 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // =========================================================================
+  // SMART AUTO-SPLIT ENGINE: KWAMFUTA TA RABA TARGET DA KANTA
+  // =========================================================================
+  const handleOpenSmartTargetPortal = (mode = "supervisor") => {
+    setSplitMode(mode);
+    const pool = mode === "supervisor" ? supervisors : agents;
+
+    if (pool.length === 0) {
+      showAlert(
+        "No Staff Registered",
+        `You do not have any registered ${mode === "supervisor" ? "Supervisors" : "Agents"} in ${managerState} State yet to allocate targets to.`
+      );
+      return;
+    }
+
+    const count = pool.length;
+    const autoDataPerPerson = Math.floor((myStateTarget.dataGoal || 0) / count);
+    const autoAirtimePerPerson = Math.floor((myStateTarget.airtimeGoal || 0) / count);
+    const autoAgentPerPerson = mode === "supervisor" ? Math.max(1, Math.floor((myStateTarget.agentGoal || 10) / count)) : 0;
+
+    const initialList = pool.map((item) => ({
+      id: item._id || item.id,
+      name: item.name || `${item.firstName || ""} ${item.surname || ""}` || "Staff",
+      phone: item.phone || "N/A",
+      lga: item.lga || "LGA",
+      dataGoal: String(autoDataPerPerson),
+      airtimeGoal: String(autoAirtimePerPerson),
+      agentGoal: String(autoAgentPerPerson),
+    }));
+
+    setAllocatedList(initialList);
+    setTargetPortalVisible(true);
+  };
+
+  // Gyara ko sauya target din mutum guda a cikin teburin (Kari ko Ragi)
+  const handleUpdateItemTarget = (id, field, value) => {
+    setAllocatedList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  // Tura sakamakon rabon da aka tantance zuwa Database
+  const handleDeployAllocatedTargets = async () => {
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      for (const item of allocatedList) {
+        await axios.post(
+          `${BASE_URL}/leader/assign-target`,
+          {
+            category: splitMode,
+            scope: "selected",
+            [splitMode === "supervisor" ? "supervisorIds" : "agentIds"]: [item.id],
+            dataGoal: Number(item.dataGoal) || 0,
+            airtimeGoal: Number(item.airtimeGoal) || 0,
+            agentGoal: Number(item.agentGoal) || 0,
+            month: myStateTarget.currentMonth,
+            state: managerState,
+          },
+          { headers }
+        );
+      }
+
+      showAlert(
+        "Targets Deployed Successfully 🎯",
+        `Quotas have been officially dispatched to ${allocatedList.length} ${splitMode === "supervisor" ? "Supervisors" : "Agents"} in ${managerState} State.`
+      );
+      setTargetPortalVisible(false);
+      fetchDashboardData();
+    } catch (err) {
+      showAlert("Deployment Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Helper Functions for Target Checkbox Multi-Select
   const handleToggleModalPerson = (id) => {
     if (targetSelectedPeopleIds.includes(id)) {
@@ -285,7 +371,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Deploy Target Function (Zuwa Supervisors, Agents, ko LGAs)
+  // Deploy Target Function (Custom Target Deployment)
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -549,6 +635,15 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {/* TARGET PORTAL QUICK ACCESS ICON */}
+          <TouchableOpacity
+            style={[styles.avatarBtn, styles.targetQuickIconBtn, { marginRight: 8 }]}
+            onPress={() => handleOpenSmartTargetPortal("supervisor")}
+            activeOpacity={0.7}
+          >
+            <FontAwesome5 name="bullseye" size={16} color="#fbbf24" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.avatarBtn, { marginRight: 8 }]}
             onPress={() => setEnrollModalVisible(true)}
@@ -640,71 +735,22 @@ const LeaderDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* DIRECT TARGET COMMAND BANNER */}
-          <View style={styles.targetCommandBanner}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={styles.targetBannerIconWrap}>
-                <FontAwesome5 name="bullseye" size={18} color="#1e40af" />
-              </View>
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={styles.targetBannerTitle}>State Quota Command Desk</Text>
-                <Text style={styles.targetBannerSub}>Deploy custom targets to selected LGA, Supervisors, or Agents</Text>
-              </View>
-            </View>
-
-            <View style={styles.targetBannerBtnRow}>
-              <TouchableOpacity
-                style={styles.bannerActionBtnPrimary}
-                onPress={() => {
-                  setTargetCategory("supervisor");
-                  setTargetScope("selected");
-                  setTargetSelectedPeopleIds([]);
-                  setTargetModalVisible(true);
-                }}
-              >
-                <FontAwesome5 name="user-tie" size={12} color="#ffffff" />
-                <Text style={styles.bannerActionBtnTextPrimary}>TARGET SUPERVISORS</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.bannerActionBtnSecondary}
-                onPress={() => {
-                  setTargetCategory("agent");
-                  setTargetScope("selected");
-                  setTargetSelectedPeopleIds([]);
-                  setTargetModalVisible(true);
-                }}
-              >
-                <Ionicons name="people" size={14} color="#059669" />
-                <Text style={styles.bannerActionBtnTextSecondary}>TARGET AGENTS</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.bannerActionBtnTertiary}
-                onPress={() => {
-                  setTargetCategory("lga");
-                  setTargetScope("by_lga");
-                  setTargetSelectedLgas([]);
-                  setTargetModalVisible(true);
-                }}
-              >
-                <MaterialCommunityIcons name="map-marker-radius" size={14} color="#0284c7" />
-                <Text style={styles.bannerActionBtnTextTertiary}>TARGET LGAS</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (WANDA NSD YA TURA) */}
+          
+          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (WANDA NSD YA TURA TARE DA AUTO-SPLIT BUTTON) */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
                 <Text style={styles.execBadgeTextDark}>OFFICIAL NSD STATE QUOTA ALLOCATION</Text>
-                <Text style={styles.execTitleTextDark}>{myStateTarget.currentMonth.toUpperCase()} TARGET PROGRESS</Text>
+                <Text style={styles.execTitleTextDark}>{myStateTarget.currentMonth.toUpperCase()} TARGET MATRIX</Text>
               </View>
-              <View style={styles.cycleBadgeDark}>
-                <Ionicons name="calendar" size={12} color="#38bdf8" />
-                <Text style={styles.cycleBadgeTextDark}>{myStateTarget.currentMonth}</Text>
-              </View>
+              <TouchableOpacity
+                style={styles.autoSplitBadgeBtn}
+                onPress={() => handleOpenSmartTargetPortal("supervisor")}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="calculator-variant" size={14} color="#ffffff" />
+                <Text style={styles.autoSplitBadgeBtnText}>AUTO-SPLIT QUOTA</Text>
+              </TouchableOpacity>
             </View>
 
             <View style={styles.execMetricsGrid}>
@@ -752,7 +798,51 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 2: SUMMARY METRICS */}
+          {/* SECTION 2: DIRECT TARGET COMMAND BANNER */}
+          <View style={styles.targetCommandBanner}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={styles.targetBannerIconWrap}>
+                <FontAwesome5 name="bullseye" size={18} color="#1e40af" />
+              </View>
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={styles.targetBannerTitle}>State Quota Command Desk</Text>
+                <Text style={styles.targetBannerSub}>System calculates & splits quota automatically or deploy custom targets to LGA leads</Text>
+              </View>
+            </View>
+
+            <View style={styles.targetBannerBtnRow}>
+              <TouchableOpacity
+                style={styles.bannerActionBtnPrimary}
+                onPress={() => handleOpenSmartTargetPortal("supervisor")}
+              >
+                <FontAwesome5 name="user-tie" size={12} color="#ffffff" />
+                <Text style={styles.bannerActionBtnTextPrimary}>AUTO-SPLIT SUPERVISORS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bannerActionBtnSecondary}
+                onPress={() => handleOpenSmartTargetPortal("agent")}
+              >
+                <Ionicons name="people" size={14} color="#059669" />
+                <Text style={styles.bannerActionBtnTextSecondary}>AUTO-SPLIT AGENTS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.bannerActionBtnTertiary}
+                onPress={() => {
+                  setTargetCategory("lga");
+                  setTargetScope("by_lga");
+                  setTargetSelectedLgas([]);
+                  setTargetModalVisible(true);
+                }}
+              >
+                <MaterialCommunityIcons name="map-marker-radius" size={14} color="#0284c7" />
+                <Text style={styles.bannerActionBtnTextTertiary}>TARGET LGAS</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* SECTION 3: SUMMARY METRICS */}
           <View style={styles.telemetrySection}>
             <View style={styles.metricGrid}>
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
@@ -861,19 +951,19 @@ const LeaderDashboard = ({ navigation }) => {
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Data Target</Text>
                           <Text style={[styles.summaryBoxValue, { color: "#1e40af" }]}>
-                            {item.dataGoal || 0} GB
+                            {item.targets?.dataGoal || item.dataGoal || 0} GB
                           </Text>
                         </View>
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Airtime Target</Text>
                           <Text style={[styles.summaryBoxValue, { color: "#d97706" }]}>
-                            ₦{Number(item.airtimeGoal || 0).toLocaleString()}
+                            ₦{Number(item.targets?.airtimeGoal || item.airtimeGoal || 0).toLocaleString()}
                           </Text>
                         </View>
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>New Agents Goal</Text>
                           <Text style={[styles.summaryBoxValue, { color: "#059669" }]}>
-                            {item.agentGoal || 10}
+                            {item.targets?.agentGoal || item.agentGoal || 10}
                           </Text>
                         </View>
                         <View style={styles.summaryBox}>
@@ -891,9 +981,9 @@ const LeaderDashboard = ({ navigation }) => {
                             setTargetCategory("supervisor");
                             setTargetScope("selected");
                             setTargetSelectedPeopleIds([supId]);
-                            setTargetDataGoal(String(item.dataGoal || 500));
-                            setTargetAirtimeGoal(String(item.airtimeGoal || 50000));
-                            setTargetAgentGoal(String(item.agentGoal || 10));
+                            setTargetDataGoal(String(item.targets?.dataGoal || item.dataGoal || 500));
+                            setTargetAirtimeGoal(String(item.targets?.airtimeGoal || item.airtimeGoal || 50000));
+                            setTargetAgentGoal(String(item.targets?.agentGoal || item.agentGoal || 10));
                             setTargetModalVisible(true);
                           }}
                         >
@@ -966,10 +1056,10 @@ const LeaderDashboard = ({ navigation }) => {
 
                       <View style={styles.agentQuotaRow}>
                         <Text style={styles.agentQuotaText}>
-                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{ag.dataGoal || 100} GB</Text>
+                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{ag.targets?.dataGoal || ag.dataGoal || 100} GB</Text>
                         </Text>
                         <Text style={styles.agentQuotaText}>
-                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{Number(ag.airtimeGoal || 10000).toLocaleString()}</Text>
+                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 10000).toLocaleString()}</Text>
                         </Text>
                       </View>
 
@@ -980,8 +1070,8 @@ const LeaderDashboard = ({ navigation }) => {
                             setTargetCategory("agent");
                             setTargetScope("selected");
                             setTargetSelectedPeopleIds([agId]);
-                            setTargetDataGoal(String(ag.dataGoal || 100));
-                            setTargetAirtimeGoal(String(ag.airtimeGoal || 10000));
+                            setTargetDataGoal(String(ag.targets?.dataGoal || ag.dataGoal || 100));
+                            setTargetAirtimeGoal(String(ag.targets?.airtimeGoal || ag.airtimeGoal || 10000));
                             setTargetModalVisible(true);
                           }}
                         >
@@ -1158,6 +1248,98 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </ScrollView>
 
+      {/* =========================================================================
+          SABON SMART TARGET PORTAL: AUTO-SPLIT DA MANUAL CUSTOMIZATION TABLE
+         ========================================================================= */}
+      <Modal visible={targetPortalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: isLargeScreen ? "75%" : "96%", maxHeight: "92%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>
+                  Auto-Split & Quota Adjustment ({splitMode.toUpperCase()}S)
+                </Text>
+                <Text style={styles.modalCardSubtitle}>
+                  NSD State Pool: {myStateTarget.dataGoal} GB Data & ₦{Number(myStateTarget.airtimeGoal).toLocaleString()} Airtime ({allocatedList.length} staff)
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setTargetPortalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.splitInstructionBanner}>
+                <Ionicons name="information-circle" size={18} color="#1e40af" />
+                <Text style={styles.splitInstructionText}>
+                  System has divided the state quota equally among your active leads. You can increase (+) or reduce (-) any person's quota in the boxes below before deploying.
+                </Text>
+              </View>
+
+              {/* TABLE LIST OF RECIPIENTS */}
+              {allocatedList.map((item, index) => (
+                <View key={item.id} style={styles.editableQuotaCard}>
+                  <View style={styles.editableQuotaHeader}>
+                    <Text style={styles.editableQuotaName}>
+                      {index + 1}. {item.name}
+                    </Text>
+                    <Text style={styles.editableQuotaLga}>📍 {item.lga} LGA • 📞 {item.phone}</Text>
+                  </View>
+
+                  <View style={styles.editableInputGrid}>
+                    <View style={styles.editableInputCol}>
+                      <Text style={styles.inputMiniLabel}>DATA (GB)</Text>
+                      <TextInput
+                        style={styles.tableInputBox}
+                        keyboardType="numeric"
+                        value={item.dataGoal}
+                        onChangeText={(val) => handleUpdateItemTarget(item.id, "dataGoal", val)}
+                      />
+                    </View>
+
+                    <View style={styles.editableInputCol}>
+                      <Text style={styles.inputMiniLabel}>AIRTIME (₦)</Text>
+                      <TextInput
+                        style={styles.tableInputBox}
+                        keyboardType="numeric"
+                        value={item.airtimeGoal}
+                        onChangeText={(val) => handleUpdateItemTarget(item.id, "airtimeGoal", val)}
+                      />
+                    </View>
+
+                    {splitMode === "supervisor" && (
+                      <View style={styles.editableInputCol}>
+                        <Text style={styles.inputMiniLabel}>NEW AGENTS</Text>
+                        <TextInput
+                          style={styles.tableInputBox}
+                          keyboardType="numeric"
+                          value={item.agentGoal}
+                          onChangeText={(val) => handleUpdateItemTarget(item.id, "agentGoal", val)}
+                        />
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleDeployAllocatedTargets}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>
+                    CONFIRM & DEPLOY ADJUSTED TARGETS TO FIELD
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* SIDEBAR DRAWER */}
       {sidebarOpen && (
         <TouchableOpacity
@@ -1251,32 +1433,26 @@ const LeaderDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setTargetCategory("supervisor");
-                  setTargetScope("selected");
-                  setTargetSelectedPeopleIds([]);
-                  setTargetModalVisible(true);
+                  handleOpenSmartTargetPortal("supervisor");
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
                   <FontAwesome5 name="bullseye" size={15} color="#1e40af" />
                 </View>
-                <Text style={styles.navItemText}>Deploy Target to Supervisors</Text>
+                <Text style={styles.navItemText}>Auto-Split to Supervisors</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setTargetCategory("agent");
-                  setTargetScope("selected");
-                  setTargetSelectedPeopleIds([]);
-                  setTargetModalVisible(true);
+                  handleOpenSmartTargetPortal("agent");
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#ecfdf5" }]}>
                   <Ionicons name="people" size={16} color="#059669" />
                 </View>
-                <Text style={styles.navItemText}>Deploy Quota to Agents</Text>
+                <Text style={styles.navItemText}>Auto-Split to Agents</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1387,7 +1563,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT */}
+      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT (CUSTOM ALLOCATION) */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
@@ -1796,6 +1972,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#334155",
   },
+  targetQuickIconBtn: {
+    borderColor: "#fbbf24",
+    backgroundColor: "rgba(251, 191, 36, 0.15)",
+  },
   logoutIconBtn: { borderColor: "#ef4444", backgroundColor: "rgba(239, 68, 68, 0.15)" },
   mainNavBar: {
     flexDirection: "row",
@@ -1819,6 +1999,55 @@ const styles = StyleSheet.create({
   scrollArea: { flex: 1, width: "100%" },
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
+
+  executiveTargetCardDark: {
+    backgroundColor: "#0f172a",
+    marginHorizontal: isLargeScreen ? 24 : 16,
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderLeftWidth: 5,
+    borderLeftColor: "#38bdf8",
+    elevation: 4,
+  },
+  execHeaderRowDark: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  execBadgeTextDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.8 },
+  execTitleTextDark: { color: "#ffffff", fontSize: 13.5, fontWeight: "900", marginTop: 2 },
+  autoSplitBadgeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0284c7",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  autoSplitBadgeBtnText: { color: "#ffffff", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+
+  execMetricsGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  execMetricBoxDark: {
+    width: isLargeScreen ? "23.5%" : "48.5%",
+    borderRadius: 10,
+    padding: 10,
+    marginVertical: 4,
+    backgroundColor: "#1e293b",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  execMetricLabelDark: { fontSize: 9.5, fontWeight: "800" },
+  execMetricValueDark: { fontSize: 14.5, fontWeight: "900", marginVertical: 3, color: "#ffffff" },
+  execProgressBarBgDark: { height: 6, backgroundColor: "#334155", borderRadius: 3, overflow: "hidden", marginVertical: 3 },
+  execProgressBarFill: { height: 6, borderRadius: 3 },
+  execPercentSubDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "700" },
 
   targetCommandBanner: {
     backgroundColor: "#ffffff",
@@ -1858,7 +2087,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#1e40af",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     marginRight: 4,
   },
@@ -1869,7 +2098,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ecfdf5",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#a7f3d0",
@@ -1882,67 +2111,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#eff6ff",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#bfdbfe",
     marginLeft: 4,
   },
   bannerActionBtnTextTertiary: { color: "#0284c7", fontSize: 10, fontWeight: "900", marginLeft: 4 },
-
-  executiveTargetCardDark: {
-    backgroundColor: "#0f172a",
-    marginHorizontal: isLargeScreen ? 24 : 16,
-    marginTop: 12,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#1e293b",
-    borderLeftWidth: 5,
-    borderLeftColor: "#38bdf8",
-    elevation: 4,
-  },
-  execHeaderRowDark: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#1e293b",
-    paddingBottom: 10,
-    marginBottom: 12,
-  },
-  execBadgeTextDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.8 },
-  execTitleTextDark: { color: "#ffffff", fontSize: 13.5, fontWeight: "900", marginTop: 2 },
-  cycleBadgeDark: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.25)",
-  },
-  cycleBadgeTextDark: { color: "#38bdf8", fontSize: 10.5, fontWeight: "800", marginLeft: 4 },
-  execMetricsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  execMetricBoxDark: {
-    width: isLargeScreen ? "23.5%" : "48.5%",
-    borderRadius: 10,
-    padding: 10,
-    marginVertical: 4,
-    backgroundColor: "#1e293b",
-    borderWidth: 1,
-    borderColor: "#334155",
-  },
-  execMetricLabelDark: { fontSize: 9.5, fontWeight: "800" },
-  execMetricValueDark: { fontSize: 14.5, fontWeight: "900", marginVertical: 3, color: "#ffffff" },
-  execProgressBarBgDark: { height: 6, backgroundColor: "#334155", borderRadius: 3, overflow: "hidden", marginVertical: 3 },
-  execProgressBarFill: { height: 6, borderRadius: 3 },
-  execPercentSubDark: { color: "#94a3b8", fontSize: 9.5, fontWeight: "700" },
 
   telemetrySection: { paddingHorizontal: isLargeScreen ? 24 : 16, marginTop: 12 },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
@@ -2158,6 +2333,44 @@ const styles = StyleSheet.create({
   },
   emptyFeedText: { color: "#94a3b8", fontSize: 12, marginTop: 10, textAlign: "center" },
 
+  // Auto Split Table Styles
+  splitInstructionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  splitInstructionText: { color: "#1e40af", fontSize: 11, marginLeft: 8, flex: 1, lineHeight: 15 },
+  editableQuotaCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  editableQuotaHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  editableQuotaName: { fontSize: 12.5, fontWeight: "800", color: "#0f172a" },
+  editableQuotaLga: { fontSize: 11, color: "#64748b", fontWeight: "600" },
+  editableInputGrid: { flexDirection: "row", justifyContent: "space-between" },
+  editableInputCol: { flex: 1, marginHorizontal: 3 },
+  inputMiniLabel: { fontSize: 9, fontWeight: "800", color: "#475569", marginBottom: 2 },
+  tableInputBox: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    height: 36,
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#0f172a",
+  },
+
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
@@ -2230,7 +2443,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     width: "100%",
-    maxWidth: 480,
+    maxWidth: 600,
     borderWidth: 1,
     borderColor: "#cbd5e1",
     elevation: 8,
