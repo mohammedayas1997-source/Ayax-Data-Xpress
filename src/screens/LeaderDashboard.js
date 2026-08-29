@@ -165,6 +165,7 @@ const LeaderDashboard = ({ navigation }) => {
 
         const headers = { Authorization: `Bearer ${token}` };
 
+        // Kwaso dukkan bayanan Field, Agents, Audit Stream da sabon Target
         const [dashRes, agentsRes, logsRes, targetRes] = await Promise.all([
           axios.get(`${BASE_URL}/leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/leader/agents-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
@@ -282,6 +283,7 @@ const LeaderDashboard = ({ navigation }) => {
       id: item._id || item.id,
       name: item.name || `${item.firstName || ""} ${item.surname || ""}` || "Staff",
       phone: item.phone || "N/A",
+      email: item.email || "N/A",
       lga: item.lga || "LGA",
       dataGoal: String(autoDataPerPerson),
       airtimeGoal: String(autoAirtimePerPerson),
@@ -574,6 +576,7 @@ const LeaderDashboard = ({ navigation }) => {
     const matchSearch =
       (sup.name || `${sup.firstName || ""} ${sup.surname || ""}`).toLowerCase().includes(searchQuery.toLowerCase()) ||
       (sup.phone || "").includes(searchQuery) ||
+      (sup.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (sup.lga || "").toLowerCase().includes(searchQuery.toLowerCase());
     return matchLga && matchSearch;
   });
@@ -583,6 +586,7 @@ const LeaderDashboard = ({ navigation }) => {
     const matchSearch =
       (ag.name || `${ag.firstName || ""} ${ag.surname || ""}`).toLowerCase().includes(searchQuery.toLowerCase()) ||
       (ag.phone || "").includes(searchQuery) ||
+      (ag.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (ag.assignedSupervisorName || "").toLowerCase().includes(searchQuery.toLowerCase());
     return matchLga && matchSearch;
   });
@@ -902,7 +906,7 @@ const LeaderDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: FIELD SUPERVISORS */}
+          {/* TAB 1: FIELD SUPERVISORS (YANA NUNA SUNA, LGA, PHONE, DA EMAIL) */}
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -918,6 +922,8 @@ const LeaderDashboard = ({ navigation }) => {
                   const supId = item._id || item.id;
                   const supName = item.name || `${item.firstName || ""} ${item.surname || ""}` || "Field Supervisor";
                   const supLga = item.lga || "Unassigned LGA";
+                  const supPhone = item.phone || "No Phone";
+                  const supEmail = item.email || `${supPhone}@ayaxdata.online`;
 
                   return (
                     <View key={supId} style={styles.supCard}>
@@ -929,7 +935,11 @@ const LeaderDashboard = ({ navigation }) => {
                           <View style={{ marginLeft: 10, flex: 1 }}>
                             <Text style={styles.supNameText}>{supName}</Text>
                             <Text style={styles.locationTagText}>
-                              📍 {supLga} LGA • 📞 {item.phone}
+                              📍 {supLga} LGA • 📞 {supPhone}
+                            </Text>
+                            {/* EMAIL NA FIELD SUPERVISOR */}
+                            <Text style={styles.emailTagText}>
+                              ✉️ {supEmail}
                             </Text>
                           </View>
                         </View>
@@ -1022,7 +1032,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: AGENTS LIST */}
+          {/* TAB 2: AGENTS LIST (TARE DA EMAIL) */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -1042,6 +1052,9 @@ const LeaderDashboard = ({ navigation }) => {
                             FS Lead: {ag.assignedSupervisorName || "LGA Supervisor"} ({ag.lga || "LGA"})
                           </Text>
                           <Text style={styles.agentLocationTag}>📞 {ag.phone || "No phone"}</Text>
+                          {ag.email ? (
+                            <Text style={styles.emailTagText}>✉️ {ag.email}</Text>
+                          ) : null}
                         </View>
 
                         <View style={{ alignItems: "flex-end" }}>
@@ -1274,14 +1287,18 @@ const LeaderDashboard = ({ navigation }) => {
                 </Text>
               </View>
 
-              {/* TABLE LIST OF RECIPIENTS */}
+              {/* TABLE LIST OF RECIPIENTS (TARE DA EMAIL) */}
               {allocatedList.map((item, index) => (
                 <View key={item.id} style={styles.editableQuotaCard}>
                   <View style={styles.editableQuotaHeader}>
-                    <Text style={styles.editableQuotaName}>
-                      {index + 1}. {item.name}
-                    </Text>
-                    <Text style={styles.editableQuotaLga}>📍 {item.lga} LGA • 📞 {item.phone}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.editableQuotaName}>
+                        {index + 1}. {item.name}
+                      </Text>
+                      <Text style={styles.editableQuotaLga}>
+                        📍 {item.lga} LGA • 📞 {item.phone} • ✉️ {item.email}
+                      </Text>
+                    </View>
                   </View>
 
                   <View style={styles.editableInputGrid}>
@@ -1488,7 +1505,7 @@ const LeaderDashboard = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* MODAL 1: INSPECTION MODAL */}
+      {/* MODAL 1: INSPECTION MODAL (TARE DA EMAIL) */}
       <Modal visible={inspectModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxHeight: "88%", width: isLargeScreen ? "60%" : "95%" }]}>
@@ -1498,7 +1515,7 @@ const LeaderDashboard = ({ navigation }) => {
                   {selectedSupervisor?.name?.toUpperCase()} ({selectedSupervisor?.lga} LGA)
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
-                  Supervisor Contact: {selectedSupervisor?.phone} • Quota: {selectedSupervisor?.dataGoal || 500} GB
+                  Supervisor Contact: {selectedSupervisor?.phone} • ✉️ {selectedSupervisor?.email || "N/A"}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setInspectModalVisible(false)}>
@@ -1537,7 +1554,7 @@ const LeaderDashboard = ({ navigation }) => {
                   <View key={ag._id || ag.id} style={styles.inspectAgentCard}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.inspectAgentName}>{ag.name}</Text>
-                      <Text style={styles.inspectAgentPhone}>📞 {ag.phone || "N/A"}</Text>
+                      <Text style={styles.inspectAgentPhone}>📞 {ag.phone || "N/A"} • ✉️ {ag.email || "N/A"}</Text>
                       <Text style={styles.inspectAgentSales}>
                         ₦{Number(ag.walletBalance || ag.balance || 0).toLocaleString()} Float • {ag.dataVolumeSold || 0} GB Sold
                       </Text>
@@ -1684,7 +1701,7 @@ const LeaderDashboard = ({ navigation }) => {
                           <View style={{ marginLeft: 8, flex: 1 }}>
                             <Text style={styles.personCheckName}>{name}</Text>
                             <Text style={styles.personCheckSub}>
-                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"} {targetCategory === "agent" && item.assignedSupervisorName ? `• FS: ${item.assignedSupervisorName}` : ""}
+                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"} • ✉️ {item.email || "N/A"} {targetCategory === "agent" && item.assignedSupervisorName ? `• FS: ${item.assignedSupervisorName}` : ""}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -2187,6 +2204,7 @@ const styles = StyleSheet.create({
   },
   supNameText: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
   locationTagText: { color: "#64748b", fontSize: 11, marginTop: 2 },
+  emailTagText: { color: "#0284c7", fontSize: 11, marginTop: 1, fontWeight: "600" },
   statsSummaryGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
