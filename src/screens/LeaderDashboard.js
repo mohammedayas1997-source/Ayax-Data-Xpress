@@ -37,12 +37,12 @@ const LeaderDashboard = ({ navigation }) => {
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
-  // State Manager's Target Overview
+  // State Manager's Target Overview (Daga NSD)
   const [myStateTarget, setMyStateTarget] = useState({
-    dataGoal: 5000,
-    airtimeGoal: 500000,
-    agentGoal: 50,
-    supervisorGoal: 10,
+    dataGoal: 0,
+    airtimeGoal: 0,
+    agentGoal: 0,
+    supervisorGoal: 0,
     currentMonth: "August 2026",
     dataSold: 0,
     airtimeSold: 0,
@@ -134,6 +134,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // KARBO DUKKAN BAYANAI DA TARGET DA NSD YA TURA
   const fetchDashboardData = useCallback(
     async (isBackground = false) => {
       try {
@@ -144,26 +145,39 @@ const LeaderDashboard = ({ navigation }) => {
           return;
         }
 
+        let parsedUser = {};
         if (storedUserData) {
-          const parsed = JSON.parse(storedUserData);
-          if (parsed.state && ALL_NIGERIAN_STATES.includes(parsed.state)) {
-            setManagerState(parsed.state);
-          }
+          try {
+            parsedUser = JSON.parse(storedUserData);
+            if (parsedUser.state && ALL_NIGERIAN_STATES.includes(parsedUser.state)) {
+              setManagerState(parsedUser.state);
+            }
+          } catch (e) {}
         }
 
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [dashRes, agentsRes, logsRes] = await Promise.all([
+        // Kwaso dukkan bayanan Field, Agents, Audit Stream da sabon Target
+        const [dashRes, agentsRes, logsRes, targetRes] = await Promise.all([
           axios.get(`${BASE_URL}/leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/leader/agents-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
           axios.get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
+          axios.get(`${BASE_URL}/leader/my-state-target`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
         ]);
 
         const dashData = dashRes.data?.data || dashRes.data || {};
         const fetchedSupervisors = dashData.supervisors || [];
         const fetchedAgents = agentsRes.data?.agents || dashData.agents || [];
         const fetchedLogs = logsRes.data?.logs || dashData.activityLogs || [];
-        const fetchedMyTarget = dashData.myTargets || dashData.leaderTargets || {};
+        
+        // Duba Target din da NSD ya tura ta hanyoyi guda 4 domin kar ya salwanta
+        const fetchedMyTarget =
+          targetRes.data?.targets ||
+          targetRes.data?.data ||
+          dashData.myTargets ||
+          dashData.leaderTargets ||
+          parsedUser.targets ||
+          {};
 
         setSupervisors(fetchedSupervisors);
         setAgents(fetchedAgents);
@@ -174,11 +188,11 @@ const LeaderDashboard = ({ navigation }) => {
         const totalStateAirtime = dashData.networkStats?.overallAirtimeSold || 0;
 
         setMyStateTarget({
-          dataGoal: fetchedMyTarget.dataGoal || 5000,
-          airtimeGoal: fetchedMyTarget.airtimeGoal || 500000,
-          agentGoal: fetchedMyTarget.agentGoal || 50,
-          supervisorGoal: fetchedMyTarget.supervisorGoal || currentLgaList.length,
-          currentMonth: fetchedMyTarget.currentMonth || "August 2026",
+          dataGoal: Number(fetchedMyTarget.dataGoal || fetchedMyTarget.dataVolumeQuota || 0),
+          airtimeGoal: Number(fetchedMyTarget.airtimeGoal || fetchedMyTarget.airtimeSalesQuota || 0),
+          agentGoal: Number(fetchedMyTarget.agentGoal || fetchedMyTarget.agentsQuota || 0),
+          supervisorGoal: Number(fetchedMyTarget.supervisorGoal || fetchedMyTarget.supervisorsQuota || currentLgaList.length),
+          currentMonth: fetchedMyTarget.currentMonth || fetchedMyTarget.month || fetchedMyTarget.targetCycle || "August 2026",
           dataSold: totalStateData,
           airtimeSold: totalStateAirtime,
         });
@@ -271,7 +285,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Deploy Target Function
+  // Deploy Target Function (Zuwa Supervisors, Agents, ko LGAs)
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -399,7 +413,7 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // ENROLL FIELD SUPERVISOR (SAVES TO DATABASE DIRECTLY)
+  // ENROLL FIELD SUPERVISOR
   const handleEnrollSupervisor = async () => {
     if (!newSupName.trim() || !newSupPhone.trim() || !newSupLga) {
       return showAlert("Validation Error", "Name, Phone Number, and LGA are required.");
@@ -497,8 +511,13 @@ const LeaderDashboard = ({ navigation }) => {
       )
     : [];
 
-  const dataProgress = Math.min(Math.round(((myStateTarget.dataSold || 0) / (myStateTarget.dataGoal || 1)) * 100), 100);
-  const airtimeProgress = Math.min(Math.round(((myStateTarget.airtimeSold || 0) / (myStateTarget.airtimeGoal || 1)) * 100), 100);
+  const dataProgress = myStateTarget.dataGoal > 0 
+    ? Math.min(Math.round(((myStateTarget.dataSold || 0) / myStateTarget.dataGoal) * 100), 100)
+    : 0;
+
+  const airtimeProgress = myStateTarget.airtimeGoal > 0 
+    ? Math.min(Math.round(((myStateTarget.airtimeSold || 0) / myStateTarget.airtimeGoal) * 100), 100)
+    : 0;
 
   if (loading) {
     return (
@@ -675,7 +694,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW */}
+          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (WANDA NSD YA TURA) */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
@@ -1368,9 +1387,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL 2: ADVANCED TARGET DEPLOYMENT (SUPERVISORS & AGENTS MULTI-SELECT)
-         ========================================================================= */}
+      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
@@ -1601,9 +1618,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL 3: ENROLL FIELD SUPERVISOR (PERSISTS DIRECTLY TO DATABASE)
-         ========================================================================= */}
+      {/* MODAL 3: ENROLL FIELD SUPERVISOR */}
       <Modal visible={enrollModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -2247,7 +2262,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Toggle Segment Buttons
   toggleSegmentRow: {
     flexDirection: "row",
     backgroundColor: "#f1f5f9",
@@ -2278,7 +2292,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
-  // Specific Selection List Box (Checkboxes)
   selectionListBox: {
     backgroundColor: "#f8fafc",
     borderRadius: 10,
