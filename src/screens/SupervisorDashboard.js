@@ -74,16 +74,6 @@ const SupervisorDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal: Asalin SIGNUP don Rajistar Retail Agent
-  const [enrollAgentModalVisible, setEnrollAgentModalVisible] = useState(false);
-  const [agentFirstName, setAgentFirstName] = useState("");
-  const [agentSurname, setAgentSurname] = useState("");
-  const [agentPhone, setAgentPhone] = useState("");
-  const [agentEmail, setAgentEmail] = useState("");
-  const [agentPassword, setAgentPassword] = useState("Password123@");
-  const [agentAddress, setAgentAddress] = useState("");
-  const [actionLoading, setActionLoading] = useState(false);
-
   // Modal: Dalla-dallar Duban Agent (Inspector Modal)
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
@@ -92,6 +82,7 @@ const SupervisorDashboard = ({ navigation }) => {
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -124,6 +115,36 @@ const SupervisorDashboard = ({ navigation }) => {
       Clipboard.setString(code);
     }
     showAlert("Copied 📋", `Referral Code: ${code} copied to clipboard.`);
+  };
+
+  // KAI TSAYE ZUWA SIGNUP SCREEN TARE DA REFERRAL CODE DA LGA NA SUPERVISOR
+  const handleNavigateToSignup = () => {
+    const registrationParams = {
+      role: "agent",
+      referralCode: supervisorProfile.referralCode,
+      referredBy: supervisorProfile.referralCode,
+      state: supervisorProfile.state,
+      lga: supervisorProfile.lga,
+      assignedSupervisor: supervisorProfile.phone,
+    };
+
+    if (navigation && typeof navigation.navigate === "function") {
+      // Duba ko 'Signup' ko 'Register' ko 'SignupScreen' sunan route din yake
+      try {
+        navigation.navigate("Signup", registrationParams);
+      } catch (e1) {
+        try {
+          navigation.navigate("Register", registrationParams);
+        } catch (e2) {
+          navigation.navigate("SignupScreen", registrationParams);
+        }
+      }
+    } else {
+      showAlert(
+        "Agent Registration Link",
+        `Share this code with your Agent: ${supervisorProfile.referralCode}`
+      );
+    }
   };
 
   // 1. Kwaso dukkan bayanan Supervisor da Agents a Real Live
@@ -262,73 +283,6 @@ const SupervisorDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. ASALIN SIGNUP / REGISTER NA RETAIL AGENT
-  const handleRegisterAgent = async () => {
-    if (!agentFirstName.trim() || !agentPhone.trim()) {
-      return showAlert("Validation Error", "First Name and Phone Number are required.");
-    }
-
-    setActionLoading(true);
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const fullName = `${agentFirstName.trim()} ${agentSurname.trim()}`.trim();
-      const cleanPhone = agentPhone.trim();
-      const cleanEmail = agentEmail.trim()
-        ? agentEmail.trim().toLowerCase()
-        : `${cleanPhone}@ayaxdata.online`;
-
-      // Sanya wa Agent Referral Code na Supervisor din kai tsaye
-      const requestPayload = {
-        firstName: agentFirstName.trim(),
-        surname: agentSurname.trim() || "Agent",
-        name: fullName,
-        phone: cleanPhone,
-        email: cleanEmail,
-        password: agentPassword.trim() || "Password123@",
-        role: "agent",
-        state: supervisorProfile.state,
-        lga: supervisorProfile.lga,
-        address: agentAddress.trim() || `${supervisorProfile.lga} LGA`,
-        referralCode: supervisorProfile.referralCode,
-        referredBy: supervisorProfile.referralCode,
-      };
-
-      // Kiran ainihin Signup endpoint
-      let res;
-      try {
-        res = await axios.post(`${BASE_URL}/auth/register`, requestPayload);
-      } catch (err1) {
-        try {
-          res = await axios.post(`${BASE_URL}/auth/signup`, requestPayload);
-        } catch (err2) {
-          res = await axios.post(`${BASE_URL}/supervisor/create-agent`, requestPayload, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        }
-      }
-
-      if (res.data?.success || res.status === 200 || res.status === 201) {
-        showAlert(
-          "Retail Agent Registered 🎉",
-          `${fullName} has been officially registered under your supervision in ${supervisorProfile.lga} LGA with referral code: ${supervisorProfile.referralCode}.`
-        );
-        setEnrollAgentModalVisible(false);
-        setAgentFirstName("");
-        setAgentSurname("");
-        setAgentPhone("");
-        setAgentEmail("");
-        setAgentPassword("Password123@");
-        setAgentAddress("");
-        fetchDashboardData();
-      }
-    } catch (err) {
-      console.error("Agent Registration Error:", err);
-      showAlert("Registration Error", err.response?.data?.message || err.message);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleBroadcastToAgents = async () => {
     if (!notifTitle.trim() || !notifMessage.trim()) {
       return showAlert("Validation Error", "Directive Title and Message Body are required.");
@@ -415,7 +369,7 @@ const SupervisorDashboard = ({ navigation }) => {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity
             style={[styles.avatarBtn, { marginRight: 8 }]}
-            onPress={() => setEnrollAgentModalVisible(true)}
+            onPress={handleNavigateToSignup}
             activeOpacity={0.7}
           >
             <Ionicons name="person-add" size={16} color="#38bdf8" />
@@ -558,7 +512,7 @@ const SupervisorDashboard = ({ navigation }) => {
                 </View>
                 <View style={{ marginLeft: 10, flex: 1 }}>
                   <Text style={styles.referralCardTitle}>Supervisor Referral Code (Real-Time)</Text>
-                  <Text style={styles.referralCardSub}>Give this code to new Retail Agents during Signup</Text>
+                  <Text style={styles.referralCardSub}>Auto-binds agent to your LGA supervision during Signup</Text>
                 </View>
               </View>
               <TouchableOpacity style={styles.copyRefBtn} onPress={handleCopyReferral} activeOpacity={0.8}>
@@ -572,11 +526,11 @@ const SupervisorDashboard = ({ navigation }) => {
           <View style={styles.actionRowContainer}>
             <TouchableOpacity
               style={styles.actionBtnFull}
-              onPress={() => setEnrollAgentModalVisible(true)}
+              onPress={handleNavigateToSignup}
               activeOpacity={0.8}
             >
               <Ionicons name="person-add" size={15} color="#ffffff" />
-              <Text style={styles.actionBtnFullText}>+ ENROLL RETAIL AGENT (SIGNUP)</Text>
+              <Text style={styles.actionBtnFullText}>+ OPEN SIGNUP SCREEN TO REGISTER AGENT</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -615,7 +569,7 @@ const SupervisorDashboard = ({ navigation }) => {
                 </Text>
                 <TouchableOpacity
                   style={styles.actionPillBtn}
-                  onPress={() => setEnrollAgentModalVisible(true)}
+                  onPress={handleNavigateToSignup}
                 >
                   <Ionicons name="person-add" size={13} color="#ffffff" />
                   <Text style={styles.actionPillBtnText}>+ ADD AGENT</Text>
@@ -774,95 +728,7 @@ const SupervisorDashboard = ({ navigation }) => {
       </ScrollView>
 
       {/* =========================================================================
-          MODAL 1: ASALIN SIGNUP FORM DON ENROLLING RETAIL AGENT
-         ========================================================================= */}
-      <Modal visible={enrollAgentModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeaderRow}>
-              <View>
-                <Text style={styles.modalCardTitle}>Retail Agent Official Signup</Text>
-                <Text style={styles.modalCardSubtitle}>
-                  Register agent in {supervisorProfile.lga} LGA (Ref Code: {supervisorProfile.referralCode})
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setEnrollAgentModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.formFieldLabel}>FIRST NAME</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. Mustapha"
-                placeholderTextColor="#94a3b8"
-                value={agentFirstName}
-                onChangeText={setAgentFirstName}
-              />
-
-              <Text style={styles.formFieldLabel}>SURNAME</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. Ibrahim"
-                placeholderTextColor="#94a3b8"
-                value={agentSurname}
-                onChangeText={setAgentSurname}
-              />
-
-              <Text style={styles.formFieldLabel}>PHONE NUMBER (LOGIN USERNAME)</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. 08012345678"
-                placeholderTextColor="#94a3b8"
-                keyboardType="phone-pad"
-                value={agentPhone}
-                onChangeText={setAgentPhone}
-              />
-
-              <Text style={styles.formFieldLabel}>EMAIL ADDRESS</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. agent@ayaxdata.online"
-                placeholderTextColor="#94a3b8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={agentEmail}
-                onChangeText={setAgentEmail}
-              />
-
-              <Text style={styles.formFieldLabel}>SHOP / OUTLET PHYSICAL ADDRESS</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. Main Market, Shop No. 12, Ajingi"
-                placeholderTextColor="#94a3b8"
-                value={agentAddress}
-                onChangeText={setAgentAddress}
-              />
-
-              <Text style={styles.formFieldLabel}>LOGIN PASSWORD</Text>
-              <TextInput
-                style={styles.textInputStyle}
-                placeholder="e.g. Password123@"
-                placeholderTextColor="#94a3b8"
-                value={agentPassword}
-                onChangeText={setAgentPassword}
-              />
-
-              <TouchableOpacity
-                style={styles.primaryActionBtn}
-                onPress={handleRegisterAgent}
-                disabled={actionLoading}
-              >
-                {actionLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryActionBtnText}>SUBMIT & CREATE AGENT ACCOUNT</Text>}
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* =========================================================================
-          MODAL 2: INSPECT LIVE AGENT TELEMETRY
+          MODAL 1: INSPECT LIVE AGENT TELEMETRY
          ========================================================================= */}
       <Modal visible={inspectModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -915,7 +781,9 @@ const SupervisorDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 3: DIRECTIVE BROADCAST */}
+      {/* =========================================================================
+          MODAL 2: DIRECTIVE BROADCAST
+         ========================================================================= */}
       <Modal visible={notifModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -990,13 +858,13 @@ const SupervisorDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  setEnrollAgentModalVisible(true);
+                  handleNavigateToSignup();
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
                   <Ionicons name="person-add-outline" size={16} color="#1e40af" />
                 </View>
-                <Text style={styles.navItemText}>Enroll Retail Agent (Signup)</Text>
+                <Text style={styles.navItemText}>Open Signup Screen to Register Agent</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
