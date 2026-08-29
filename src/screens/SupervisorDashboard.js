@@ -72,7 +72,7 @@ const SupervisorDashboard = ({ navigation }) => {
 
   // Sidebar Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
+  const sidebarWidth = isLargeScreen ? 340 : Math.min(width * 0.88, 360);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
   // Modal: Dalla-dallar Duban Agent (Inspector Modal)
@@ -177,7 +177,6 @@ const SupervisorDashboard = ({ navigation }) => {
 
         const dashData = supDashRes.data?.data || supDashRes.data || {};
         
-        // Duba Agents ta kowace hanya domin kar a rasa ko guda daya
         const fetchedAgents =
           dashData.agents ||
           agentsRes.data?.agents ||
@@ -273,7 +272,6 @@ const SupervisorDashboard = ({ navigation }) => {
     [navigation]
   );
 
-  // Auto-refresh a lokacin da aka dawo kan shafin
   useFocusEffect(
     useCallback(() => {
       fetchDashboardData(true);
@@ -473,26 +471,7 @@ const SupervisorDashboard = ({ navigation }) => {
       >
         <View style={styles.contentCenterWrapper}>
           
-          {/* SECTION 1: SUPERVISOR PROFILE & CONTACT DETAILS CARD (NUNA SUNA, EMAIL, DA PHONE) */}
-          <View style={styles.supervisorProfileCard}>
-            <View style={styles.supervisorAvatarWrap}>
-              <FontAwesome5 name="user-tie" size={24} color="#1e40af" />
-            </View>
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={styles.supervisorProfileName}>{supervisorProfile.name}</Text>
-              <Text style={styles.supervisorProfileDetail}>
-                📞 Phone: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.phone || "Not set"}</Text>
-              </Text>
-              <Text style={styles.supervisorProfileDetail}>
-                ✉️ Email: <Text style={{ color: "#0284c7", fontWeight: "700" }}>{supervisorProfile.email}</Text>
-              </Text>
-              <Text style={styles.supervisorProfileDetail}>
-                📍 Jurisdiction: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.lga} LGA, {supervisorProfile.state} State</Text>
-              </Text>
-            </View>
-          </View>
-
-          {/* SECTION 2: SUPERVISOR'S TARGET MONITORING CARD (DAGA STATE MANAGER) */}
+          {/* SECTION 1: SUPERVISOR'S TARGET MONITORING CARD (DAGA STATE MANAGER) */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
@@ -550,7 +529,7 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 3: REFERRAL CODE & OUTLET INVITATION CARD */}
+          {/* SECTION 2: REFERRAL CODE & OUTLET INVITATION CARD */}
           <View style={styles.referralBannerCard}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ flexDirection: "row", alignItems: "center", flex: 1, marginRight: 10 }}>
@@ -569,7 +548,7 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 4: SUMMARY ACTIONS ROW */}
+          {/* SECTION 3: SUMMARY ACTIONS ROW */}
           <View style={styles.actionRowContainer}>
             <TouchableOpacity
               style={styles.actionBtnFull}
@@ -874,7 +853,9 @@ const SupervisorDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* SIDEBAR DRAWER */}
+      {/* =========================================================================
+          SIDEBAR DRAWER (TARE DA CIKAKKEN SUPERVISOR PROFILE A SAMAN SITEBAR)
+         ========================================================================= */}
       {sidebarOpen && (
         <TouchableOpacity
           style={styles.sidebarBackdrop}
@@ -885,17 +866,48 @@ const SupervisorDashboard = ({ navigation }) => {
             style={[styles.sidebarContainer, { width: sidebarWidth, transform: [{ translateX: sidebarAnim }] }]}
             onStartShouldSetResponder={() => true}
           >
+            {/* 1. SUPERVISOR PROFILE HEADER A SAMAN SITEBAR */}
             <View style={styles.sidebarHeader}>
               <View style={styles.sidebarBrandRow}>
-                <MaterialCommunityIcons name="shield-check" size={28} color="#1e40af" />
-                <View style={{ marginLeft: 10 }}>
-                  <Text style={styles.sidebarBrandText}>{supervisorProfile.lga} LGA</Text>
-                  <Text style={styles.sidebarRoleText}>Field Operations Command</Text>
+                <View style={styles.sidebarSupervisorAvatar}>
+                  <FontAwesome5 name="user-tie" size={20} color="#1e40af" />
+                </View>
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={styles.sidebarBrandText} numberOfLines={1}>
+                    {supervisorProfile.name}
+                  </Text>
+                  <Text style={styles.sidebarRoleText}>
+                    {supervisorProfile.lga} LGA Field Lead
+                  </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => toggleSidebar(false)}>
+              <TouchableOpacity onPress={() => toggleSidebar(false)} style={{ padding: 4 }}>
                 <Feather name="x" size={22} color="#64748b" />
               </TouchableOpacity>
+            </View>
+
+            {/* 2. CIKAKKEN SUPERVISOR CONTACTS & REFERRAL CARD A CIKIN SITEBAR */}
+            <View style={styles.sidebarProfileDetailsCard}>
+              <Text style={styles.sidebarProfileDetailText} numberOfLines={1}>
+                📞 Phone: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.phone || "N/A"}</Text>
+              </Text>
+              <Text style={styles.sidebarProfileDetailText} numberOfLines={1}>
+                ✉️ Email: <Text style={{ color: "#0284c7", fontWeight: "700" }}>{supervisorProfile.email}</Text>
+              </Text>
+              <Text style={styles.sidebarProfileDetailText} numberOfLines={1}>
+                📍 Jurisdiction: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.lga} LGA, {supervisorProfile.state}</Text>
+              </Text>
+
+              <View style={styles.sidebarRefRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sidebarRefLabel}>REFERRAL CODE</Text>
+                  <Text style={styles.sidebarRefCodeText}>{supervisorProfile.referralCode}</Text>
+                </View>
+                <TouchableOpacity style={styles.sidebarCopyRefBtn} onPress={handleCopyReferral}>
+                  <Feather name="copy" size={12} color="#ffffff" />
+                  <Text style={styles.sidebarCopyRefBtnText}>COPY</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView style={styles.sidebarNavList} showsVerticalScrollIndicator={false}>
@@ -1017,31 +1029,6 @@ const styles = StyleSheet.create({
   scrollArea: { flex: 1, width: "100%" },
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
-
-  supervisorProfileCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    marginHorizontal: isLargeScreen ? 24 : 16,
-    marginTop: 12,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    elevation: 2,
-  },
-  supervisorAvatarWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: "#eff6ff",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#bfdbfe",
-  },
-  supervisorProfileName: { color: "#0f172a", fontSize: 15, fontWeight: "900", marginBottom: 2 },
-  supervisorProfileDetail: { color: "#64748b", fontSize: 11.5, marginTop: 1 },
 
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
@@ -1273,6 +1260,9 @@ const styles = StyleSheet.create({
   },
   emptyFeedText: { color: "#94a3b8", fontSize: 12, marginTop: 10, textAlign: "center" },
 
+  // ==========================================
+  // SIDEBAR STYLES (TARE DA SUPERVISOR PROFILE A SAMA)
+  // ==========================================
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
@@ -1296,20 +1286,65 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingBottom: 16,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
   },
-  sidebarBrandRow: { flexDirection: "row", alignItems: "center" },
-  sidebarBrandText: { color: "#0f172a", fontSize: 15, fontWeight: "900" },
+  sidebarBrandRow: { flexDirection: "row", alignItems: "center", flex: 1 },
+  sidebarSupervisorAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#eff6ff",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  sidebarBrandText: { color: "#0f172a", fontSize: 14, fontWeight: "900" },
   sidebarRoleText: { color: "#1e40af", fontSize: 10.5, fontWeight: "700" },
-  sidebarNavList: { flex: 1, marginTop: 10 },
+
+  sidebarProfileDetailsCard: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  sidebarProfileDetailText: { fontSize: 11, color: "#64748b", marginVertical: 1.5 },
+  sidebarRefRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  sidebarRefLabel: { fontSize: 8.5, color: "#1e40af", fontWeight: "800" },
+  sidebarRefCodeText: { fontSize: 11.5, color: "#0f172a", fontWeight: "900" },
+  sidebarCopyRefBtn: {
+    backgroundColor: "#1e40af",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sidebarCopyRefBtnText: { color: "#ffffff", fontSize: 9.5, fontWeight: "900", marginLeft: 4 },
+
+  sidebarNavList: { flex: 1, marginTop: 6 },
   sidebarCategory: {
     color: "#64748b",
     fontSize: 9.5,
     fontWeight: "900",
     letterSpacing: 1,
-    marginTop: 16,
+    marginTop: 12,
     marginBottom: 6,
     paddingLeft: 6,
   },
