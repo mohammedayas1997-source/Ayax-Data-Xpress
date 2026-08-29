@@ -37,6 +37,15 @@ const LeaderDashboard = ({ navigation }) => {
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
+  // 1. AYYANA CURRENT LGA LIST A SAMA DOMIN KAUCE WA BLANK ERROR
+  const currentLgaList = NIGERIA_STATES_LGAS[managerState] || [
+    "Central",
+    "North",
+    "South",
+    "East",
+    "West",
+  ];
+
   // State Manager's Target Overview (Daga NSD)
   const [myStateTarget, setMyStateTarget] = useState({
     dataGoal: 0,
@@ -94,12 +103,11 @@ const LeaderDashboard = ({ navigation }) => {
   const [targetAgentGoal, setTargetAgentGoal] = useState("10");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Modal 3: Enroll Supervisor
+  // Modal 3: Enroll Supervisor (Amfani da currentLgaList bayan an ayyana shi a sama)
   const [enrollModalVisible, setEnrollModalVisible] = useState(false);
   const [newSupName, setNewSupName] = useState("");
   const [newSupPhone, setNewSupPhone] = useState("");
   const [newSupEmail, setNewSupEmail] = useState("");
-  // Madadin: const [newSupLga, setNewSupLga] = useState("");
   const [newSupLga, setNewSupLga] = useState(currentLgaList[0] || "Central");
   const [newSupPassword, setNewSupPassword] = useState("Password123@");
 
@@ -108,14 +116,6 @@ const LeaderDashboard = ({ navigation }) => {
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
-
-  const currentLgaList = NIGERIA_STATES_LGAS[managerState] || [
-    "Central",
-    "North",
-    "South",
-    "East",
-    "West",
-  ];
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -165,7 +165,6 @@ const LeaderDashboard = ({ navigation }) => {
 
         const headers = { Authorization: `Bearer ${token}` };
 
-        // Kwaso dukkan bayanan Field, Agents, Audit Stream da sabon Target
         const [dashRes, agentsRes, logsRes, targetRes] = await Promise.all([
           axios.get(`${BASE_URL}/leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/leader/agents-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
@@ -178,7 +177,6 @@ const LeaderDashboard = ({ navigation }) => {
         const fetchedAgents = agentsRes.data?.agents || dashData.agents || [];
         const fetchedLogs = logsRes.data?.logs || dashData.activityLogs || [];
         
-        // Duba Target din da NSD ya tura ta hanyoyi guda 4 domin kar ya salwanta
         const fetchedMyTarget =
           targetRes.data?.targets ||
           targetRes.data?.data?.assignedTargets ||
@@ -294,14 +292,12 @@ const LeaderDashboard = ({ navigation }) => {
     setTargetPortalVisible(true);
   };
 
-  // Gyara ko sauya target din mutum guda a cikin teburin (Kari ko Ragi)
   const handleUpdateItemTarget = (id, field, value) => {
     setAllocatedList((prev) =>
       prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
   };
 
-  // Tura sakamakon rabon da aka tantance zuwa Database
   const handleDeployAllocatedTargets = async () => {
     setActionLoading(true);
     try {
@@ -338,7 +334,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Helper Functions for Target Checkbox Multi-Select
   const handleToggleModalPerson = (id) => {
     if (targetSelectedPeopleIds.includes(id)) {
       setTargetSelectedPeopleIds(targetSelectedPeopleIds.filter((item) => item !== id));
@@ -372,7 +367,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // Deploy Target Function (Custom Target Deployment)
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -2095,7 +2089,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 4,
   },
-  bannerActionBtnTextPrimary: { color: "#ffffff", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+  bannerActionBtnTextPrimary: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
   bannerActionBtnSecondary: {
     flex: 1,
     flexDirection: "row",
@@ -2108,7 +2102,7 @@ const styles = StyleSheet.create({
     borderColor: "#a7f3d0",
     marginHorizontal: 4,
   },
-  bannerActionBtnTextSecondary: { color: "#059669", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+  bannerActionBtnTextSecondary: { color: "#059669", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
   bannerActionBtnTertiary: {
     flex: 1,
     flexDirection: "row",
