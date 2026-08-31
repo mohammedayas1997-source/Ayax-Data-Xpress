@@ -105,6 +105,11 @@ function AppContent() {
           component={DrawerNavigator}
           options={{ headerShown: false }}
         />
+        <Stack.Screen name="Success" component={SuccessScreen} />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+        />
         <Stack.Screen name="BuyAirtime" component={AirtimeScreen} />
         <Stack.Screen name="FundWallet" component={FundWalletScreen} />
         <Stack.Screen name="BuyData" component={BuyDataScreen} />
