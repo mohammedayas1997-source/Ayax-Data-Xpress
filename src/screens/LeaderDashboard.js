@@ -103,13 +103,13 @@ const LeaderDashboard = ({ navigation }) => {
   const [targetAgentGoal, setTargetAgentGoal] = useState("10");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Modal 3: Enroll Supervisor (Amfani da currentLgaList bayan an ayyana shi a sama)
+  // Modal 3: Enroll Supervisor
   const [enrollModalVisible, setEnrollModalVisible] = useState(false);
   const [newSupName, setNewSupName] = useState("");
   const [newSupPhone, setNewSupPhone] = useState("");
   const [newSupEmail, setNewSupEmail] = useState("");
   const [newSupLga, setNewSupLga] = useState(currentLgaList[0] || "Central");
-  const [newSupPassword, setNewSupPassword] = useState("Password123@");
+  const [newSupPassword, setNewSupPassword] = useState("Password123@",);
 
   // Modal 4: Broadcast Directive
   const [notifModalVisible, setNotifModalVisible] = useState(false);
@@ -279,16 +279,26 @@ const LeaderDashboard = ({ navigation }) => {
     const autoAirtimePerPerson = Math.floor((myStateTarget.airtimeGoal || 0) / count);
     const autoAgentPerPerson = mode === "supervisor" ? Math.max(1, Math.floor((myStateTarget.agentGoal || 10) / count)) : 0;
 
-    const initialList = pool.map((item) => ({
-      id: item._id || item.id,
-      name: item.name || `${item.firstName || ""} ${item.surname || ""}` || "Staff",
-      phone: item.phone || "N/A",
-      email: item.email || "N/A",
-      lga: item.lga || "LGA",
-      dataGoal: String(autoDataPerPerson),
-      airtimeGoal: String(autoAirtimePerPerson),
-      agentGoal: String(autoAgentPerPerson),
-    }));
+    const initialList = pool.map((item) => {
+      // Nemo adadin Agents na wannan Supervisor
+      const childCount = agents.filter(
+        (a) =>
+          (a.assignedSupervisor && (a.assignedSupervisor._id === item._id || a.assignedSupervisor === item._id)) ||
+          (a.lga && item.lga && a.lga.toLowerCase() === item.lga.toLowerCase())
+      ).length;
+
+      return {
+        id: item._id || item.id,
+        name: item.name || `${item.firstName || ""} ${item.surname || ""}` || "Staff",
+        phone: item.phone || "N/A",
+        email: item.email || "N/A",
+        lga: item.lga || "LGA",
+        childCount: childCount,
+        dataGoal: String(autoDataPerPerson),
+        airtimeGoal: String(autoAirtimePerPerson),
+        agentGoal: String(autoAgentPerPerson),
+      };
+    });
 
     setAllocatedList(initialList);
     setTargetPortalVisible(true);
@@ -300,6 +310,7 @@ const LeaderDashboard = ({ navigation }) => {
     );
   };
 
+  // RABA TARGET GA SUPERVISOR DA DUKKAN AGENTS DINSA A TAKE
   const handleDeployAllocatedTargets = async () => {
     setActionLoading(true);
     try {
@@ -310,14 +321,19 @@ const LeaderDashboard = ({ navigation }) => {
         await axios.post(
           `${BASE_URL}/leader/assign-target`,
           {
+            mode: splitMode === "supervisor" ? "single_supervisor" : "single_agent",
             category: splitMode,
             scope: "selected",
+            supervisorId: splitMode === "supervisor" ? item.id : undefined,
+            agentId: splitMode === "agent" ? item.id : undefined,
             [splitMode === "supervisor" ? "supervisorIds" : "agentIds"]: [item.id],
             dataGoal: Number(item.dataGoal) || 0,
             airtimeGoal: Number(item.airtimeGoal) || 0,
             agentGoal: Number(item.agentGoal) || 0,
             month: myStateTarget.currentMonth,
+            targetMonth: myStateTarget.currentMonth,
             state: managerState,
+            lga: item.lga,
           },
           { headers }
         );
@@ -325,7 +341,7 @@ const LeaderDashboard = ({ navigation }) => {
 
       showAlert(
         "Targets Deployed Successfully 🎯",
-        `Quotas have been officially dispatched to ${allocatedList.length} ${splitMode === "supervisor" ? "Supervisors" : "Agents"} in ${managerState} State.`
+        `Quotas have been officially dispatched to ${allocatedList.length} ${splitMode === "supervisor" ? "Supervisors (and auto-split to their subordinate agents)" : "Agents"} in ${managerState} State.`
       );
       setTargetPortalVisible(false);
       fetchDashboardData();
@@ -369,19 +385,26 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
+  // GYARA KO TURAWA AGENT GUDA DAYA / SUPERVISOR / LGA
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const headers = { Authorization: `Bearer ${token}` };
 
+      const isSinglePerson = targetScope === "selected" && targetSelectedPeopleIds.length === 1;
+
       const payload = {
+        mode: isSinglePerson
+          ? (targetCategory === "supervisor" ? "single_supervisor" : "single_agent")
+          : (targetCategory === "lga" ? "lga_split" : "custom_bulk"),
         category: targetCategory,
         scope: targetScope,
         dataGoal: Number(targetDataGoal),
         airtimeGoal: Number(targetAirtimeGoal),
         agentGoal: Number(targetAgentGoal),
         month: targetMonth.trim(),
+        targetMonth: targetMonth.trim(),
         state: managerState,
       };
 
@@ -398,12 +421,18 @@ const LeaderDashboard = ({ navigation }) => {
           setActionLoading(false);
           return;
         }
+        if (isSinglePerson) {
+          payload.supervisorId = targetSelectedPeopleIds[0];
+        }
         payload.supervisorIds = targetScope === "all" ? supervisors.map((s) => s._id || s.id) : targetSelectedPeopleIds;
       } else if (targetCategory === "agent") {
         if (targetScope === "selected" && targetSelectedPeopleIds.length === 0) {
           showAlert("Validation Error", "Please select at least one Retail Agent.");
           setActionLoading(false);
           return;
+        }
+        if (isSinglePerson) {
+          payload.agentId = targetSelectedPeopleIds[0];
         }
         payload.agentIds = targetScope === "all" ? agents.map((a) => a._id || a.id) : targetSelectedPeopleIds;
       }
@@ -436,8 +465,11 @@ const LeaderDashboard = ({ navigation }) => {
         await axios.post(
           `${BASE_URL}/leader/assign-target`,
           {
+            mode: type === "supervisor" ? "single_supervisor" : "single_agent",
             category: type,
             scope: "selected",
+            supervisorId: type === "supervisor" ? recipientId : undefined,
+            agentId: type === "agent" ? recipientId : undefined,
             [type === "supervisor" ? "supervisorIds" : "agentIds"]: [recipientId],
             dataGoal: 0,
             airtimeGoal: 0,
@@ -738,7 +770,7 @@ const LeaderDashboard = ({ navigation }) => {
       >
         <View style={styles.contentCenterWrapper}>
           
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW (WANDA NSD YA TURA TARE DA AUTO-SPLIT BUTTON) */}
+          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
@@ -808,7 +840,7 @@ const LeaderDashboard = ({ navigation }) => {
               </View>
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.targetBannerTitle}>State Quota Command Desk</Text>
-                <Text style={styles.targetBannerSub}>System calculates & splits quota automatically or deploy custom targets to LGA leads</Text>
+                <Text style={styles.targetBannerSub}>System calculates & splits quota automatically to Supervisors and their child Agents</Text>
               </View>
             </View>
 
@@ -906,7 +938,7 @@ const LeaderDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: FIELD SUPERVISORS (YANA NUNA SUNA, LGA, PHONE, DA EMAIL) */}
+          {/* TAB 1: FIELD SUPERVISORS */}
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -937,7 +969,6 @@ const LeaderDashboard = ({ navigation }) => {
                             <Text style={styles.locationTagText}>
                               📍 {supLga} LGA • 📞 {supPhone}
                             </Text>
-                            {/* EMAIL NA FIELD SUPERVISOR */}
                             <Text style={styles.emailTagText}>
                               ✉️ {supEmail}
                             </Text>
@@ -1032,7 +1063,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: AGENTS LIST (TARE DA EMAIL) */}
+          {/* TAB 2: AGENTS LIST (KOWANE AGENT DA NASA TARGET DA BUTTON NA GYARAWA) */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -1042,6 +1073,8 @@ const LeaderDashboard = ({ navigation }) => {
               {filteredAgents.length > 0 ? (
                 filteredAgents.map((ag) => {
                   const agId = ag._id || ag.id;
+                  const agDataTarget = Number(ag.targets?.dataGoal || ag.dataGoal || 0);
+                  const agAirTarget = Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 0);
 
                   return (
                     <View key={agId} style={styles.agentCard}>
@@ -1065,29 +1098,31 @@ const LeaderDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
+                      {/* INDA SM KE GANIN AINIHIN TARGET DIN KOWANE AGENT */}
                       <View style={styles.agentQuotaRow}>
                         <Text style={styles.agentQuotaText}>
-                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{ag.targets?.dataGoal || ag.dataGoal || 100} GB</Text>
+                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{agDataTarget} GB</Text>
                         </Text>
                         <Text style={styles.agentQuotaText}>
-                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 10000).toLocaleString()}</Text>
+                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{agAirTarget.toLocaleString()}</Text>
                         </Text>
                       </View>
 
                       <View style={styles.agentCardBottom}>
+                        {/* BUTTON NA GYARA TARGET DIN AGENT GUDA DAYA A TAKE */}
                         <TouchableOpacity
                           style={styles.agentActionMiniBtn}
                           onPress={() => {
                             setTargetCategory("agent");
                             setTargetScope("selected");
                             setTargetSelectedPeopleIds([agId]);
-                            setTargetDataGoal(String(ag.targets?.dataGoal || ag.dataGoal || 100));
-                            setTargetAirtimeGoal(String(ag.targets?.airtimeGoal || ag.airtimeGoal || 10000));
+                            setTargetDataGoal(String(agDataTarget || 100));
+                            setTargetAirtimeGoal(String(agAirTarget || 10000));
                             setTargetModalVisible(true);
                           }}
                         >
                           <FontAwesome5 name="edit" size={11} color="#1e40af" />
-                          <Text style={[styles.agentActionMiniText, { color: "#1e40af" }]}>Set Quota</Text>
+                          <Text style={[styles.agentActionMiniText, { color: "#1e40af" }]}>Edit Target</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1260,7 +1295,7 @@ const LeaderDashboard = ({ navigation }) => {
       </ScrollView>
 
       {/* =========================================================================
-          SABON SMART TARGET PORTAL: AUTO-SPLIT DA MANUAL CUSTOMIZATION TABLE
+          SMART TARGET PORTAL: AUTO-SPLIT DA MANUAL CUSTOMIZATION TABLE
          ========================================================================= */}
       <Modal visible={targetPortalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -1283,11 +1318,13 @@ const LeaderDashboard = ({ navigation }) => {
               <View style={styles.splitInstructionBanner}>
                 <Ionicons name="information-circle" size={18} color="#1e40af" />
                 <Text style={styles.splitInstructionText}>
-                  System has divided the state quota equally among your active leads. You can increase (+) or reduce (-) any person's quota in the boxes below before deploying.
+                  {splitMode === "supervisor"
+                    ? "System divides the quota among Supervisors and automatically cascades the target down to their subordinate agents. You can modify any person's box below before confirming."
+                    : "System divides the quota equally among all active Retail Agents. Adjust individual targets as required."}
                 </Text>
               </View>
 
-              {/* TABLE LIST OF RECIPIENTS (TARE DA EMAIL) */}
+              {/* TABLE LIST OF RECIPIENTS */}
               {allocatedList.map((item, index) => (
                 <View key={item.id} style={styles.editableQuotaCard}>
                   <View style={styles.editableQuotaHeader}>
@@ -1296,7 +1333,7 @@ const LeaderDashboard = ({ navigation }) => {
                         {index + 1}. {item.name}
                       </Text>
                       <Text style={styles.editableQuotaLga}>
-                        📍 {item.lga} LGA • 📞 {item.phone} • ✉️ {item.email}
+                        📍 {item.lga} LGA • 📞 {item.phone} • ✉️ {item.email} {splitMode === "supervisor" ? `• (${item.childCount} Agents)` : ""}
                       </Text>
                     </View>
                   </View>
@@ -1505,7 +1542,7 @@ const LeaderDashboard = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* MODAL 1: INSPECTION MODAL (TARE DA EMAIL) */}
+      {/* MODAL 1: INSPECTION MODAL */}
       <Modal visible={inspectModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxHeight: "88%", width: isLargeScreen ? "60%" : "95%" }]}>
@@ -1578,7 +1615,7 @@ const LeaderDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT (CUSTOM ALLOCATION) */}
+      {/* MODAL 2: ADVANCED TARGET DEPLOYMENT */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
@@ -1595,7 +1632,6 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* STEP 1: SELECT TARGET RECIPIENT TYPE */}
               <Text style={styles.formFieldLabel}>1. SELECT TARGET CATEGORY</Text>
               <View style={styles.toggleSegmentRow}>
                 <TouchableOpacity
@@ -1638,7 +1674,6 @@ const LeaderDashboard = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* STEP 2: SCOPE SELECTION */}
               <Text style={styles.formFieldLabel}>2. SELECT SCOPE (RECIPIENTS)</Text>
               <View style={styles.toggleSegmentRow}>
                 <TouchableOpacity
