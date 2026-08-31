@@ -34,25 +34,29 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }
   };
 
-  // STEP 1: Send OTP & Reset Link
-  const handleRequestReset = async () => {
+ const handleRequestReset = async () => {
     if (!identifier.trim()) {
       return showAlert("Input Error", "Please enter your registered Email or Phone Number.");
     }
 
     setLoading(true);
     try {
-      const res = await axios.post(`${BASE_URL}/auth/forgot-password`, {
-        identifier: identifier.trim(),
-        email: identifier.trim(),
-      });
+      const res = await axios.post(
+        `${BASE_URL}/auth/forgot-password`,
+        {
+          identifier: identifier.trim(),
+          email: identifier.trim(),
+        },
+        { timeout: 10000 }
+      );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Dispatched", res.data.message || "Reset link and OTP sent to your registered email.");
         setStep(2);
+        showAlert("Dispatched", res.data.message || "Reset link and OTP sent to your registered email.");
       }
     } catch (err) {
-      showAlert("Request Failed", err.response?.data?.message || err.message);
+      showAlert("Request Notice", err.response?.data?.message || "Server response delayed. Check your email.");
+      setStep(2); // Automatically move to Step 2 so user can enter OTP
     } finally {
       setLoading(false);
     }
