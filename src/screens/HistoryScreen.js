@@ -10,25 +10,40 @@ import {
   StatusBar,
   TextInput,
   Platform,
-  Dimensions,
+  Modal,
+  Clipboard,
+  Alert,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, FontAwesome5, Feather } from "@expo/vector-icons";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ThemeContext } from "../context/ThemeContext";
 
-const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const filterCategories = ["ALL", "DATA", "AIRTIME", "ELECTRICITY", "NIN", "BVN", "FUNDING"];
+const filterCategories = [
+  "ALL",
+  "DATA",
+  "AIRTIME",
+  "ELECTRICITY",
+  "CABLE",
+  "NIN",
+  "BVN",
+  "FUNDING",
+  "REFUND",
+];
 
 const HistoryScreen = ({ navigation }) => {
-  const { isDarkMode } = useContext(ThemeContext);
+  const { isDarkMode } = useContext(ThemeContext) || { isDarkMode: false };
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Transaction Receipt / Details Modal State
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchHistory = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
@@ -41,21 +56,24 @@ const HistoryScreen = ({ navigation }) => {
         return;
       }
 
-      // Query complete transaction ledger across all services
-      const response = await axios.get(`${BASE_URL}/vtu/history`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 15000,
-      });
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Query unified endpoints with graceful fallbacks
+      const response = await axios
+        .get(`${BASE_URL}/transactions/my-history`, { headers, timeout: 15000 })
+        .catch(() => axios.get(`${BASE_URL}/transactions/history`, { headers, timeout: 15000 }))
+        .catch(() => axios.get(`${BASE_URL}/vtu/history`, { headers, timeout: 15000 }))
+        .catch(() => axios.get(`${BASE_URL}/transactions`, { headers, timeout: 15000 }));
 
       const result = response.data;
       if (result.success || result.status === "success") {
         const rawList = result.data || result.history || result.transactions || [];
-        setHistory(rawList);
+        setHistory(Array.isArray(rawList) ? rawList : []);
       } else {
         setHistory([]);
       }
     } catch (error) {
-      console.log("Transaction History Sync Error:", error.response?.data || error.message);
+      console.log("Transaction History Sync Notice:", error.response?.data?.message || error.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -71,60 +89,83 @@ const HistoryScreen = ({ navigation }) => {
     fetchHistory(true);
   };
 
-  // Resolve dynamic category icon and color
-  const getServiceMetadata = (type = "") => {
-    const t = String(type).toUpperCase();
-    if (t.includes("DATA")) {
-      return { icon: "wifi", color: "#0284c7", label: "Data Bundle", bg: "rgba(2, 132, 199, 0.12)" };
+  const copyToClipboard = (text) => {
+    if (!text) return;
+    Clipboard.setString(String(text));
+    if (Platform.OS === "web") {
+      window.alert(`Copied: ${text}`);
+    } else {
+      Alert.alert("Copied to Clipboard", `${text}`);
     }
-    if (t.includes("AIRTIME") || t.includes("VTU")) {
-      return { icon: "phone-alt", color: "#16a34a", label: "Airtime Top-up", bg: "rgba(22, 163, 74, 0.12)" };
-    }
-    if (t.includes("ELECTRIC") || t.includes("POWER")) {
-      return { icon: "bolt", color: "#eab308", label: "Electricity Token", bg: "rgba(234, 179, 8, 0.12)" };
-    }
-    if (t.includes("NIN") || t.includes("NIMC")) {
-      return { icon: "fingerprint", color: "#2563eb", label: "NIN Service", bg: "rgba(37, 99, 235, 0.12)" };
-    }
-    if (t.includes("BVN")) {
-      return { icon: "id-card", color: "#8b5cf6", label: "BVN Service", bg: "rgba(139, 92, 246, 0.12)" };
-    }
-    if (t.includes("FUND") || t.includes("DEPOSIT") || t.includes("WALLET")) {
-      return { icon: "wallet", color: "#10b981", label: "Wallet Deposit", bg: "rgba(16, 185, 129, 0.12)" };
-    }
-    return { icon: "receipt", color: "#64748b", label: "Utility Service", bg: "rgba(100, 116, 139, 0.12)" };
   };
 
-  // Filter and search computation
+  // Dynamic Service Metadata Resolver
+  const getServiceMetadata = (item) => {
+    const rawType = String(item.type || item.service || item.category || "").toUpperCase();
+
+    if (rawType.includes("DATA")) {
+      return { icon: "wifi", color: "#0284c7", label: "Data Bundle", bg: "rgba(2, 132, 199, 0.12)", isInflow: false };
+    }
+    if (rawType.includes("AIRTIME") || rawType.includes("VTU")) {
+      return { icon: "phone-alt", color: "#16a34a", label: "Airtime Top-up", bg: "rgba(22, 163, 74, 0.12)", isInflow: false };
+    }
+    if (rawType.includes("ELECTRIC") || rawType.includes("POWER") || rawType.includes("TOKEN")) {
+      return { icon: "bolt", color: "#eab308", label: "Electricity Token", bg: "rgba(234, 179, 8, 0.12)", isInflow: false };
+    }
+    if (rawType.includes("CABLE") || rawType.includes("TV") || rawType.includes("GOTV") || rawType.includes("DSTV")) {
+      return { icon: "tv", color: "#8b5cf6", label: "Cable Subscription", bg: "rgba(139, 92, 246, 0.12)", isInflow: false };
+    }
+    if (rawType.includes("NIN") || rawType.includes("NIMC")) {
+      return { icon: "fingerprint", color: "#2563eb", label: "NIN Verification", bg: "rgba(37, 99, 235, 0.12)", isInflow: false };
+    }
+    if (rawType.includes("BVN")) {
+      return { icon: "id-card", color: "#06b6d4", label: "BVN Service", bg: "rgba(6, 182, 212, 0.12)", isInflow: false };
+    }
+    if (rawType.includes("REFUND")) {
+      return { icon: "undo-alt", color: "#10b981", label: "Wallet Refund", bg: "rgba(16, 185, 129, 0.15)", isInflow: true };
+    }
+    if (rawType.includes("FUND") || rawType.includes("DEPOSIT") || rawType.includes("CREDIT") || rawType.includes("WALLET")) {
+      return { icon: "wallet", color: "#10b981", label: "Wallet Deposit", bg: "rgba(16, 185, 129, 0.12)", isInflow: true };
+    }
+    return { icon: "receipt", color: "#64748b", label: item.service || "Utility Service", bg: "rgba(100, 116, 139, 0.12)", isInflow: false };
+  };
+
+  // Filter and Search Engine
   const filteredHistory = history.filter((item) => {
-    const rawType = String(item.type || item.service || "").toUpperCase();
-    const rawRef = String(item.reference || "").toUpperCase();
-    const rawPhone = String(item.phoneNumber || item.phone || item.meterNumber || item.nin || item.bvn || "").toUpperCase();
+    const rawType = String(item.type || item.service || item.category || "").toUpperCase();
+    const rawRef = String(item.reference || item.transactionId || item._id || "").toUpperCase();
+    const rawPhone = String(item.phoneNumber || item.phone || item.recipient || item.meterNumber || item.nin || item.bvn || "").toUpperCase();
+    const rawDesc = String(item.description || item.details || "").toUpperCase();
+    const rawAmount = String(item.amount || "");
     const rawQuery = searchQuery.toUpperCase().trim();
 
-    const matchesCategory =
-      activeFilter === "ALL" ||
-      (activeFilter === "DATA" && rawType.includes("DATA")) ||
-      (activeFilter === "AIRTIME" && (rawType.includes("AIRTIME") || rawType.includes("VTU"))) ||
-      (activeFilter === "ELECTRICITY" && (rawType.includes("ELECTRIC") || rawType.includes("POWER"))) ||
-      (activeFilter === "NIN" && (rawType.includes("NIN") || rawType.includes("NIMC"))) ||
-      (activeFilter === "BVN" && rawType.includes("BVN")) ||
-      (activeFilter === "FUNDING" && (rawType.includes("FUND") || rawType.includes("WALLET") || rawType.includes("DEPOSIT")));
+    let matchesCategory = true;
+    if (activeFilter === "DATA") matchesCategory = rawType.includes("DATA");
+    else if (activeFilter === "AIRTIME") matchesCategory = rawType.includes("AIRTIME") || rawType.includes("VTU");
+    else if (activeFilter === "ELECTRICITY") matchesCategory = rawType.includes("ELECTRIC") || rawType.includes("POWER");
+    else if (activeFilter === "CABLE") matchesCategory = rawType.includes("CABLE") || rawType.includes("TV");
+    else if (activeFilter === "NIN") matchesCategory = rawType.includes("NIN") || rawType.includes("NIMC");
+    else if (activeFilter === "BVN") matchesCategory = rawType.includes("BVN");
+    else if (activeFilter === "REFUND") matchesCategory = rawType.includes("REFUND");
+    else if (activeFilter === "FUNDING") matchesCategory = rawType.includes("FUND") || rawType.includes("DEPOSIT") || rawType.includes("CREDIT") || rawType.includes("WALLET");
 
     const matchesSearch =
       !rawQuery ||
       rawRef.includes(rawQuery) ||
       rawPhone.includes(rawQuery) ||
-      rawType.includes(rawQuery);
+      rawType.includes(rawQuery) ||
+      rawDesc.includes(rawQuery) ||
+      rawAmount.includes(rawQuery);
 
     return matchesCategory && matchesSearch;
   });
 
   const renderItem = ({ item }) => {
-    const meta = getServiceMetadata(item.type || item.service);
+    const meta = getServiceMetadata(item);
     const status = String(item.status || "COMPLETED").toUpperCase();
-    const isSuccess = status === "SUCCESS" || status === "SUCCESSFUL" || status === "DELIVERED";
-    const isPending = status === "PENDING" || status === "PROCESSING" || status === "QUEUED";
+    const isSuccess = status === "SUCCESS" || status === "SUCCESSFUL" || status === "DELIVERED" || status === "COMPLETED";
+    const isPending = status === "PENDING" || status === "PROCESSING" || status === "QUEUED" || status === "PENDING-REFUND";
+    const isRefunded = status === "REFUNDED";
 
     const displayAmount = Number(item.amount || item.totalAmount || 0);
     const dateFormatted = item.createdAt
@@ -138,6 +179,7 @@ const HistoryScreen = ({ navigation }) => {
       : "Recent";
 
     const detailText =
+      item.recipient ||
       item.phoneNumber ||
       item.phone ||
       item.meterNumber ||
@@ -145,10 +187,15 @@ const HistoryScreen = ({ navigation }) => {
       item.bvn ||
       item.description ||
       item.reference ||
-      "N/A";
+      "Platform Node";
 
     return (
-      <View
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => {
+          setSelectedTx(item);
+          setModalVisible(true);
+        }}
         style={[
           styles.card,
           {
@@ -162,16 +209,19 @@ const HistoryScreen = ({ navigation }) => {
             <View style={[styles.serviceIconWrap, { backgroundColor: meta.bg }]}>
               <FontAwesome5 name={meta.icon} size={15} color={meta.color} />
             </View>
-            <View style={{ marginLeft: 10 }}>
+            <View style={{ marginLeft: 10, flex: 1 }}>
               <Text
                 style={[
                   styles.serviceTitle,
                   { color: isDarkMode ? "#f8fafc" : "#0f172a" },
                 ]}
+                numberOfLines={1}
               >
                 {meta.label}
               </Text>
-              <Text style={styles.referenceText}>Ref: {item.reference || "N/A"}</Text>
+              <Text style={styles.referenceText} numberOfLines={1}>
+                Ref: {item.reference || item.transactionId || "N/A"}
+              </Text>
             </View>
           </View>
 
@@ -179,7 +229,9 @@ const HistoryScreen = ({ navigation }) => {
             style={[
               styles.statusPill,
               {
-                backgroundColor: isSuccess
+                backgroundColor: isRefunded
+                  ? "rgba(139, 92, 246, 0.12)"
+                  : isSuccess
                   ? "rgba(16, 185, 129, 0.12)"
                   : isPending
                   ? "rgba(234, 179, 8, 0.12)"
@@ -191,7 +243,9 @@ const HistoryScreen = ({ navigation }) => {
               style={[
                 styles.statusText,
                 {
-                  color: isSuccess
+                  color: isRefunded
+                    ? "#8b5cf6"
+                    : isSuccess
                     ? "#10b981"
                     : isPending
                     ? "#eab308"
@@ -217,13 +271,13 @@ const HistoryScreen = ({ navigation }) => {
           <Text
             style={[
               styles.amountText,
-              { color: isDarkMode ? "#00f0ff" : "#0284c7" },
+              { color: meta.isInflow ? "#10b981" : isDarkMode ? "#00f0ff" : "#0284c7" },
             ]}
           >
-            ₦{displayAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {meta.isInflow ? "+" : "-"}₦{displayAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -241,7 +295,7 @@ const HistoryScreen = ({ navigation }) => {
 
       {/* Header Bar */}
       <View style={styles.header}>
-        {navigation && (
+        {navigation?.canGoBack() ? (
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons
               name="arrow-back"
@@ -249,6 +303,8 @@ const HistoryScreen = ({ navigation }) => {
               color={isDarkMode ? "#f8fafc" : "#0f172a"}
             />
           </TouchableOpacity>
+        ) : (
+          <View style={{ width: 36 }} />
         )}
         <Text
           style={[
@@ -267,7 +323,7 @@ const HistoryScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Live Search Bar */}
+      {/* Search Bar */}
       <View
         style={[
           styles.searchBarContainer,
@@ -283,7 +339,7 @@ const HistoryScreen = ({ navigation }) => {
             styles.searchInput,
             { color: isDarkMode ? "#ffffff" : "#0f172a" },
           ]}
-          placeholder="Search by phone, meter, NIN, or Ref"
+          placeholder="Search by phone, meter, NIN, amount, or Ref..."
           placeholderTextColor="#64748b"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -296,7 +352,7 @@ const HistoryScreen = ({ navigation }) => {
       </View>
 
       {/* Category Filter Chips */}
-      <View style={{ height: 42, marginBottom: 12 }}>
+      <View style={{ height: 44, marginBottom: 10 }}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -349,7 +405,7 @@ const HistoryScreen = ({ navigation }) => {
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#0284c7" />
           <Text style={[styles.loadingText, { color: isDarkMode ? "#94a3b8" : "#64748b" }]}>
-            Fetching transaction history...
+            Loading transaction ledger...
           </Text>
         </View>
       ) : (
@@ -383,12 +439,130 @@ const HistoryScreen = ({ navigation }) => {
                 No Records Found
               </Text>
               <Text style={styles.emptySub}>
-                Transactions performed across data, airtime, electricity, and NIN will be displayed here automatically.
+                All airtime, data, electricity, cable, identity queries, and funding records will be securely preserved here.
               </Text>
             </View>
           }
         />
       )}
+
+      {/* TRANSACTION DETAILS RECEIPT MODAL */}
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalCard,
+              { backgroundColor: isDarkMode ? "#0b1120" : "#ffffff", borderColor: isDarkMode ? "#1e293b" : "#e2e8f0" },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: isDarkMode ? "#f8fafc" : "#0f172a" }]}>
+                Transaction Receipt
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedTx && (
+              <View>
+                <View style={styles.receiptAmountRow}>
+                  <Text style={styles.receiptAmountLabel}>Amount</Text>
+                  <Text
+                    style={[
+                      styles.receiptAmountVal,
+                      { color: getServiceMetadata(selectedTx).isInflow ? "#10b981" : isDarkMode ? "#00f0ff" : "#0284c7" },
+                    ]}
+                  >
+                    {getServiceMetadata(selectedTx).isInflow ? "+" : "-"}₦
+                    {Number(selectedTx.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+
+                <View
+                  style={[
+                    styles.receiptDetailsBox,
+                    { backgroundColor: isDarkMode ? "#050811" : "#f8fafc", borderColor: isDarkMode ? "#1e293b" : "#e2e8f0" },
+                  ]}
+                >
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Service</Text>
+                    <Text style={[styles.receiptValue, { color: isDarkMode ? "#f8fafc" : "#0f172a" }]}>
+                      {getServiceMetadata(selectedTx).label}
+                    </Text>
+                  </View>
+
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Status</Text>
+                    <Text
+                      style={[
+                        styles.receiptValue,
+                        {
+                          color:
+                            String(selectedTx.status).toUpperCase() === "REFUNDED"
+                              ? "#8b5cf6"
+                              : String(selectedTx.status).toUpperCase() === "SUCCESS" ||
+                                String(selectedTx.status).toUpperCase() === "COMPLETED"
+                              ? "#10b981"
+                              : "#ef4444",
+                          fontWeight: "800",
+                        },
+                      ]}
+                    >
+                      {String(selectedTx.status || "SUCCESS").toUpperCase()}
+                    </Text>
+                  </View>
+
+                  {(selectedTx.recipient || selectedTx.phoneNumber || selectedTx.phone) && (
+                    <View style={styles.receiptRow}>
+                      <Text style={styles.receiptLabel}>Beneficiary</Text>
+                      <Text style={[styles.receiptValue, { color: isDarkMode ? "#f8fafc" : "#0f172a" }]}>
+                        {selectedTx.recipient || selectedTx.phoneNumber || selectedTx.phone}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Date & Time</Text>
+                    <Text style={[styles.receiptValue, { color: isDarkMode ? "#f8fafc" : "#0f172a" }]}>
+                      {selectedTx.createdAt ? new Date(selectedTx.createdAt).toLocaleString() : "Recent"}
+                    </Text>
+                  </View>
+
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Reference</Text>
+                    <TouchableOpacity
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                      onPress={() => copyToClipboard(selectedTx.reference || selectedTx._id)}
+                    >
+                      <Text style={[styles.receiptValue, { color: "#0284c7" }]}>
+                        {String(selectedTx.reference || selectedTx._id).slice(0, 16)}...
+                      </Text>
+                      <Feather name="copy" size={13} color="#0284c7" style={{ marginLeft: 5 }} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {selectedTx.description && (
+                    <View style={[styles.receiptRow, { borderBottomWidth: 0 }]}>
+                      <Text style={styles.receiptLabel}>Description</Text>
+                      <Text style={[styles.receiptValue, { flex: 1, textAlign: "right", color: isDarkMode ? "#cbd5e1" : "#475569" }]}>
+                        {selectedTx.description}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.closeBtnText}>Close Receipt</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -411,7 +585,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 12,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   searchInput: { flex: 1, fontSize: 13, fontWeight: "600" },
   filterChip: {
@@ -486,6 +660,48 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "500",
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalCard: {
+    borderRadius: 18,
+    padding: 20,
+    width: "100%",
+    maxWidth: 440,
+    borderWidth: 1,
+  },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  modalTitle: { fontSize: 15, fontWeight: "900" },
+  receiptAmountRow: { alignItems: "center", marginVertical: 10 },
+  receiptAmountLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
+  receiptAmountVal: { fontSize: 24, fontWeight: "900", marginTop: 2 },
+  receiptDetailsBox: {
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+  },
+  receiptRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 7,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(100, 116, 139, 0.1)",
+  },
+  receiptLabel: { color: "#64748b", fontSize: 11.5, fontWeight: "600" },
+  receiptValue: { fontSize: 12, fontWeight: "700" },
+  closeBtn: {
+    backgroundColor: "#0284c7",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 14,
+  },
+  closeBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900" },
 });
 
 export default HistoryScreen;
