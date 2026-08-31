@@ -201,7 +201,7 @@ const SupervisorDashboard = ({ navigation }) => {
           (Array.isArray(logsRes.data) ? logsRes.data : []) ||
           [];
 
-        // CIKAKKEN GYARAN TARGET (Zai duba duk inda akwai lambar da ta fi 0 ba tare da ya toshe ba)
+        // CIKAKKEN GYARAN TARGET (Duba Data, Airtime da Agent Target)
         const t1 = dashData.myTarget || {};
         const t2 = dashData.targets || {};
         const t3 = targetRes.data?.targets || targetRes.data?.data?.targets || targetRes.data?.data || {};
@@ -209,7 +209,7 @@ const SupervisorDashboard = ({ navigation }) => {
 
         const finalDataGoal = Number(t1.dataGoal || t2.dataGoal || t3.dataGoal || t4.dataGoal || dashData.dataGoal || 0);
         const finalAirtimeGoal = Number(t1.airtimeGoal || t2.airtimeGoal || t3.airtimeGoal || t4.airtimeGoal || dashData.airtimeGoal || 0);
-        const finalAgentGoal = Number(t1.agentGoal || t2.agentGoal || t3.agentGoal || t4.agentGoal || 10);
+        const finalAgentGoal = Number(t1.agentGoal || t2.agentGoal || t3.agentGoal || t4.agentGoal || dashData.agentGoal || 10);
         const finalMonth = t1.currentMonth || t2.currentMonth || t3.currentMonth || t4.currentMonth || "August 2026";
 
         const currentPhone = String(dashData.phone || parsedUser.phone || "").trim();
@@ -369,6 +369,10 @@ const SupervisorDashboard = ({ navigation }) => {
     ? Math.min(Math.round(((myTarget.airtimeSold || 0) / myTarget.airtimeGoal) * 100), 100)
     : 0;
 
+  const agentProgress = myTarget.agentGoal > 0
+    ? Math.min(Math.round((stats.totalAgents / myTarget.agentGoal) * 100), 100)
+    : 0;
+
   if (loading) {
     return (
       <View style={styles.loaderContainer}>
@@ -495,19 +499,19 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.execMetricsGrid}>
-              {/* Data Target */}
+              {/* 1. Data Target */}
               <View style={styles.execMetricBoxDark}>
-                <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>LGA DATA TARGET (GB)</Text>
+                <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>DATA SALES (GB)</Text>
                 <Text style={styles.execMetricValueDark}>
                   {myTarget.dataSold} / {myTarget.dataGoal} GB
                 </Text>
                 <View style={styles.execProgressBarBgDark}>
                   <View style={[styles.execProgressBarFill, { width: `${dataProgress}%`, backgroundColor: "#38bdf8" }]} />
                 </View>
-                <Text style={styles.execPercentSubDark}>{dataProgress}% Sold by Agents</Text>
+                <Text style={styles.execPercentSubDark}>{dataProgress}% Volume Sold</Text>
               </View>
 
-              {/* Airtime Target */}
+              {/* 2. Airtime Target */}
               <View style={styles.execMetricBoxDark}>
                 <Text style={[styles.execMetricLabelDark, { color: "#fbbf24" }]}>AIRTIME SALES (₦)</Text>
                 <Text style={styles.execMetricValueDark}>
@@ -516,24 +520,30 @@ const SupervisorDashboard = ({ navigation }) => {
                 <View style={styles.execProgressBarBgDark}>
                   <View style={[styles.execProgressBarFill, { width: `${airtimeProgress}%`, backgroundColor: "#fbbf24" }]} />
                 </View>
-                <Text style={styles.execPercentSubDark}>{airtimeProgress}% Completed</Text>
+                <Text style={styles.execPercentSubDark}>{airtimeProgress}% Sales Quota</Text>
               </View>
 
-              {/* New Agents Goal */}
+              {/* 3. Agent Enrollment Target (Daga SM) */}
               <View style={styles.execMetricBoxDark}>
-                <Text style={[styles.execMetricLabelDark, { color: "#34d399" }]}>OUTLETS ENROLLED</Text>
+                <Text style={[styles.execMetricLabelDark, { color: "#34d399" }]}>AGENT RECRUITMENT</Text>
                 <Text style={styles.execMetricValueDark}>
                   {stats.totalAgents} / {myTarget.agentGoal || 10}
                 </Text>
-                <Text style={styles.execPercentSubDark}>Active Resellers</Text>
+                <View style={styles.execProgressBarBgDark}>
+                  <View style={[styles.execProgressBarFill, { width: `${agentProgress}%`, backgroundColor: "#34d399" }]} />
+                </View>
+                <Text style={styles.execPercentSubDark}>{agentProgress}% Outlets Enrolled</Text>
               </View>
 
-              {/* Team Float */}
+              {/* 4. Team Float Balance */}
               <View style={styles.execMetricBoxDark}>
                 <Text style={[styles.execMetricLabelDark, { color: "#a78bfa" }]}>TOTAL TEAM FLOAT</Text>
                 <Text style={styles.execMetricValueDark}>
                   ₦{Number(stats.totalTeamFloat).toLocaleString()}
                 </Text>
+                <View style={styles.execProgressBarBgDark}>
+                  <View style={[styles.execProgressBarFill, { width: `100%`, backgroundColor: "#a78bfa" }]} />
+                </View>
                 <Text style={styles.execPercentSubDark}>Live Wallet Balance</Text>
               </View>
             </View>
@@ -566,7 +576,7 @@ const SupervisorDashboard = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <Ionicons name="person-add" size={15} color="#ffffff" />
-              <Text style={styles.actionBtnFullText}>+ OPEN SIGNUP SCREEN TO REGISTER AGENT</Text>
+              <Text style={styles.actionBtnFullText}>+ REGISTER NEW AGENT (QUOTA: {stats.totalAgents}/{myTarget.agentGoal})</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -596,7 +606,7 @@ const SupervisorDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: RETAIL AGENTS LIST (WITH REAL LIVE INFORMATION & EMAIL) */}
+          {/* TAB 1: RETAIL AGENTS LIST */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -733,6 +743,16 @@ const SupervisorDashboard = ({ navigation }) => {
                 </View>
                 <Text style={styles.perfSubText}>
                   ₦{Number(myTarget.airtimeSold).toLocaleString()} sold out of ₦{Number(myTarget.airtimeGoal).toLocaleString()} quota ({airtimeProgress}%).
+                </Text>
+              </View>
+
+              <View style={styles.performanceCard}>
+                <Text style={styles.perfCardTitle}>Agent Recruitment & Onboarding Quota</Text>
+                <View style={styles.perfProgressBarBg}>
+                  <View style={[styles.perfProgressBarFill, { width: `${agentProgress}%`, backgroundColor: "#34d399" }]} />
+                </View>
+                <Text style={styles.perfSubText}>
+                  {stats.totalAgents} retail outlets registered out of {myTarget.agentGoal} required goal ({agentProgress}%).
                 </Text>
               </View>
             </View>
