@@ -1,530 +1,631 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  StyleSheet,
+  TextInput,
   TouchableOpacity,
   ScrollView,
-  Image,
-  StatusBar,
-  Dimensions,
-  ToastAndroid,
-  ImageBackground,
-  Linking,
-  Platform,
+  StyleSheet,
   ActivityIndicator,
+  Alert,
+  Platform,
+  Dimensions,
+  StatusBar,
+  Modal,
   RefreshControl,
 } from "react-native";
-import * as Clipboard from "expo-clipboard";
 import {
-  MaterialCommunityIcons,
   Ionicons,
+  Feather,
+  MaterialIcons,
   FontAwesome5,
+  MaterialCommunityIcons,
 } from "@expo/vector-icons";
-import { CommonActions } from "@react-navigation/native";
-import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
-import { ThemeContext } from "../context/ThemeContext";
-
 const { width } = Dimensions.get("window");
-
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const AgentDashboard = ({ navigation }) => {
-  const [loading, setLoading] = useState(true);
+const IssueResolution = ({ navigation }) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [userData, setUserData] = useState(null);
-  const [isBalanceVisible, setIsBalanceVisible] = useState(true);
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const { isDarkMode } = useContext(ThemeContext);
+  const [selectedIssueType, setSelectedIssueType] = useState("all");
 
-  const [performance, setPerformance] = useState({
-    totalGB: 0,
-    totalSalesValue: 0,
-    commissionsEarned: 0,
-    bonusEarned: 0,
-    monthlyTargetSales: 100000,
-  });
+  // User Profile & Diagnostic Data
+  const [accountData, setAccountData] = useState(null);
+  const [disputedTransactions, setDisputedTransactions] = useState([]);
 
-  const [supervisor, setSupervisor] = useState(null);
+  // Modal Actions (Refund / Requery / Escalate)
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [actionType, setActionType] = useState(""); // 'requery' | 'refund' | 'escalate'
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [resolutionNote, setResolutionNote] = useState("");
+  const [refundAmount, setRefundAmount] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const fetchAgentAndProfileData = async () => {
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-
-      if (!token) {
-        setLoading(false);
-        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-        return;
-      }
-
-      const config = {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-      };
-
-      const [profileRes, perfRes, supRes] = await Promise.all([
-        axios.get(`${BASE_URL}/user/profile`, config).catch(() => ({ data: { success: false } })),
-        axios.get(`${BASE_URL}/agent/performance`, config).catch(() => ({ data: { data: null } })),
-        axios.get(`${BASE_URL}/agent/my-supervisor`, config).catch(() => ({ data: { data: null } })),
-      ]);
-
-      if (profileRes.data && (profileRes.data.success || profileRes.data.user || profileRes.data.data)) {
-        setUserData(profileRes.data.user || profileRes.data.data);
-      }
-
-      if (perfRes.data?.data) {
-        setPerformance(perfRes.data.data);
-      }
-
-      if (supRes.data?.data) {
-        setSupervisor(supRes.data.data);
-      } else {
-        setSupervisor("No Supervisor Assigned Yet");
-      }
-    } catch (err) {
-      console.log("Comprehensive Agent Dashboard Fetch Error:", err);
-
-      if (err.response && err.response.status === 401) {
-        navigation.reset({ index: 0, routes: [{ name: "Login" }] });
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const showAlert = (title, message) => {
+    if (Platform.OS === "web") {
+      alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
     }
   };
 
-  useEffect(() => {
-    fetchAgentAndProfileData();
-  }, []);
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const response = await axios.get(`${BASE_URL}/notifications`);
-        const data = response.data || [];
-        setNotifications(data);
-        const unread = data.filter((n) => n.read === false).length;
-        setUnreadCount(unread);
-      } catch (error) {
-        console.log("Notification fetch error:", error);
-      }
+  const getConfig = async () => {
+    const token = await AsyncStorage.getItem("userToken");
+    return {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 12000,
     };
-    fetchNotifications();
-  }, []);
+  };
 
-  const onRefresh = () => {
+  // 1. Run Complete System Audit on User / Reference
+  const handleDiagnosticSearch = async () => {
+    const query = searchTerm.trim();
+    if (!query) {
+      showAlert("Required", "Please provide a Phone Number, Email, Reference, or Verification ID.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const config = await getConfig();
+      const res = await axios.get(`${BASE_URL}/support/search-user/${query}`, config).catch(() =>
+        axios.get(`${BASE_URL}/support/trace/all/${query}`, config)
+      );
+
+      const payload = res.data?.data || res.data || {};
+      const profile = payload.profile || payload.user || payload;
+      const transactions = payload.recentTransactions || payload.transactions || (Array.isArray(payload) ? payload : []);
+
+      setAccountData(profile && (profile.phone || profile.email) ? profile : null);
+      setDisputedTransactions(transactions);
+
+      if (!profile?.phone && transactions.length === 0) {
+        showAlert("Not Found", `No logs or customer accounts matched "${query}".`);
+      }
+    } catch (err) {
+      showAlert("Diagnostic Error", err.response?.data?.message || "Failed to query telemetry logs.");
+      setAccountData(null);
+      setDisputedTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onManualRefresh = async () => {
     setRefreshing(true);
-    fetchAgentAndProfileData();
+    if (searchTerm.trim()) {
+      await handleDiagnosticSearch();
+    }
+    setRefreshing(false);
   };
 
-  const openWhatsApp = () => {
-    const phoneNumber = "+2349061244444";
-    const message = `Hello Ayax Xpress Support, I need assistance with my Agent account.`;
-    const url = `whatsapp://send?phone=${phoneNumber}&text=${encodeURIComponent(message)}`;
-    Linking.openURL(url).catch(() =>
-      Linking.openURL(`https://wa.me/${phoneNumber.replace("+", "")}`)
-    );
+  // 2. Open Resolution Action Modal
+  const openActionModal = (type, tx = null) => {
+    setActionType(type);
+    setSelectedTx(tx);
+    setResolutionNote("");
+    setRefundAmount(tx?.amount ? String(tx.amount) : "");
+    setActionModalVisible(true);
   };
 
-  const currentSales = performance.totalSalesValue || 0;
-  const targetSales = performance.monthlyTargetSales || 100000;
-  const remainingToTarget = targetSales - currentSales > 0 ? targetSales - currentSales : 0;
-  const achievementPercentage =
-    targetSales > 0 ? Math.min(Math.round((currentSales / targetSales) * 100), 100) : 0;
+  // 3. Execute Resolution Command
+  const handleExecuteResolution = async () => {
+    if (actionType !== "requery" && !resolutionNote.trim()) {
+      showAlert("Validation Error", "Please provide a diagnostic note or reason.");
+      return;
+    }
 
-  if (loading) {
-    return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-      </View>
-    );
-  }
+    setActionLoading(true);
+    try {
+      const config = await getConfig();
+
+      // Case A: Gateway Re-query
+      if (actionType === "requery") {
+        const res = await axios.post(
+          `${BASE_URL}/support/requery-transaction`,
+          {
+            reference: selectedTx?.reference || selectedTx?.transactionId || selectedTx?._id,
+            service: selectedTx?.service || selectedTx?.type,
+          },
+          config
+        );
+
+        showAlert("Gateway Re-query Result", res.data?.message || "Transaction status synchronized with telecom gateway.");
+      }
+
+      // Case B: Instant Customer Refund
+      else if (actionType === "refund") {
+        const res = await axios.post(
+          `${BASE_URL}/support/refund`,
+          {
+            userId: accountData?._id || selectedTx?.user?._id || selectedTx?.user,
+            phone: accountData?.phone || selectedTx?.recipient,
+            amount: Number(refundAmount),
+            reference: selectedTx?.reference || `REF-${Date.now()}`,
+            reason: resolutionNote.trim(),
+          },
+          config
+        );
+
+        showAlert("Refund Executed 💳", res.data?.message || `₦${Number(refundAmount).toLocaleString()} credited back to user wallet.`);
+      }
+
+      // Case C: Escalate to SuperAdmin
+      else if (actionType === "escalate") {
+        const res = await axios.post(
+          `${BASE_URL}/support/escalate-refund`,
+          {
+            userId: accountData?._id || selectedTx?.user?._id,
+            phoneOrEmail: accountData?.phone || accountData?.email || selectedTx?.recipient,
+            amount: Number(refundAmount || selectedTx?.amount || 0),
+            reference: selectedTx?.reference || "N/A",
+            reason: resolutionNote.trim(),
+            priority: "URGENT_DISPUTE",
+          },
+          config
+        );
+
+        showAlert("Escalated 🚀", res.data?.message || "Dispute packet dispatched to SuperAdmin executive desk.");
+      }
+
+      setActionModalVisible(false);
+      handleDiagnosticSearch(); // Refresh live state
+    } catch (err) {
+      showAlert("Resolution Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
-    <View style={[styles.mainContainer, { backgroundColor: isDarkMode ? "#020617" : "#f8fafc" }]}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+    <View style={styles.mainContainer}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      <ImageBackground
-        source={require("../assets/ayax_promo_hijab.png")}
-        resizeMode="cover"
-        style={{ flex: 1 }}
-        imageStyle={{ opacity: 0.15 }}
-      >
-        <View style={styles.fullOverlayGradient}>
-          <LinearGradient
-            colors={["rgba(255,255,255,0.6)", "rgba(248,250,252,0.95)"]}
-            style={styles.fullOverlay}
-          />
+      {/* TOP BAR */}
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.backIconBtn} onPress={() => navigation?.goBack()}>
+          <Ionicons name="arrow-back" size={20} color="#ffffff" />
+        </TouchableOpacity>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.topBarTitle}>Issue Resolution Desk</Text>
+          <Text style={styles.topBarSub}>Audit, Re-query, Refund & Escalate Disputes</Text>
         </View>
-
-        <View style={styles.topHeader}>
-          <View style={styles.navRow}>
-            <View style={styles.logoCircle}>
-              <Image source={require("../assets/Logo.png")} style={styles.logoImg} />
-            </View>
-
-            <TouchableOpacity
-              onPress={() => navigation.navigate("Notifications")}
-              style={{ marginRight: 20 }}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={28}
-                color={isDarkMode ? "#fff" : "#0f172a"}
-              />
-              {unreadCount > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => navigation.openDrawer?.()}>
-              <Ionicons name="menu" size={32} color={isDarkMode ? "#fff" : "#0f172a"} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.welcomeSection}>
-            <Text style={styles.welcomeText}>Agent Control Panel,</Text>
-            <Text style={styles.userName}>
-              {userData
-                ? `${userData.firstName || userData.name || ""} ${userData.surname || ""}`
-                : "Welcome Agent"}
-            </Text>
-          </View>
-        </View>
-
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: 180,
-            flexGrow: 1,
-          }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        <TouchableOpacity
+          style={styles.quickEscalateBtn}
+          onPress={() => openActionModal("escalate")}
         >
-          <LinearGradient colors={["#1e40af", "#1e3a8a"]} style={styles.walletCard}>
-            <View style={styles.walletTop}>
-              <Text style={styles.walletLabel}>Agent Available Balance</Text>
-              <TouchableOpacity
-                onPress={() => navigation.navigate("Main", { screen: "Wallet History" })}
-              >
-                <Text style={styles.historyText}>
-                  Transactions <Ionicons name="chevron-forward" size={12} />
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.balanceContainer}>
-              <Text style={styles.currency}>₦</Text>
-              <Text style={styles.balanceText}>
-                {isBalanceVisible
-                  ? userData?.walletBalance || userData?.balance || "0.00"
-                  : "****"}
-              </Text>
-              <TouchableOpacity onPress={() => setIsBalanceVisible(!isBalanceVisible)}>
-                <Ionicons
-                  name={isBalanceVisible ? "eye-outline" : "eye-off-outline"}
-                  size={24}
-                  color="#38bdf8"
-                  style={{ marginLeft: 15 }}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.walletActions}>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => navigation.navigate("FundWallet")}
-              >
-                <LinearGradient colors={["#38bdf8", "#0ea5e9"]} style={styles.innerBtnGradient}>
-                  <Ionicons name="add-circle" size={18} color="#fff" />
-                  <Text style={styles.actionBtnText}>FUND WALLET</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: "rgba(255,255,255,0.15)" }]}
-                onPress={openWhatsApp}
-              >
-                <Ionicons name="logo-whatsapp" size={18} color="#22c55e" />
-                <Text style={[styles.actionBtnText, { color: "#fff" }]}>SUPPORT</Text>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-
-          <Text style={styles.sectionLabel}>Performance Metrics</Text>
-
-          <View style={styles.statsGrid}>
-            <StatCard
-              title="Monthly Volume"
-              value={performance.totalGB || 0}
-              unit="GB"
-              color="#2563eb"
-            />
-            <StatCard
-              title="Monthly Revenue"
-              value={`₦${currentSales}`}
-              unit=""
-              color="#059669"
-            />
-          </View>
-
-          <View style={styles.statsGridAlt}>
-            <StatCard
-              title="Commissions Earned"
-              value={`₦${performance.commissionsEarned || 0}`}
-              unit=""
-              color="#d4af37"
-            />
-            <StatCard
-              title="Bonus Earned"
-              value={`₦${performance.bonusEarned || 0}`}
-              unit=""
-              color="#dc2626"
-            />
-          </View>
-
-          <View style={styles.targetTrackingSection}>
-            <Text style={styles.sectionTitle}>Target & Performance Tracking</Text>
-            <View style={styles.targetCard}>
-              <View style={styles.targetRow}>
-                <View>
-                  <Text style={styles.targetLabel}>Monthly Target</Text>
-                  <Text style={styles.targetValue}>₦{targetSales}</Text>
-                </View>
-                <View style={styles.rightAlign}>
-                  <Text style={styles.targetLabel}>Achievement</Text>
-                  <Text style={styles.percentageText}>{achievementPercentage}%</Text>
-                </View>
-              </View>
-
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressBar, { width: `${achievementPercentage}%` }]} />
-              </View>
-
-              <View style={styles.targetRowAlt}>
-                <Text style={styles.progressSubText}>
-                  Current: <Text style={styles.boldText}>₦{currentSales}</Text>
-                </Text>
-                <Text style={styles.remainingText}>
-                  Remaining: <Text style={styles.boldTextRed}>₦{remainingToTarget}</Text>
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <Text style={styles.sectionLabel}>Agent Utilities Services</Text>
-          <View style={styles.servicesContainer}>
-            <View style={styles.grid}>
-              <ServiceItem
-                icon="wifi"
-                color="#0ea5e9"
-                label="Data"
-                onPress={() => navigation.navigate("BuyData")}
-              />
-              <ServiceItem
-                icon="phone-alt"
-                color="#22c55e"
-                label="Airtime"
-                onPress={() => navigation.navigate("BuyAirtime")}
-              />
-              <ServiceItem
-                icon="bolt"
-                color="#eab308"
-                label="Power"
-                onPress={() => navigation.navigate("Electricity")}
-              />
-              <ServiceItem
-                icon="tv"
-                color="#8b5cf6"
-                label="Cable"
-                onPress={() => navigation.navigate("Cable")}
-              />
-              <ServiceItem
-                icon="id-card"
-                color="#f43f5e"
-                label="NIMC Verify"
-                onPress={() => navigation.navigate("NIMC")}
-              />
-              <ServiceItem
-                icon="fingerprint"
-                color="#ec4899"
-                label="NIMC Mod"
-                onPress={() => navigation.navigate("NIMCModification")}
-              />
-              <ServiceItem
-                icon="user-shield"
-                color="#64748b"
-                label="BVN"
-                onPress={() => navigation.navigate("BVNScreen")}
-              />
-              <ServiceItem
-                icon="shield-alt"
-                color="#1e40af"
-                label="NIN Valid"
-                onPress={() => navigation.navigate("NINValidation")}
-              />
-              <ServiceItem
-                icon="history"
-                color="#f97316"
-                label="History"
-                onPress={() => navigation.navigate("Main", { screen: "Wallet History" })}
-              />
-            </View>
-          </View>
-
-          <View style={styles.supervisorSection}>
-            <Text style={styles.sectionTitle}>Assigned Supervisor</Text>
-            <View style={styles.infoBox}>
-              {typeof supervisor === "string" ? (
-                <Text style={styles.infoText}>{supervisor}</Text>
-              ) : (
-                <View>
-                  <Text style={styles.supName}>{supervisor?.name || "N/A"}</Text>
-                  <Text style={styles.supPhone}>{supervisor?.phone || "No Contact"}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.actionSection}>
-            <Text style={styles.sectionTitle}>Quick Agent Actions</Text>
-            <TouchableOpacity
-              style={styles.actionBtnFull}
-              onPress={() => navigation.navigate("NewSale")}
-            >
-              <Text style={styles.actionBtnTextFull}>Process New Sale</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionBtnFull}
-              onPress={() => navigation.navigate("SalesHistory")}
-            >
-              <Text style={styles.actionBtnTextFull}>View Sales History</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ height: 120 }} />
-        </ScrollView>
-      </ImageBackground>
-
-      <View style={styles.bottomTab}>
-        <TabItem icon="home" label="Dashboard" active onPress={() => {}} />
-        <TabItem
-          icon="time-outline"
-          label="History"
-          onPress={() => navigation.navigate("Main", { screen: "Wallet History" })}
-        />
-        <TabItem
-          icon="person-outline"
-          label="Profile"
-          onPress={() => navigation.navigate("Profile")}
-        />
-        <TabItem
-          icon="help-buoy-outline"
-          label="Support"
-          onPress={() => navigation.navigate("Contact")}
-        />
+          <MaterialIcons name="report" size={16} color="#fbbf24" />
+        </TouchableOpacity>
       </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollArea}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onManualRefresh} tintColor="#0284c7" />}
+      >
+        {/* SEARCH BOX */}
+        <View style={styles.searchCard}>
+          <Text style={styles.searchCardHeading}>CUSTOMER & DISPUTE AUDIT ENGINE</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Search by Phone, Email, Reference, or Verification ID..."
+            placeholderTextColor="#94a3b8"
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+          />
+
+          <View style={styles.searchBtnRow}>
+            <TouchableOpacity style={styles.searchBtnPrimary} onPress={handleDiagnosticSearch} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="shield-checkmark" size={15} color="#ffffff" style={{ marginRight: 6 }} />
+                  <Text style={styles.btnTextWhite}>RUN DIAGNOSTICS</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.directRefundBtn}
+              onPress={() => openActionModal("refund")}
+            >
+              <FontAwesome5 name="hand-holding-usd" size={14} color="#ffffff" style={{ marginRight: 6 }} />
+              <Text style={styles.btnTextWhite}>INSTANT REFUND</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* DIAGNOSTIC USER CARD */}
+        {accountData && (
+          <View style={styles.userProfileCard}>
+            <View style={styles.userProfileTop}>
+              <View style={styles.userAvatarBox}>
+                <FontAwesome5 name="user-check" size={18} color="#0284c7" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.userNameText}>
+                  {accountData.name || `${accountData.firstName || ""} ${accountData.surname || ""}`.trim()}
+                </Text>
+                <Text style={styles.userRoleTag}>
+                  ROLE: {String(accountData.role || "USER").toUpperCase()} • STATUS:{" "}
+                  <Text style={{ color: accountData.isSuspended ? "#ef4444" : "#16a34a", fontWeight: "900" }}>
+                    {accountData.isSuspended ? "SUSPENDED" : "ACTIVE"}
+                  </Text>
+                </Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.walletBalText}>
+                  ₦{Number(accountData.walletBalance ?? accountData.balance ?? 0).toLocaleString()}
+                </Text>
+                <Text style={styles.walletBalSub}>Float Balance</Text>
+              </View>
+            </View>
+
+            <View style={styles.userMetaContainer}>
+              <Text style={styles.userMetaText}>📞 Phone: <Text style={styles.metaBold}>{accountData.phone || "N/A"}</Text></Text>
+              <Text style={styles.userMetaText}>✉️ Email: <Text style={styles.metaBold}>{accountData.email || "N/A"}</Text></Text>
+              <Text style={styles.userMetaText}>🏦 Bank Account: <Text style={styles.metaBold}>{accountData.bankName || "Wema Bank"} ({accountData.accountNumber || "N/A"})</Text></Text>
+              <Text style={styles.userMetaText}>📍 Region: <Text style={styles.metaBold}>{accountData.lga || "LGA"}, {accountData.state || "State"}</Text></Text>
+            </View>
+          </View>
+        )}
+
+        {/* DISPUTED / LOGGED TRANSACTIONS LIST */}
+        {disputedTransactions.length > 0 && (
+          <View style={styles.transactionsContainer}>
+            <Text style={styles.sectionHeading}>TRANSACTION TELEMETRY AUDIT ({disputedTransactions.length})</Text>
+
+            {disputedTransactions.map((tx, index) => {
+              const isSuccess = tx.status === "success" || tx.status === "completed";
+              const isFailed = tx.status === "failed";
+              const ref = tx.reference || tx.transactionId || tx._id;
+
+              return (
+                <View key={tx._id || index.toString()} style={styles.txAuditCard}>
+                  <View style={styles.txHeaderRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.txRefVal}>Ref: {ref}</Text>
+                      <Text style={styles.txTypeSub}>
+                        {tx.service || tx.type || "Service"} • {tx.createdAt ? new Date(tx.createdAt).toLocaleString() : "Real-Time"}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={styles.txAmountVal}>₦{Number(tx.amount || 0).toLocaleString()}</Text>
+                      <Text style={[styles.txStatusBadge, { color: isSuccess ? "#16a34a" : (isFailed ? "#ef4444" : "#d97706") }]}>
+                        {String(tx.status || "PENDING").toUpperCase()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* ACTION CONTROLS ON TRANSACTION */}
+                  <View style={styles.txControlsRow}>
+                    <TouchableOpacity
+                      style={styles.txActionBtnSecondary}
+                      onPress={() => openActionModal("requery", tx)}
+                    >
+                      <Feather name="refresh-cw" size={12} color="#0284c7" />
+                      <Text style={styles.txActionBtnTextSecondary}>Gateway Re-Query</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.txActionBtnPrimary}
+                      onPress={() => openActionModal("refund", tx)}
+                    >
+                      <MaterialIcons name="replay" size={13} color="#ffffff" />
+                      <Text style={styles.txActionBtnTextPrimary}>Credit Refund</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.txActionBtnDanger}
+                      onPress={() => openActionModal("escalate", tx)}
+                    >
+                      <MaterialIcons name="report-problem" size={13} color="#dc2626" />
+                      <Text style={styles.txActionBtnTextDanger}>Escalate</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+
+      {/* =========================================================================
+          RESOLUTION / REFUND / ESCALATION MODAL
+         ========================================================================= */}
+      <Modal visible={actionModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  {actionType === "requery"
+                    ? "Telecom Gateway Re-Query"
+                    : actionType === "refund"
+                    ? "Authorize Wallet Refund"
+                    : "Escalate Dispute to SuperAdmin"}
+                </Text>
+                <Text style={styles.modalSub}>
+                  Ref: {selectedTx?.reference || selectedTx?._id || "Direct User Adjustment"}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setActionModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {actionType === "refund" && (
+                <>
+                  <Text style={styles.fieldLabel}>REFUND AMOUNT (₦)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Enter amount..."
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="numeric"
+                    value={refundAmount}
+                    onChangeText={setRefundAmount}
+                  />
+                </>
+              )}
+
+              {actionType !== "requery" && (
+                <>
+                  <Text style={styles.fieldLabel}>DIAGNOSTIC RESOLUTION NOTE</Text>
+                  <TextInput
+                    style={[styles.modalInput, { height: 75, textAlignVertical: "top" }]}
+                    placeholder="Provide detailed diagnostic reason for audit trails..."
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                    value={resolutionNote}
+                    onChangeText={setResolutionNote}
+                  />
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[
+                  styles.modalSubmitBtn,
+                  { backgroundColor: actionType === "refund" ? "#16a34a" : (actionType === "escalate" ? "#dc2626" : "#0284c7") },
+                ]}
+                onPress={handleExecuteResolution}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.modalSubmitBtnText}>
+                    {actionType === "requery"
+                      ? "EXECUTE GATEWAY RE-QUERY"
+                      : actionType === "refund"
+                      ? "CONFIRM WALLET CREDIT REFUND"
+                      : "DISPATCH TO SUPERADMIN DESK"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
 
-const ServiceItem = ({ icon, label, color, onPress }) => (
-  <TouchableOpacity style={styles.gridItem} onPress={onPress}>
-    <View style={styles.iconBox}>
-      <FontAwesome5 name={icon} size={20} color={color} />
-    </View>
-    <Text style={styles.gridLabel}>{label}</Text>
-  </TouchableOpacity>
-);
-
-const StatCard = ({ title, value, unit, color }) => (
-  <View style={[styles.statCard, { borderLeftColor: color }]}>
-    <Text style={styles.statLabel}>{title}</Text>
-    <Text style={styles.statValue}>
-      {value} <Text style={styles.statUnit}>{unit}</Text>
-    </Text>
-  </View>
-);
-
-const TabItem = ({ icon, label, active, onPress }) => (
-  <TouchableOpacity style={styles.tabItem} onPress={onPress}>
-    <Ionicons name={icon} size={24} color={active ? "#1e40af" : "#94a3b8"} />
-    <Text style={[styles.tabLabel, { color: active ? "#1e40af" : "#94a3b8" }]}>{label}</Text>
-  </TouchableOpacity>
-);
-
 const styles = StyleSheet.create({
-  mainContainer: { flex: 1, width: "100%" },
-  fullOverlayGradient: { ...StyleSheet.absoluteFillObject },
-  fullOverlay: { flex: 1 },
-  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topHeader: { paddingHorizontal: 20, paddingTop: 60, paddingBottom: 20 },
-  navRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  logoCircle: { width: 45, height: 45, backgroundColor: "#0f172a", borderRadius: 22.5, justifyContent: "center", alignItems: "center", elevation: 4 },
-  logoImg: { width: 32, height: 32, resizeMode: "contain" },
-  welcomeSection: { marginBottom: 10 },
-  welcomeText: { color: "#64748b", fontSize: 14, fontWeight: "500" },
-  userName: { color: "#0f172a", fontSize: 24, fontWeight: "bold" },
-  walletCard: { borderRadius: 24, padding: 22, marginBottom: 25, elevation: 10 },
-  walletTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  walletLabel: { color: "#dbeafe", fontSize: 13 },
-  historyText: { color: "#38bdf8", fontSize: 12, fontWeight: "600" },
-  balanceContainer: { flexDirection: "row", alignItems: "center", marginVertical: 15 },
-  currency: { color: "#fff", fontSize: 24, fontWeight: "600" },
-  balanceText: { color: "#fff", fontSize: 34, fontWeight: "bold", marginLeft: 8 },
-  walletActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
-  actionBtn: { flex: 0.48, height: 48, borderRadius: 14, overflow: "hidden" },
-  innerBtnGradient: { flex: 1, flexDirection: "row", justifyContent: "center", alignItems: "center" },
-  actionBtnText: { color: "#fff", fontWeight: "bold", fontSize: 12, marginLeft: 8 },
-  sectionLabel: { fontSize: 16, fontWeight: "700", color: "#1e293b", marginTop: 15, marginBottom: 15, paddingLeft: 4 },
-  statsGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
-  statsGridAlt: { flexDirection: "row", justifyContent: "space-between", marginBottom: 15 },
-  statCard: { backgroundColor: "#fff", width: "48%", padding: 15, borderRadius: 12, borderLeftWidth: 6, elevation: 3 },
-  statLabel: { fontSize: 12, color: "#64748b", fontWeight: "600" },
-  statValue: { fontSize: 18, fontWeight: "bold", color: "#1e293b", marginTop: 5 },
-  statUnit: { fontSize: 12, color: "#94a3b8" },
-  targetTrackingSection: { marginTop: 10, marginBottom: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: "bold", color: "#334155", marginBottom: 10 },
-  targetCard: { backgroundColor: "#fff", padding: 20, borderRadius: 12, elevation: 3, borderWidth: 1, borderColor: "#e2e8f0" },
-  targetRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  targetRowAlt: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 },
-  targetLabel: { fontSize: 12, color: "#64748b" },
-  targetValue: { fontSize: 16, fontWeight: "bold", color: "#0f172a" },
-  rightAlign: { alignItems: "flex-end" },
-  percentageText: { fontSize: 20, fontWeight: "800", color: "#059669" },
-  progressTrack: { width: "100%", height: 10, backgroundColor: "#e2e8f0", borderRadius: 5, marginTop: 15, overflow: "hidden" },
-  progressBar: { height: "100%", backgroundColor: "#059669", borderRadius: 5 },
-  progressSubText: { fontSize: 12, color: "#64748b" },
-  remainingText: { fontSize: 12, color: "#64748b" },
-  boldText: { fontWeight: "700", color: "#0f172a" },
-  boldTextRed: { fontWeight: "700", color: "#dc2626" },
-  servicesContainer: { borderRadius: 28, padding: 20, elevation: 4, marginBottom: 20 },
-  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
-  gridItem: { width: "23%", alignItems: "center", marginBottom: 22 },
-  iconBox: { width: 54, height: 54, borderRadius: 18, backgroundColor: "#f8fafc", justifyContent: "center", alignItems: "center", marginBottom: 8, elevation: 1 },
-  gridLabel: { color: "#475569", fontSize: 11, textAlign: "center", fontWeight: "600" },
-  supervisorSection: { marginBottom: 20 },
-  infoBox: { backgroundColor: "#fff", padding: 15, borderRadius: 15, elevation: 2 },
-  infoText: { color: "#64748b" },
-  supName: { fontWeight: "bold", fontSize: 16 },
-  supPhone: { color: "#1e40af", marginTop: 4 },
-  actionSection: { marginBottom: 20 },
-  actionBtnFull: { backgroundColor: "#1e40af", padding: 15, borderRadius: 12, marginBottom: 10, alignItems: "center" },
-  actionBtnTextFull: { color: "#fff", fontWeight: "bold" },
-  bottomTab: { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 999, height: 85, backgroundColor: "#fff", flexDirection: "row", borderTopWidth: 1, borderTopColor: "#f1f5f9", paddingBottom: 20, elevation: 20 },
-  tabItem: { flex: 1, justifyContent: "center", alignItems: "center" },
-  tabLabel: { fontSize: 10, marginTop: 4, fontWeight: "600" },
-  badge: { position: "absolute", right: -5, top: -5, backgroundColor: "#ef4444", borderRadius: 10, width: 18, height: 18, justifyContent: "center", alignItems: "center" },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "bold" },
+  mainContainer: { flex: 1, backgroundColor: "#f8fafc" },
+  topBar: {
+    backgroundColor: "#0f172a",
+    paddingTop: Platform.OS === "ios" ? 50 : 38,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#1e293b",
+  },
+  backIconBtn: { padding: 4 },
+  topBarTitle: { color: "#ffffff", fontSize: 15, fontWeight: "900", letterSpacing: 0.3 },
+  topBarSub: { color: "#38bdf8", fontSize: 10.5, marginTop: 2 },
+  quickEscalateBtn: {
+    backgroundColor: "rgba(251, 191, 36, 0.15)",
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(251, 191, 36, 0.3)",
+  },
+
+  scrollArea: { padding: 14, paddingBottom: 60 },
+  searchCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 2,
+  },
+  searchCardHeading: { fontSize: 10.5, fontWeight: "900", color: "#0284c7", marginBottom: 8, letterSpacing: 0.6 },
+  textInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 44,
+    color: "#0f172a",
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  searchBtnRow: { flexDirection: "row", gap: 8 },
+  searchBtnPrimary: {
+    flex: 1.2,
+    backgroundColor: "#0284c7",
+    paddingVertical: 12,
+    borderRadius: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  directRefundBtn: {
+    flex: 1,
+    backgroundColor: "#16a34a",
+    paddingVertical: 12,
+    borderRadius: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  btnTextWhite: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
+
+  userProfileCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 4,
+    borderLeftColor: "#0284c7",
+    elevation: 2,
+  },
+  userProfileTop: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  userAvatarBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#e0f2fe",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  userNameText: { color: "#0f172a", fontSize: 14, fontWeight: "900" },
+  userRoleTag: { color: "#64748b", fontSize: 10, marginTop: 1 },
+  walletBalText: { color: "#059669", fontSize: 15, fontWeight: "900" },
+  walletBalSub: { color: "#94a3b8", fontSize: 9 },
+  userMetaContainer: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  userMetaText: { fontSize: 11, color: "#475569", marginVertical: 1.5 },
+  metaBold: { color: "#0f172a", fontWeight: "700" },
+
+  transactionsContainer: { marginBottom: 14 },
+  sectionHeading: { fontSize: 11, fontWeight: "900", color: "#475569", marginBottom: 10, letterSpacing: 0.6 },
+  txAuditCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    elevation: 1,
+  },
+  txHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  txRefVal: { fontSize: 12, color: "#0f172a", fontWeight: "800" },
+  txTypeSub: { fontSize: 10, color: "#64748b", marginTop: 2 },
+  txAmountVal: { fontSize: 14, color: "#0f172a", fontWeight: "900" },
+  txStatusBadge: { fontSize: 9.5, fontWeight: "900", marginTop: 2 },
+
+  txControlsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 6,
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#f1f5f9",
+    paddingTop: 8,
+  },
+  txActionBtnSecondary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    gap: 4,
+  },
+  txActionBtnTextSecondary: { color: "#0284c7", fontSize: 10, fontWeight: "800" },
+  txActionBtnPrimary: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#16a34a",
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 4,
+  },
+  txActionBtnTextPrimary: { color: "#ffffff", fontSize: 10, fontWeight: "800" },
+  txActionBtnDanger: {
+    flex: 0.8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fef2f2",
+    paddingVertical: 7,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#fca5a5",
+    gap: 4,
+  },
+  txActionBtnTextDanger: { color: "#dc2626", fontSize: 10, fontWeight: "800" },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 18,
+    width: "100%",
+    maxWidth: 500,
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+  },
+  modalHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+    paddingBottom: 8,
+  },
+  modalTitle: { color: "#0f172a", fontSize: 14.5, fontWeight: "900" },
+  modalSub: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
+  fieldLabel: { color: "#0284c7", fontSize: 10, fontWeight: "900", marginTop: 8, marginBottom: 4 },
+  modalInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 40,
+    fontSize: 12,
+    color: "#0f172a",
+    marginBottom: 6,
+  },
+  modalSubmitBtn: {
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  modalSubmitBtnText: { color: "#ffffff", fontSize: 11.5, fontWeight: "900", letterSpacing: 0.5 },
 });
 
-export default AgentDashboard;
+export default IssueResolution;
