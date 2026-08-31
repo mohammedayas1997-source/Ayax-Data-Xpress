@@ -48,7 +48,7 @@ const AgentDashboard = ({ navigation }) => {
   const contextValue = useContext(ThemeContext) || {};
   const isDarkMode = contextValue.isDarkMode !== undefined ? contextValue.isDarkMode : false;
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // An saita a false don ya bude shafi nan take
   const [refreshing, setRefreshing] = useState(false);
   const [userData, setUserData] = useState(null);
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
@@ -82,10 +82,8 @@ const AgentDashboard = ({ navigation }) => {
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 320);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // AppState Ref don gano lokacin da ya dawo cikin app
   const appState = useRef(AppState.currentState);
 
-  // Validation don gano sahihiyar lambar asusu
   const isValidAccountNumber = (accNo) => {
     if (!accNo) return false;
     const str = String(accNo).trim();
@@ -144,7 +142,7 @@ const AgentDashboard = ({ navigation }) => {
     return null;
   };
 
-  // 1. Dauko adanannen asusu nan take ba tare da jiran internet ba
+  // 1. Dauko bayanan da ke ajiye nan take domin shafin ya fito ba tare da jiran komai ba
   useEffect(() => {
     const loadCachedData = async () => {
       try {
@@ -166,12 +164,14 @@ const AgentDashboard = ({ navigation }) => {
             const extracted = extractVirtualAccount(parsedUser);
             if (extracted) {
               setVirtualAccount(extracted);
-              await AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(extracted));
+              AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(extracted));
             }
           }
         }
       } catch (e) {
         console.log("Cache load error:", e.message);
+      } finally {
+        setLoading(false);
       }
     };
     loadCachedData();
@@ -194,15 +194,16 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. Real-time Live Synchronization (Ba zai taba daskarewa ba)
+  // 2. Real-time Live Synchronization
   const fetchAgentDashboardData = useCallback(async (isBackground = false) => {
     try {
-      if (!isBackground) setLoading(true);
       const token = await AsyncStorage.getItem("userToken");
       const storedUserData = await AsyncStorage.getItem("userData");
 
       if (!token) {
-        if (!isBackground) {
+        setLoading(false);
+        setRefreshing(false);
+        if (!isBackground && navigation) {
           navigation.reset({ index: 0, routes: [{ name: "Login" }] });
         }
         return;
@@ -222,7 +223,7 @@ const AgentDashboard = ({ navigation }) => {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
-        timeout: 10000,
+        timeout: 8000,
       };
 
       const [profileRes, perfRes, supRes, notifRes] = await Promise.all([
@@ -235,22 +236,14 @@ const AgentDashboard = ({ navigation }) => {
       ]);
 
       const user = profileRes.data?.user || profileRes.data?.data || parsedLocalUser;
-      if (user) {
+      if (user && Object.keys(user).length > 0) {
         setUserData(user);
-        await AsyncStorage.setItem("userData", JSON.stringify(user));
+        AsyncStorage.setItem("userData", JSON.stringify(user));
 
         const activeAcc = extractVirtualAccount(user);
         if (activeAcc && isValidAccountNumber(activeAcc.accountNumber)) {
           setVirtualAccount(activeAcc);
-          await AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(activeAcc));
-        } else {
-          const cached = await AsyncStorage.getItem(VIRTUAL_ACC_KEY);
-          if (cached) {
-            const parsedCached = JSON.parse(cached);
-            if (isValidAccountNumber(parsedCached?.accountNumber)) {
-              setVirtualAccount(parsedCached);
-            }
-          }
+          AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(activeAcc));
         }
 
         const tg = user.targets || {};
@@ -277,17 +270,16 @@ const AgentDashboard = ({ navigation }) => {
       setNotifications(notifsList);
       setUnreadCount(notifsList.filter((n) => n.isRead === false || n.read === false || n.status === "unread").length);
     } catch (err) {
-      if (err.response?.status === 401 && !isBackground) {
+      if (err.response?.status === 401 && !isBackground && navigation) {
         await AsyncStorage.clear();
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       }
     } finally {
-      if (!isBackground) setLoading(false);
+      setLoading(false);
       setRefreshing(false);
     }
   }, [navigation]);
 
-  // REAL LIVE HEARTBEAT & AUTO-REFRESH ENGINE (Kowane 3.5 Seconds a Raye)
   useFocusEffect(
     useCallback(() => {
       fetchAgentDashboardData(true);
@@ -299,7 +291,6 @@ const AgentDashboard = ({ navigation }) => {
     }, [fetchAgentDashboardData])
   );
 
-  // AppState Listener: Idan Agent ya tura kudi ta bank ya dawo app din, yayi refreshing a take
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === "active") {
@@ -321,7 +312,7 @@ const AgentDashboard = ({ navigation }) => {
   const handleLogout = async () => {
     const doLogout = async () => {
       await AsyncStorage.clear();
-      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      if (navigation) navigation.reset({ index: 0, routes: [{ name: "Login" }] });
     };
 
     if (Platform.OS === "web") {
@@ -334,7 +325,6 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. Kirkirar Virtual Account da Adana shi Dindindin
   const handleGetVirtualAccount = async () => {
     try {
       setLoadingAccount(true);
@@ -371,7 +361,6 @@ const AgentDashboard = ({ navigation }) => {
       }
       Alert.alert("Notice", response.data?.message || "Could not generate account. Please try again.");
     } catch (error) {
-      console.error("Virtual Account Error:", error.response?.data || error.message);
       Alert.alert("Error", error.response?.data?.message || "Could not generate virtual account.");
     } finally {
       setLoadingAccount(false);
@@ -400,7 +389,7 @@ const AgentDashboard = ({ navigation }) => {
   const dataPercent = Math.min(Math.round(((agentQuota.dataSold || 0) / (agentQuota.dataGoal || 1)) * 100), 100);
   const airtimePercent = Math.min(Math.round(((agentQuota.airtimeSold || 0) / (agentQuota.airtimeGoal || 1)) * 100), 100);
 
-  if (loading) {
+  if (loading && !userData) {
     return (
       <View style={styles.loaderContainer}>
         <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
@@ -429,7 +418,7 @@ const AgentDashboard = ({ navigation }) => {
           </View>
 
           <TouchableOpacity
-            onPress={() => navigation.navigate("Notifications")}
+            onPress={() => navigation?.navigate("Notifications")}
             style={styles.notifBtn}
             activeOpacity={0.7}
           >
@@ -447,7 +436,7 @@ const AgentDashboard = ({ navigation }) => {
           <Text style={styles.userName}>
             {userData
               ? `${userData.firstName || userData.name || userData.surname || "Retail Agent"}`
-              : "Synchronizing..."}
+              : "Agent Terminal"}
           </Text>
         </View>
       </View>
@@ -479,7 +468,7 @@ const AgentDashboard = ({ navigation }) => {
             </View>
             <TouchableOpacity
               style={styles.historyPill}
-              onPress={() => navigation.navigate("Main", { screen: "Wallet History" })}
+              onPress={() => navigation?.navigate("Main", { screen: "Wallet History" })}
               activeOpacity={0.7}
             >
               <Text style={styles.historyText}>History</Text>
@@ -509,7 +498,7 @@ const AgentDashboard = ({ navigation }) => {
           <View style={styles.walletActions}>
             <TouchableOpacity
               style={styles.fundBtn}
-              onPress={() => navigation.navigate("FundWallet")}
+              onPress={() => navigation?.navigate("FundWallet")}
               activeOpacity={0.85}
             >
               <View style={styles.fundBtnInner}>
@@ -637,63 +626,63 @@ const AgentDashboard = ({ navigation }) => {
               color="#0284c7"
               bg="#e0f2fe"
               label="Buy Data"
-              onPress={() => navigation.navigate("BuyData")}
+              onPress={() => navigation?.navigate("BuyData")}
             />
             <ServiceItem
               icon="phone-alt"
               color="#16a34a"
               bg="#dcfce7"
               label="Airtime VTU"
-              onPress={() => navigation.navigate("BuyAirtime")}
+              onPress={() => navigation?.navigate("BuyAirtime")}
             />
             <ServiceItem
               icon="bolt"
               color="#d97706"
               bg="#fef3c7"
               label="Electricity"
-              onPress={() => navigation.navigate("Electricity")}
+              onPress={() => navigation?.navigate("Electricity")}
             />
             <ServiceItem
               icon="tv"
               color="#7c3aed"
               bg="#ede9fe"
               label="Cable TV"
-              onPress={() => navigation.navigate("Cable")}
+              onPress={() => navigation?.navigate("Cable")}
             />
             <ServiceItem
               icon="id-card"
               color="#0284c7"
               bg="#e0f2fe"
               label="NIMC Verify"
-              onPress={() => navigation.navigate("NIMC")}
+              onPress={() => navigation?.navigate("NIMC")}
             />
             <ServiceItem
               icon="fingerprint"
               color="#e11d48"
               bg="#ffe4e6"
               label="NIMC Mod"
-              onPress={() => navigation.navigate("NIMCModification")}
+              onPress={() => navigation?.navigate("NIMCModification")}
             />
             <ServiceItem
               icon="user-shield"
               color="#ea580c"
               bg="#ffedd5"
               label="BVN Desk"
-              onPress={() => navigation.navigate("BVNScreen")}
+              onPress={() => navigation?.navigate("BVNScreen")}
             />
             <ServiceItem
               icon="shield-alt"
               color="#4f46e5"
               bg="#e0e7ff"
               label="NIN Validate"
-              onPress={() => navigation.navigate("NINValidation")}
+              onPress={() => navigation?.navigate("NINValidation")}
             />
             <ServiceItem
               icon="history"
               color="#0284c7"
               bg="#e0f2fe"
               label="History"
-              onPress={() => navigation.navigate("Main", { screen: "Wallet History" })}
+              onPress={() => navigation?.navigate("Main", { screen: "Wallet History" })}
             />
           </View>
         </View>
@@ -755,7 +744,7 @@ const AgentDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  navigation.navigate("BuyData");
+                  navigation?.navigate("BuyData");
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#e0f2fe" }]}>
@@ -768,7 +757,7 @@ const AgentDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  navigation.navigate("BuyAirtime");
+                  navigation?.navigate("BuyAirtime");
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#dcfce7" }]}>
@@ -781,7 +770,7 @@ const AgentDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  navigation.navigate("Main", { screen: "Wallet History" });
+                  navigation?.navigate("Main", { screen: "Wallet History" });
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#fef3c7" }]}>
@@ -796,7 +785,7 @@ const AgentDashboard = ({ navigation }) => {
                 style={styles.navItem}
                 onPress={() => {
                   toggleSidebar(false);
-                  navigation.navigate("Profile");
+                  navigation?.navigate("Profile");
                 }}
               >
                 <View style={[styles.navIconBox, { backgroundColor: "#e0f2fe" }]}>
@@ -833,12 +822,12 @@ const AgentDashboard = ({ navigation }) => {
         <TabItem
           icon="receipt-outline"
           label="History"
-          onPress={() => navigation.navigate("Main", { screen: "Wallet History" })}
+          onPress={() => navigation?.navigate("Main", { screen: "Wallet History" })}
         />
         <TabItem
           icon="person-outline"
           label="Profile"
-          onPress={() => navigation.navigate("Profile")}
+          onPress={() => navigation?.navigate("Profile")}
         />
         <TabItem
           icon="chatbubble-ellipses-outline"
@@ -962,7 +951,6 @@ const styles = StyleSheet.create({
   actionBtnText: { color: "#0369a1", fontWeight: "900", fontSize: 11.5, marginLeft: 6, letterSpacing: 0.5 },
   supportBtnText: { color: "#ffffff", fontWeight: "900", fontSize: 11.5, marginLeft: 6, letterSpacing: 0.5 },
 
-  // EXECUTIVE TARGET CARD DARK
   executiveTargetCardDark: {
     backgroundColor: "#0f172a",
     borderRadius: 16,
