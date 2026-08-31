@@ -109,7 +109,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [newSupPhone, setNewSupPhone] = useState("");
   const [newSupEmail, setNewSupEmail] = useState("");
   const [newSupLga, setNewSupLga] = useState(currentLgaList[0] || "Central");
-  const [newSupPassword, setNewSupPassword] = useState("Password123@",);
+  const [newSupPassword, setNewSupPassword] = useState("Password123@");
 
   // Modal 4: Broadcast Directive
   const [notifModalVisible, setNotifModalVisible] = useState(false);
@@ -294,9 +294,9 @@ const LeaderDashboard = ({ navigation }) => {
         email: item.email || "N/A",
         lga: item.lga || "LGA",
         childCount: childCount,
-        dataGoal: String(autoDataPerPerson),
-        airtimeGoal: String(autoAirtimePerPerson),
-        agentGoal: String(autoAgentPerPerson),
+        dataGoal: String(item.targets?.dataGoal || item.dataGoal || autoDataPerPerson),
+        airtimeGoal: String(item.targets?.airtimeGoal || item.airtimeGoal || autoAirtimePerPerson),
+        agentGoal: String(item.targets?.agentGoal || item.agentGoal || autoAgentPerPerson),
       };
     });
 
@@ -956,6 +956,7 @@ const LeaderDashboard = ({ navigation }) => {
                   const supLga = item.lga || "Unassigned LGA";
                   const supPhone = item.phone || "No Phone";
                   const supEmail = item.email || `${supPhone}@ayaxdata.online`;
+                  const supRefCode = item.referralCode || item.referralId || `AYX-${supLga.toUpperCase()}-${supPhone.slice(-4)}`;
 
                   return (
                     <View key={supId} style={styles.supCard}>
@@ -968,6 +969,9 @@ const LeaderDashboard = ({ navigation }) => {
                             <Text style={styles.supNameText}>{supName}</Text>
                             <Text style={styles.locationTagText}>
                               📍 {supLga} LGA • 📞 {supPhone}
+                            </Text>
+                            <Text style={styles.supIdTagText}>
+                              🆔 Supervisor ID / Ref: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{supRefCode}</Text>
                             </Text>
                             <Text style={styles.emailTagText}>
                               ✉️ {supEmail}
@@ -1014,8 +1018,9 @@ const LeaderDashboard = ({ navigation }) => {
                       </View>
 
                       <View style={styles.supActionRow}>
+                        {/* EDIT SUPERVISOR TARGET BUTTON */}
                         <TouchableOpacity
-                          style={styles.supActionBtn}
+                          style={[styles.supActionBtn, styles.editTargetPillBtn]}
                           onPress={() => {
                             setTargetCategory("supervisor");
                             setTargetScope("selected");
@@ -1027,7 +1032,7 @@ const LeaderDashboard = ({ navigation }) => {
                           }}
                         >
                           <FontAwesome5 name="edit" size={12} color="#1e40af" />
-                          <Text style={[styles.supActionBtnText, { color: "#1e40af" }]}>Set Target</Text>
+                          <Text style={[styles.supActionBtnText, { color: "#1e40af", fontWeight: "800" }]}>Edit Target</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1063,7 +1068,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: AGENTS LIST (KOWANE AGENT DA NASA TARGET DA BUTTON NA GYARAWA) */}
+          {/* TAB 2: AGENTS LIST (KOWANE AGENT DA CIKAKKEN BAYANIN SUPERVISOR DINSA DA ID DA NUMBER WAYA) */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -1076,15 +1081,41 @@ const LeaderDashboard = ({ navigation }) => {
                   const agDataTarget = Number(ag.targets?.dataGoal || ag.dataGoal || 0);
                   const agAirTarget = Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 0);
 
+                  // GANO CIKAKKEN SUPERVISOR DIN AGENT DIN DAGA ARRAY NA SUPERVISORS KO DAGA AGENT OBJECT
+                  const matchedSup = supervisors.find(
+                    (s) =>
+                      (s._id && (s._id === ag.assignedSupervisor || s._id === ag.assignedSupervisor?._id)) ||
+                      (s.id && (s.id === ag.assignedSupervisor || s.id === ag.assignedSupervisor?.id)) ||
+                      (s.referralCode && (s.referralCode === ag.referredBy || s.referralCode === ag.supervisorId)) ||
+                      (s.lga && ag.lga && s.lga.toLowerCase() === ag.lga.toLowerCase())
+                  );
+
+                  const supName =
+                    ag.assignedSupervisorName ||
+                    (typeof ag.assignedSupervisor === "object" ? ag.assignedSupervisor?.name : null) ||
+                    matchedSup?.name ||
+                    (matchedSup ? `${matchedSup.firstName || ""} ${matchedSup.surname || ""}`.trim() : null) ||
+                    "Assigned to LGA Lead";
+
+                  const supPhone =
+                    (typeof ag.assignedSupervisor === "object" ? ag.assignedSupervisor?.phone : null) ||
+                    matchedSup?.phone ||
+                    "N/A";
+
+                  const supIdDisplay =
+                    matchedSup?.referralCode ||
+                    matchedSup?.referralId ||
+                    (typeof ag.assignedSupervisor === "object" ? ag.assignedSupervisor?._id : ag.assignedSupervisor) ||
+                    ag.supervisorId ||
+                    ag.referredBy ||
+                    (matchedSup ? `AYX-${String(matchedSup.lga || "LGA").toUpperCase()}-${String(supPhone).slice(-4)}` : "N/A");
+
                   return (
                     <View key={agId} style={styles.agentCard}>
                       <View style={styles.agentCardTop}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.agentNameText}>{ag.name || "Retail Agent"}</Text>
-                          <Text style={styles.agentSupervisorTag}>
-                            FS Lead: {ag.assignedSupervisorName || "LGA Supervisor"} ({ag.lga || "LGA"})
-                          </Text>
-                          <Text style={styles.agentLocationTag}>📞 {ag.phone || "No phone"}</Text>
+                          <Text style={styles.agentLocationTag}>📍 {ag.lga || "LGA"} • 📞 {ag.phone || "No phone"}</Text>
                           {ag.email ? (
                             <Text style={styles.emailTagText}>✉️ {ag.email}</Text>
                           ) : null}
@@ -1098,7 +1129,35 @@ const LeaderDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* INDA SM KE GANIN AINIHIN TARGET DIN KOWANE AGENT */}
+                      {/* CIKAKKEN BAYANIN SUPERVISOR NA KOWANE AGENT (SUNA, ID, DA NUMBER WAYA) */}
+                      <View style={styles.agentSupervisorBanner}>
+                        <View style={styles.agentSupBannerTop}>
+                          <FontAwesome5 name="user-tie" size={12} color="#1e40af" />
+                          <Text style={styles.agentSupLeadTitle}>FIELD SUPERVISOR DETAILS</Text>
+                        </View>
+                        <Text style={styles.agentSupDetailText}>
+                          👤 Name: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supName}</Text>
+                        </Text>
+                        <Text style={styles.agentSupDetailText}>
+                          🆔 Supervisor ID / Ref: <Text style={{ color: "#1e40af", fontWeight: "700" }}>{supIdDisplay}</Text>
+                        </Text>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                          <Text style={styles.agentSupDetailText}>
+                            📞 Phone: <Text style={{ color: "#059669", fontWeight: "700" }}>{supPhone}</Text>
+                          </Text>
+                          {supPhone !== "N/A" && (
+                            <TouchableOpacity
+                              style={styles.supCallMiniBtn}
+                              onPress={() => Linking.openURL(`tel:${supPhone}`)}
+                            >
+                              <Ionicons name="call" size={11} color="#ffffff" />
+                              <Text style={styles.supCallMiniBtnText}>Call Supervisor</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* INDA SM KE GANIN TARGET DIN AGENT */}
                       <View style={styles.agentQuotaRow}>
                         <Text style={styles.agentQuotaText}>
                           Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{agDataTarget} GB</Text>
@@ -1111,7 +1170,7 @@ const LeaderDashboard = ({ navigation }) => {
                       <View style={styles.agentCardBottom}>
                         {/* BUTTON NA GYARA TARGET DIN AGENT GUDA DAYA A TAKE */}
                         <TouchableOpacity
-                          style={styles.agentActionMiniBtn}
+                          style={[styles.agentActionMiniBtn, styles.editTargetPillBtn]}
                           onPress={() => {
                             setTargetCategory("agent");
                             setTargetScope("selected");
@@ -1122,7 +1181,7 @@ const LeaderDashboard = ({ navigation }) => {
                           }}
                         >
                           <FontAwesome5 name="edit" size={11} color="#1e40af" />
-                          <Text style={[styles.agentActionMiniText, { color: "#1e40af" }]}>Edit Target</Text>
+                          <Text style={[styles.agentActionMiniText, { color: "#1e40af", fontWeight: "800" }]}>Edit Target</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -2239,6 +2298,7 @@ const styles = StyleSheet.create({
   },
   supNameText: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
   locationTagText: { color: "#64748b", fontSize: 11, marginTop: 2 },
+  supIdTagText: { color: "#475569", fontSize: 10.5, marginTop: 1 },
   emailTagText: { color: "#0284c7", fontSize: 11, marginTop: 1, fontWeight: "600" },
   statsSummaryGrid: {
     flexDirection: "row",
@@ -2264,6 +2324,14 @@ const styles = StyleSheet.create({
   },
   supActionBtn: { flexDirection: "row", alignItems: "center", paddingVertical: 4, paddingHorizontal: 6 },
   supActionBtnText: { fontSize: 11, fontWeight: "700", marginLeft: 4 },
+  editTargetPillBtn: {
+    backgroundColor: "#eff6ff",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
   inspectPillBtn: {
     backgroundColor: "#eff6ff",
     paddingHorizontal: 8,
@@ -2277,17 +2345,58 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
-    marginBottom: 8,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    elevation: 1,
+    elevation: 2,
   },
-  agentCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  agentNameText: { color: "#0f172a", fontSize: 13.5, fontWeight: "800" },
-  agentSupervisorTag: { color: "#1e40af", fontSize: 10.5, marginTop: 2, fontWeight: "600" },
-  agentLocationTag: { color: "#64748b", fontSize: 10, marginTop: 2 },
+  agentCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  agentNameText: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
+  agentLocationTag: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
   agentSalesText: { color: "#059669", fontSize: 14, fontWeight: "900" },
   agentSalesSub: { color: "#94a3b8", fontSize: 9.5 },
+
+  // CIKAKKEN SUPERVISOR BANNER A CIKIN KATIN AGENT
+  agentSupervisorBanner: {
+    backgroundColor: "#eff6ff",
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+  },
+  agentSupBannerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  agentSupLeadTitle: {
+    color: "#1e40af",
+    fontSize: 9.5,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    marginLeft: 4,
+  },
+  agentSupDetailText: {
+    fontSize: 11,
+    color: "#475569",
+    marginVertical: 1,
+  },
+  supCallMiniBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#059669",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  supCallMiniBtnText: {
+    color: "#ffffff",
+    fontSize: 9.5,
+    fontWeight: "bold",
+    marginLeft: 3,
+  },
+
   agentQuotaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -2298,7 +2407,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  agentQuotaText: { fontSize: 10, color: "#64748b" },
+  agentQuotaText: { fontSize: 10.5, color: "#64748b" },
   agentCardBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -2308,7 +2417,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f1f5f9",
     paddingTop: 6,
   },
-  agentActionMiniBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingVertical: 3 },
+  agentActionMiniBtn: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   agentActionMiniText: { fontSize: 11, fontWeight: "700", marginLeft: 4 },
   agentCallIconBtn: {
     backgroundColor: "#eff6ff",
