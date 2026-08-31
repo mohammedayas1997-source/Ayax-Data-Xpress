@@ -177,14 +177,13 @@ const SupervisorDashboard = ({ navigation }) => {
 
         const dashData = supDashRes.data?.data || supDashRes.data || {};
         
-        // CIKAKKEN GYARA: Tace duk inda aka dawo da agents din kar a rasa kowa
+        // Tace duk inda aka dawo da agents din kar a rasa kowa
         const listA = Array.isArray(dashData.agents) ? dashData.agents : [];
         const listB = Array.isArray(agentsRes.data?.agents) ? agentsRes.data.agents : [];
         const listC = Array.isArray(agentsRes.data?.data) ? agentsRes.data.data : [];
         const listD = Array.isArray(agentsRes.data) ? agentsRes.data : [];
 
         let combinedAgents = [...listA, ...listB, ...listC, ...listD];
-        // Cire duplicates ta hanyar _id ko id
         const uniqueAgentsMap = new Map();
         combinedAgents.forEach((ag) => {
           const id = ag._id || ag.id;
@@ -202,14 +201,16 @@ const SupervisorDashboard = ({ navigation }) => {
           (Array.isArray(logsRes.data) ? logsRes.data : []) ||
           [];
 
-        const fetchedTarget =
-          targetRes.data?.targets ||
-          targetRes.data?.data?.targets ||
-          targetRes.data?.data ||
-          dashData.myTarget ||
-          dashData.targets ||
-          parsedUser.targets ||
-          {};
+        // CIKAKKEN GYARAN TARGET (Zai duba duk inda akwai lambar da ta fi 0 ba tare da ya toshe ba)
+        const t1 = dashData.myTarget || {};
+        const t2 = dashData.targets || {};
+        const t3 = targetRes.data?.targets || targetRes.data?.data?.targets || targetRes.data?.data || {};
+        const t4 = parsedUser.targets || {};
+
+        const finalDataGoal = Number(t1.dataGoal || t2.dataGoal || t3.dataGoal || t4.dataGoal || dashData.dataGoal || 0);
+        const finalAirtimeGoal = Number(t1.airtimeGoal || t2.airtimeGoal || t3.airtimeGoal || t4.airtimeGoal || dashData.airtimeGoal || 0);
+        const finalAgentGoal = Number(t1.agentGoal || t2.agentGoal || t3.agentGoal || t4.agentGoal || 10);
+        const finalMonth = t1.currentMonth || t2.currentMonth || t3.currentMonth || t4.currentMonth || "August 2026";
 
         const currentPhone = String(dashData.phone || parsedUser.phone || "").trim();
         const currentName = dashData.name || parsedUser.name || `${dashData.firstName || parsedUser.firstName || "Field"} ${dashData.surname || parsedUser.surname || "Supervisor"}`.trim();
@@ -251,10 +252,10 @@ const SupervisorDashboard = ({ navigation }) => {
         );
 
         setMyTarget({
-          dataGoal: Number(fetchedTarget.dataGoal || 0),
-          airtimeGoal: Number(fetchedTarget.airtimeGoal || 0),
-          agentGoal: Number(fetchedTarget.agentGoal || 10),
-          currentMonth: fetchedTarget.currentMonth || fetchedTarget.month || "August 2026",
+          dataGoal: finalDataGoal,
+          airtimeGoal: finalAirtimeGoal,
+          agentGoal: finalAgentGoal,
+          currentMonth: finalMonth,
           dataSold: totalDataSold,
           airtimeSold: totalAirtimeSold,
         });
@@ -618,6 +619,8 @@ const SupervisorDashboard = ({ navigation }) => {
                   const agPhone = ag.phone || "No Phone";
                   const agEmail = ag.email || `${agPhone}@ayaxdata.online`;
                   const agFloat = Number(ag.walletBalance || ag.balance || 0);
+                  const agDataGoal = Number(ag.targets?.dataGoal || ag.dataGoal || 0);
+                  const agAirtimeGoal = Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 0);
 
                   return (
                     <View key={agId || index.toString()} style={styles.agentCard}>
@@ -653,10 +656,10 @@ const SupervisorDashboard = ({ navigation }) => {
                       {/* Quota Breakdown da SM ya sa masa da abinda ya sayar */}
                       <View style={styles.agentQuotaRow}>
                         <Text style={styles.agentQuotaText}>
-                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{ag.targets?.dataGoal || ag.dataGoal || 0} GB</Text>
+                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{agDataGoal} GB</Text>
                         </Text>
                         <Text style={styles.agentQuotaText}>
-                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 0).toLocaleString()}</Text>
+                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{agAirtimeGoal.toLocaleString()}</Text>
                         </Text>
                         <Text style={styles.agentQuotaText}>
                           Data Sold: <Text style={{ color: "#059669", fontWeight: "bold" }}>{ag.dataVolumeSold || ag.dataSold || 0} GB</Text>
@@ -762,9 +765,7 @@ const SupervisorDashboard = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* =========================================================================
-          MODAL 1: INSPECT LIVE AGENT TELEMETRY
-         ========================================================================= */}
+      {/* MODAL 1: INSPECT LIVE AGENT TELEMETRY */}
       <Modal visible={inspectModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "60%" : "95%" }]}>
@@ -800,10 +801,10 @@ const SupervisorDashboard = ({ navigation }) => {
               <Text style={styles.formFieldLabel}>TARGET ALLOCATED BY STATE MANAGER</Text>
               <View style={styles.quotaInfoBox}>
                 <Text style={styles.quotaInfoText}>
-                  🎯 Data Quota: <Text style={{ fontWeight: "bold", color: "#1e40af" }}>{selectedAgent?.targets?.dataGoal || 0} GB</Text>
+                  🎯 Data Quota: <Text style={{ fontWeight: "bold", color: "#1e40af" }}>{Number(selectedAgent?.targets?.dataGoal || selectedAgent?.dataGoal || 0)} GB</Text>
                 </Text>
                 <Text style={styles.quotaInfoText}>
-                  🎯 Airtime Quota: <Text style={{ fontWeight: "bold", color: "#d97706" }}>₦{Number(selectedAgent?.targets?.airtimeGoal || 0).toLocaleString()}</Text>
+                  🎯 Airtime Quota: <Text style={{ fontWeight: "bold", color: "#d97706" }}>₦{Number(selectedAgent?.targets?.airtimeGoal || selectedAgent?.airtimeGoal || 0).toLocaleString()}</Text>
                 </Text>
               </View>
 
@@ -816,9 +817,7 @@ const SupervisorDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL 2: DIRECTIVE BROADCAST
-         ========================================================================= */}
+      {/* MODAL 2: DIRECTIVE BROADCAST */}
       <Modal visible={notifModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -862,9 +861,7 @@ const SupervisorDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          SIDEBAR DRAWER (TARE DA CIKAKKEN SUPERVISOR PROFILE A SAMAN SITEBAR)
-         ========================================================================= */}
+      {/* SIDEBAR DRAWER */}
       {sidebarOpen && (
         <TouchableOpacity
           style={styles.sidebarBackdrop}
@@ -875,7 +872,6 @@ const SupervisorDashboard = ({ navigation }) => {
             style={[styles.sidebarContainer, { width: sidebarWidth, transform: [{ translateX: sidebarAnim }] }]}
             onStartShouldSetResponder={() => true}
           >
-            {/* 1. SUPERVISOR PROFILE HEADER A SAMAN SITEBAR */}
             <View style={styles.sidebarHeader}>
               <View style={styles.sidebarBrandRow}>
                 <View style={styles.sidebarSupervisorAvatar}>
@@ -895,7 +891,6 @@ const SupervisorDashboard = ({ navigation }) => {
               </TouchableOpacity>
             </View>
 
-            {/* 2. CIKAKKEN SUPERVISOR CONTACTS & REFERRAL CARD A CIKIN SITEBAR */}
             <View style={styles.sidebarProfileDetailsCard}>
               <Text style={styles.sidebarProfileDetailText} numberOfLines={1}>
                 📞 Phone: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supervisorProfile.phone || "N/A"}</Text>
@@ -1269,9 +1264,6 @@ const styles = StyleSheet.create({
   },
   emptyFeedText: { color: "#94a3b8", fontSize: 12, marginTop: 10, textAlign: "center" },
 
-  // ==========================================
-  // SIDEBAR STYLES (TARE DA SUPERVISOR PROFILE A SAMA)
-  // ==========================================
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
@@ -1434,7 +1426,6 @@ const styles = StyleSheet.create({
   },
   primaryActionBtnText: { color: "#ffffff", fontSize: 12, fontWeight: "900", letterSpacing: 0.6 },
 
-  // Inspector Card Styles
   inspectSummaryBanner: {
     flexDirection: "row",
     backgroundColor: "#eff6ff",
