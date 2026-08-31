@@ -41,79 +41,66 @@ const LoginScreen = ({ navigation }) => {
 
   // Precise Navigation Dispatcher na Dukkan Roles
   const routeUserByRole = (rawRole, rawIdentifier = "") => {
-    const role = String(rawRole || "").trim().toLowerCase();
-    const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
+  const role = String(rawRole || "").trim().toLowerCase();
+  const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
 
-    // 1. SuperAdmin
-    if (
-      role === "superadmin" ||
-      identifier === "mohammed.ayas@ayaxdata.online" ||
-      identifier === "09033738409"
-    ) {
-      navigation.reset({ index: 0, routes: [{ name: "SuperAdminDashboard" }] });
-      return;
-    }
+  // 1. SuperAdmin
+  if (
+    role === "superadmin" ||
+    identifier === "mohammed.ayas@ayaxdata.online" ||
+    identifier === "09033738409"
+  ) {
+    navigation.reset({ index: 0, routes: [{ name: "SuperAdminDashboard" }] });
+    return;
+  }
 
-    // 2. National Sales Director (NSD)
-    if (
-      role === "national_sales_director" ||
-      role === "super_leader" ||
-      identifier === "nsd@ayaxdata.online" ||
-      identifier === "08099990000"
-    ) {
-      navigation.reset({ index: 0, routes: [{ name: "NsdDashboard" }] });
-      return;
-    }
+  // 2. National Sales Director (NSD) -> WANNAN SHINE GYARAN!
+  if (
+    role === "national_sales_director" ||
+    role === "super_leader" ||
+    identifier === "nsd@ayaxdata.online" ||
+    identifier === "08099990000"
+  ) {
+    navigation.reset({ index: 0, routes: [{ name: "NsdDashboard" }] });
+    return;
+  }
 
-    // 3. Operations Admin
-    if (role === "admin") {
-      navigation.reset({ index: 0, routes: [{ name: "AdminDashboard" }] });
-      return;
-    }
+  // 3. Operations Admin
+  if (role === "admin") {
+    navigation.reset({ index: 0, routes: [{ name: "AdminDashboard" }] });
+    return;
+  }
 
-    // 4. State Manager (SM)
-    if (role === "state_manager" || role === "leader") {
-      navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
-      return;
-    }
+  // 4. State Manager (SM) -> Shi kadai zai bude LeaderDashboard
+  if (role === "state_manager" || role === "leader") {
+    navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
+    return;
+  }
 
-    // 5. Field Supervisor (FS)
-    if (role === "supervisor" || role === "field_supervisor") {
-      navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
-      return;
-    }
+  // 5. Field Supervisor (FS)
+  if (role === "supervisor" || role === "field_supervisor") {
+    navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
+    return;
+  }
 
-    // 6. Retail Agent
-    if (role === "agent") {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Main", state: { routes: [{ name: "AgentDashboard" }] } }],
-      });
-      return;
-    }
+  // 6. Retail Agent
+  if (role === "agent") {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Main", state: { routes: [{ name: "AgentDashboard" }] } }],
+    });
+    return;
+  }
 
-    // 7. Customer Support Desk (Gyararren Fallback don tabbatar da shiga)
-    if (
-      role === "support" ||
-      role === "customer_service" ||
-      identifier === "support@ayaxdata.online" ||
-      identifier === "08077778888"
-    ) {
-      try {
-        navigation.reset({ index: 0, routes: [{ name: "SupportActivities" }] });
-      } catch (e1) {
-        try {
-          navigation.reset({ index: 0, routes: [{ name: "SupportDashboard" }] });
-        } catch (e2) {
-          navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-        }
-      }
-      return;
-    }
+  // 7. Customer Support
+  if (role === "support" || role === "customer_service") {
+    navigation.reset({ index: 0, routes: [{ name: "SupportActivities" }] });
+    return;
+  }
 
-    // 8. Normal Customer
-    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-  };
+  // 8. Normal Customer
+  navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+};
 
   const checkLoginStatus = async () => {
     try {
@@ -183,15 +170,21 @@ const LoginScreen = ({ navigation }) => {
     try {
       const isPhone = /^[0-9+]+$/.test(cleanInput);
 
-      // Ingantaccen payload mai raba email da phone ba tare da rikici ba
+      // Shirya payload yadda zai dace da kowane irin backend login query
       const payload = {
         password: password.trim(),
         identifier: cleanInput,
         emailOrPhone: cleanInput,
-        username: cleanInput,
-        email: !isPhone ? cleanInput.toLowerCase() : undefined,
         phone: isPhone ? cleanInput : undefined,
+        email: !isPhone ? cleanInput.toLowerCase() : undefined,
       };
+
+      // Tabbatar an tura ko wanne field idan backend yana neman daya tak
+      if (isPhone) {
+        payload.email = cleanInput; // fallback
+      } else {
+        payload.phone = cleanInput; // fallback
+      }
 
       const response = await axios.post(`${BASE_URL}/auth/login`, payload);
 
@@ -210,8 +203,6 @@ const LoginScreen = ({ navigation }) => {
 
       if (cleanInput === "mohammed.ayas@ayaxdata.online" || cleanInput === "09033738409") {
         userRole = "superadmin";
-      } else if (cleanInput === "support@ayaxdata.online" || cleanInput === "08077778888") {
-        userRole = "support";
       }
 
       if (!token) {
@@ -265,9 +256,8 @@ const LoginScreen = ({ navigation }) => {
       const response = await axios.post(`${BASE_URL}/auth/login`, {
         identifier: savedIdentifier,
         emailOrPhone: savedIdentifier,
-        username: savedIdentifier,
-        email: !isPhone ? savedIdentifier.toLowerCase() : undefined,
-        phone: isPhone ? savedIdentifier : undefined,
+        email: savedIdentifier,
+        phone: savedIdentifier,
         password: savedPassword,
       });
 
@@ -286,8 +276,6 @@ const LoginScreen = ({ navigation }) => {
 
       if (savedIdentifier === "mohammed.ayas@ayaxdata.online" || savedIdentifier === "09033738409") {
         userRole = "superadmin";
-      } else if (savedIdentifier === "support@ayaxdata.online" || savedIdentifier === "08077778888") {
-        userRole = "support";
       }
 
       if (!token) {
