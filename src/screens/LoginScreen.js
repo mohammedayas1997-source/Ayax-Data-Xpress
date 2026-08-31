@@ -92,24 +92,16 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 7. Customer Support Desk (Gyararren Fallback don tabbatar da shiga)
-    if (
-      role === "support" ||
-      role === "customer_service" ||
-      identifier === "support@ayaxdata.online" ||
-      identifier === "08077778888"
-    ) {
-      try {
-        navigation.reset({ index: 0, routes: [{ name: "SupportActivities" }] });
-      } catch (e1) {
-        try {
-          navigation.reset({ index: 0, routes: [{ name: "SupportDashboard" }] });
-        } catch (e2) {
-          navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-        }
-      }
-      return;
-    }
+    // 7. Customer Support Desk (Daidai da App.js)
+  if (
+    role === "support" ||
+    role === "customer_service" ||
+    identifier === "support@ayaxdata.online" ||
+    identifier === "08077778888"
+  ) {
+    navigation.reset({ index: 0, routes: [{ name: "SupportDashboard" }] });
+    return;
+  }
 
     // 8. Normal Customer
     navigation.reset({ index: 0, routes: [{ name: "Main" }] });

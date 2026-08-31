@@ -1,230 +1,219 @@
 import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Dimensions,
+  StatusBar,
+} from "react-native";
+import { Ionicons, Feather, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
+const { width } = Dimensions.get("window");
+const isLargeScreen = width >= 1024;
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const SupportDashboard = () => {
+const SupportDashboard = ({ navigation }) => {
   const [identifier, setIdentifier] = useState("");
-  const [type, setType] = useState("bvn"); // bvn, nimc, data, vtu, cable, utility
+  const [type, setType] = useState("bvn");
   const [userData, setUserData] = useState(null);
   const [traceData, setTraceData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const getConfig = () => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") || localStorage.getItem("userToken") : "";
+  const showAlert = (title, message) => {
+    if (Platform.OS === "web") {
+      alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
+  const getConfig = async () => {
+    const token = await AsyncStorage.getItem("userToken");
     return {
       headers: { Authorization: `Bearer ${token}` },
     };
   };
 
-  // 1. Search for User & Transactions
   const handleUserSearch = async () => {
     if (!identifier.trim()) {
-      alert("Please enter a valid search identifier");
+      showAlert("Notice", "Please enter a valid search identifier");
       return;
     }
     setLoading(true);
     try {
+      const config = await getConfig();
       const res = await axios.get(
         `${BASE_URL}/support/search-user/${identifier.trim()}`,
-        getConfig()
+        config
       );
       setUserData(res.data.data || res.data);
-      setTraceData([]); // Clear trace when searching new user
+      setTraceData([]);
     } catch (err) {
-      alert(err.response?.data?.message || "User not found");
+      showAlert("Not Found", err.response?.data?.message || "User not found");
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Trace Specific Service (BVN/NIMC/VTU/Data/etc.)
   const handleTrace = async () => {
     if (!identifier.trim()) {
-      alert("Please enter an identifier or ID to trace");
+      showAlert("Notice", "Please enter an identifier or ID to trace");
       return;
     }
     setLoading(true);
     try {
+      const config = await getConfig();
       const res = await axios.get(
         `${BASE_URL}/support/trace/${type}/${identifier.trim()}`,
-        getConfig()
+        config
       );
       setTraceData(res.data.data || res.data);
-      setUserData(null); // Clear user profile when tracing specific work
+      setUserData(null);
     } catch (err) {
-      alert(err.response?.data?.message || "No records found for this ID");
+      showAlert("Notice", err.response?.data?.message || "No records found for this ID");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.clear();
+    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
   };
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-2xl font-bold mb-6 text-blue-900">
-        Support & Tracing Portal
-      </h1>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      {/* SEARCH BAR */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6 flex flex-wrap gap-4 items-end">
-        <div className="flex-1 min-w-[250px]">
-          <label className="block text-sm font-medium text-gray-700">
-            Identifier (Email/Phone/NIN/BVN/Reference)
-          </label>
-          <input
-            type="text"
-            className="w-full mt-1 border p-2 rounded"
+      {/* HEADER */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Customer Support Desk</Text>
+          <Text style={styles.headerSub}>Ayax Operations & Tracing Hub</Text>
+        </View>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Feather name="log-out" size={16} color="#ef4444" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollArea}>
+        {/* SEARCH BOX */}
+        <View style={styles.card}>
+          <Text style={styles.label}>Identifier (Phone / Email / NIN / BVN / Ref)</Text>
+          <TextInput
+            style={styles.input}
             placeholder="Enter search term..."
+            placeholderTextColor="#94a3b8"
             value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
+            onChangeText={setIdentifier}
           />
-        </div>
 
-        <select
-          className="border p-2 rounded bg-white h-[42px]"
-          value={type}
-          onChange={(e) => setType(e.target.value)}
-        >
-          <optgroup label="Identity Services">
-            <option value="bvn">BVN Service</option>
-            <option value="nimc">NIMC Service</option>
-          </optgroup>
-          <optgroup label="VTU & Bills">
-            <option value="data">Mobile Data</option>
-            <option value="vtu">Airtime / VTU</option>
-            <option value="cable">Cable TV (GOTV/DSTV)</option>
-            <option value="utility">Electricity (Units)</option>
-          </optgroup>
-        </select>
+          {/* SERVICE SELECTION ROW */}
+          <Text style={[styles.label, { marginTop: 10 }]}>Select Service Type</Text>
+          <View style={styles.typeRow}>
+            {["bvn", "nimc", "data", "vtu", "cable", "utility"].map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[styles.typePill, type === t && styles.typePillActive]}
+                onPress={() => setType(t)}
+              >
+                <Text style={[styles.typeText, type === t && styles.typeTextActive]}>
+                  {t.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-        <button
-          onClick={handleUserSearch}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 h-[42px]"
-        >
-          Search User
-        </button>
+          <View style={styles.btnRow}>
+            <TouchableOpacity style={styles.btnPrimary} onPress={handleUserSearch} disabled={loading}>
+              <Text style={styles.btnText}>Search User</Text>
+            </TouchableOpacity>
 
-        <button
-          onClick={handleTrace}
-          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 h-[42px]"
-        >
-          Trace ID
-        </button>
-      </div>
+            <TouchableOpacity style={styles.btnSecondary} onPress={handleTrace} disabled={loading}>
+              <Text style={styles.btnText}>Trace ID</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
-      {loading && (
-        <p className="text-blue-600 font-bold mb-4">Processing request...</p>
-      )}
+        {loading && (
+          <ActivityIndicator size="large" color="#0284c7" style={{ marginVertical: 20 }} />
+        )}
 
-      {/* USER PROFILE & TRANSACTIONS */}
-      {userData && userData.profile && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-4 rounded shadow border-l-4 border-blue-500">
-            <h2 className="font-bold text-lg mb-2">User Profile</h2>
-            <p>
-              <strong>Name:</strong> {userData.profile.firstName}{" "}
-              {userData.profile.surname}
-            </p>
-            <p>
-              <strong>Email:</strong> {userData.profile.email}
-            </p>
-            <p>
-              <strong>Phone:</strong> {userData.profile.phone}
-            </p>
-            <p>
-              <strong>Wallet:</strong> ₦{userData.profile.walletBalance || 0}
-            </p>
-          </div>
-          <div className="lg:col-span-2 bg-white p-4 rounded shadow">
-            <h2 className="font-bold text-lg mb-2">Recent Transactions</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-100 text-left">
-                    <th className="p-2">Ref</th>
-                    <th className="p-2">Amount</th>
-                    <th className="p-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {userData.recentTransactions && userData.recentTransactions.length > 0 ? (
-                    userData.recentTransactions.map((tx) => (
-                      <tr key={tx._id} className="border-b">
-                        <td className="py-2 p-2">{tx.reference}</td>
-                        <td className="p-2">₦{tx.amount}</td>
-                        <td
-                          className={`p-2 font-semibold ${
-                            tx.status === "success"
-                              ? "text-green-600"
-                              : "text-red-600"
-                          }`}
-                        >
-                          {tx.status}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="3" className="p-4 text-center text-gray-500">
-                        No recent transactions found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+        {/* USER PROFILE & TRANSACTIONS RESULT */}
+        {userData && userData.profile && (
+          <View style={styles.resultContainer}>
+            <View style={styles.card}>
+              <Text style={styles.resultTitle}>User Profile</Text>
+              <Text style={styles.profileText}>👤 Name: {userData.profile.firstName} {userData.profile.surname}</Text>
+              <Text style={styles.profileText}>✉️ Email: {userData.profile.email}</Text>
+              <Text style={styles.profileText}>📞 Phone: {userData.profile.phone}</Text>
+              <Text style={styles.profileText}>💼 Role: {userData.profile.role?.toUpperCase()}</Text>
+              <Text style={[styles.profileText, { color: "#059669", fontWeight: "bold" }]}>
+                💳 Wallet Balance: ₦{Number(userData.profile.walletBalance || userData.profile.balance || 0).toLocaleString()}
+              </Text>
+            </View>
+          </View>
+        )}
 
-      {/* TRACE RESULTS (BVN/NIMC/VTU/ETC.) */}
-      {Array.isArray(traceData) && traceData.length > 0 && (
-        <div className="bg-white p-6 rounded shadow-md border-t-4 border-orange-500">
-          <h2 className="font-bold text-xl mb-4 uppercase">
-            {type} Verification Records
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-800 text-white text-left">
-                  <th className="p-2">Date</th>
-                  <th className="p-2">User</th>
-                  <th className="p-2">ID Number / Reference</th>
-                  <th className="p-2">Service</th>
-                  <th className="p-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {traceData.map((item) => (
-                  <tr key={item._id} className="border-b hover:bg-gray-50">
-                    <td className="p-2 text-xs">
-                      {new Date(item.createdAt).toLocaleString()}
-                    </td>
-                    <td className="p-2 font-semibold">
-                      {item.user?.firstName} {item.user?.surname}
-                    </td>
-                    <td className="p-2 font-mono">
-                      {item.bvnNumber || item.ninNumber || item.reference || "N/A"}
-                    </td>
-                    <td className="p-2 uppercase text-xs text-blue-600">
-                      {item.serviceType || type}
-                    </td>
-                    <td
-                      className={`p-2 font-bold ${
-                        item.status === "success" ? "text-green-600" : "text-red-500"
-                      }`}
-                    >
-                      {item.status ? item.status.toUpperCase() : "PENDING"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
+        {/* TRACE RECORDS RESULT */}
+        {Array.isArray(traceData) && traceData.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.resultTitle}>{type.toUpperCase()} Verification Records</Text>
+            {traceData.map((item, idx) => (
+              <View key={item._id || idx.toString()} style={styles.recordItem}>
+                <Text style={styles.recordText}>Ref/ID: <Text style={{ fontWeight: "bold" }}>{item.bvnNumber || item.ninNumber || item.reference || "N/A"}</Text></Text>
+                <Text style={styles.recordText}>Status: <Text style={{ color: item.status === "success" ? "#059669" : "#dc2626", fontWeight: "bold" }}>{item.status?.toUpperCase() || "PENDING"}</Text></Text>
+                <Text style={styles.recordDate}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : "Recent"}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  header: {
+    backgroundColor: "#0f172a",
+    paddingTop: Platform.OS === "ios" ? 50 : 40,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  headerTitle: { color: "#ffffff", fontSize: 16, fontWeight: "bold" },
+  headerSub: { color: "#38bdf8", fontSize: 11, marginTop: 2 },
+  logoutBtn: { backgroundColor: "rgba(239, 68, 68, 0.15)", padding: 8, borderRadius: 8 },
+  scrollArea: { padding: 16 },
+  card: { backgroundColor: "#ffffff", borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: "#e2e8f0" },
+  label: { fontSize: 12, fontWeight: "700", color: "#475569", marginBottom: 6 },
+  input: { backgroundColor: "#f1f5f9", borderWidth: 1, borderColor: "#cbd5e1", borderRadius: 8, paddingHorizontal: 12, height: 44, color: "#0f172a" },
+  typeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
+  typePill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, backgroundColor: "#f1f5f9", borderWidth: 1, borderColor: "#e2e8f0" },
+  typePillActive: { backgroundColor: "#1e40af", borderColor: "#1e40af" },
+  typeText: { fontSize: 11, fontWeight: "700", color: "#64748b" },
+  typeTextActive: { color: "#ffffff" },
+  btnRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  btnPrimary: { flex: 1, backgroundColor: "#1e40af", paddingVertical: 12, borderRadius: 8, alignItems: "center" },
+  btnSecondary: { flex: 1, backgroundColor: "#059669", paddingVertical: 12, borderRadius: 8, alignItems: "center" },
+  btnText: { color: "#ffffff", fontWeight: "bold", fontSize: 12 },
+  resultContainer: { marginBottom: 12 },
+  resultTitle: { fontSize: 14, fontWeight: "bold", color: "#0f172a", marginBottom: 8, borderBottomWidth: 1, borderBottomColor: "#f1f5f9", paddingBottom: 6 },
+  profileText: { fontSize: 12.5, color: "#334155", marginVertical: 2 },
+  recordItem: { backgroundColor: "#f8fafc", padding: 10, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: "#e2e8f0" },
+  recordText: { fontSize: 12, color: "#334155" },
+  recordDate: { fontSize: 10, color: "#94a3b8", marginTop: 4 },
+});
 
 export default SupportDashboard;
