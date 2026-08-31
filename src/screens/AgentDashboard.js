@@ -14,6 +14,7 @@ import {
   RefreshControl,
   Alert,
   Animated,
+  AppState,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import {
@@ -80,6 +81,9 @@ const AgentDashboard = ({ navigation }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 320);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
+
+  // AppState Ref don gano lokacin da ya dawo cikin app
+  const appState = useRef(AppState.currentState);
 
   // Validation don gano sahihiyar lambar asusu
   const isValidAccountNumber = (accNo) => {
@@ -190,7 +194,7 @@ const AgentDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. Real-time Live Synchronization (Ba zai taba goge asusu mai aiki ba)
+  // 2. Real-time Live Synchronization (Ba zai taba daskarewa ba)
   const fetchAgentDashboardData = useCallback(async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
@@ -218,7 +222,7 @@ const AgentDashboard = ({ navigation }) => {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
-        timeout: 15000,
+        timeout: 10000,
       };
 
       const [profileRes, perfRes, supRes, notifRes] = await Promise.all([
@@ -240,7 +244,6 @@ const AgentDashboard = ({ navigation }) => {
           setVirtualAccount(activeAcc);
           await AsyncStorage.setItem(VIRTUAL_ACC_KEY, JSON.stringify(activeAcc));
         } else {
-          // Idan backend bai turo ba, duba storage kada ka goge wanda aka riga aka kirkira!
           const cached = await AsyncStorage.getItem(VIRTUAL_ACC_KEY);
           if (cached) {
             const parsedCached = JSON.parse(cached);
@@ -252,8 +255,8 @@ const AgentDashboard = ({ navigation }) => {
 
         const tg = user.targets || {};
         setAgentQuota({
-          dataGoal: Number(tg.dataGoal) || 100,
-          airtimeGoal: Number(tg.airtimeGoal) || 10000,
+          dataGoal: Number(tg.dataGoal || user.dataGoal || 100),
+          airtimeGoal: Number(tg.airtimeGoal || user.airtimeGoal || 10000),
           dataSold: Number(user.dataSold || user.dataVolumeSold || 0),
           airtimeSold: Number(user.airtimeSold || 0),
           currentMonth: tg.currentMonth || "August 2026",
@@ -265,7 +268,7 @@ const AgentDashboard = ({ navigation }) => {
       }
 
       if (supRes.data?.data || user?.assignedSupervisor) {
-        const sup = supRes.data?.data || user.assignedSupervisor;
+        const sup = supRes.data?.data || user?.assignedSupervisor;
         setAssignedSupervisor(typeof sup === "object" ? sup : { name: "LGA Supervisor", phone: "" });
       }
 
@@ -279,24 +282,40 @@ const AgentDashboard = ({ navigation }) => {
         navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       }
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
       setRefreshing(false);
     }
   }, [navigation]);
 
+  // REAL LIVE HEARTBEAT & AUTO-REFRESH ENGINE (Kowane 3.5 Seconds a Raye)
   useFocusEffect(
     useCallback(() => {
-      fetchAgentDashboardData();
-      const interval = setInterval(() => {
+      fetchAgentDashboardData(true);
+      const liveInterval = setInterval(() => {
         fetchAgentDashboardData(true);
-      }, 15000);
-      return () => clearInterval(interval);
+      }, 3500);
+
+      return () => clearInterval(liveInterval);
     }, [fetchAgentDashboardData])
   );
 
+  // AppState Listener: Idan Agent ya tura kudi ta bank ya dawo app din, yayi refreshing a take
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+        fetchAgentDashboardData(true);
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [fetchAgentDashboardData]);
+
   const onManualRefresh = () => {
     setRefreshing(true);
-    fetchAgentDashboardData();
+    fetchAgentDashboardData(false);
   };
 
   const handleLogout = async () => {
