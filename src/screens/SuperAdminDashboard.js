@@ -68,24 +68,20 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Active Main Tabs: 'overview', 'sm_hierarchy', 'users', 'refunds', 'tariffs', 'plans', 'history'
   const [activeMainTab, setActiveMainTab] = useState("overview");
   const [selectedTariffCategory, setSelectedTariffCategory] = useState("All");
   const [tariffSearch, setTariffSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [userSearchQuery, setUserSearchQuery] = useState("");
 
-  // Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarWidth = isLargeScreen ? 310 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Inspector & Specific Entity Details Modal (When Clicking an SM, State, Agent, or Supervisor)
   const [inspectorModalVisible, setInspectorModalVisible] = useState(false);
   const [inspectedEntity, setInspectedEntity] = useState(null);
-  const [inspectedType, setInspectedType] = useState("user"); // 'sm' | 'state' | 'user'
+  const [inspectedType, setInspectedType] = useState("user");
 
-  // Master Action Modals
   const [createUserModalVisible, setCreateUserModalVisible] = useState(false);
   const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
@@ -98,7 +94,6 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [planManagerModalVisible, setPlanManagerModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Form States - Create User / Appoint Staff
   const [newFirstName, setNewFirstName] = useState("");
   const [newSurname, setNewSurname] = useState("");
   const [newPhone, setNewPhone] = useState("");
@@ -110,26 +105,21 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [newSupervisorId, setNewSupervisorId] = useState("");
   const [newInitialBalance, setNewInitialBalance] = useState("0");
 
-  // Form States - Pricing, Wallet, Security & Targets
   const [targetTariffService, setTargetTariffService] = useState(null);
   const [newTariffPrice, setNewTariffPrice] = useState("");
   const [newAgentPrice, setNewAgentPrice] = useState("");
   const [newCostPrice, setNewCostPrice] = useState("");
 
+  const [notifAudience, setNotifAudience] = useState("all");
+  const [notifTargetUser, setNotifTargetUser] = useState("");
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
   const [notifCategory, setNotifCategory] = useState("ADMIN_BROADCAST");
-  const [notifTargetUser, setNotifTargetUser] = useState("");
 
   const [walletUserId, setWalletUserId] = useState("");
   const [walletAmount, setWalletAmount] = useState("");
   const [walletReason, setWalletReason] = useState("");
   const [walletActionType, setWalletActionType] = useState("credit");
-
-  const [refundUserId, setRefundUserId] = useState("");
-  const [refundAmount, setRefundAmount] = useState("");
-  const [refundTxRef, setRefundTxRef] = useState("");
-  const [refundReason, setRefundReason] = useState("");
 
   const [roleUserId, setRoleUserId] = useState("");
   const [selectedRole, setSelectedRole] = useState("agent");
@@ -147,7 +137,6 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Data Plan State
   const [editingPlanId, setEditingPlanId] = useState(null);
   const [planNetwork, setPlanNetwork] = useState("MTN");
   const [planName, setPlanName] = useState("");
@@ -275,7 +264,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 1. Direct User & Staff Creation
   const handleCreateUser = async () => {
     if (!newPhone.trim() || !newFirstName.trim()) {
       return showAlert("Validation Error", "First Name and Phone Number are required.");
@@ -314,7 +302,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200 || res.status === 201) {
-        showAlert("User Provisioned 🎉", `Account created for ${fullName} as ${newRole.toUpperCase()}.`);
+        showAlert("User Provisioned", `Account created for ${fullName} as ${newRole.toUpperCase()}.`);
         setCreateUserModalVisible(false);
         setNewFirstName("");
         setNewSurname("");
@@ -331,7 +319,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 2. Direct Refund Approval
   const handleApproveRefundRequest = async (item) => {
     const targetId = item._id || item.transactionId;
     const ref = item.reference || item.transactionReference;
@@ -365,7 +352,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Refund Executed 💳", `₦${amount.toLocaleString()} has been credited back to ${beneficiary}.`);
+        showAlert("Refund Executed", `₦${amount.toLocaleString()} has been credited back to ${beneficiary}.`);
         fetchMasterTelemetry();
       }
     } catch (err) {
@@ -375,7 +362,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 3. Direct Wallet Balance Adjustment
   const handleExecuteWalletAction = async () => {
     if (!walletUserId.trim() || !walletAmount || isNaN(Number(walletAmount))) {
       return showAlert("Validation Error", "Please provide a valid target identifier and numeric amount.");
@@ -410,7 +396,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 4. Assign Targets
   const handleAssignTarget = async () => {
     if (!targetStaffId.trim() || !targetDataGoal || !targetAgentGoal) {
       return showAlert("Validation Error", "Staff identifier and targets are required.");
@@ -433,7 +418,7 @@ const SuperAdminDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Target Deployed 🎯", res.data.message || "Targets allocated successfully.");
+        showAlert("Target Deployed", res.data.message || "Targets allocated successfully.");
         setTargetModalVisible(false);
         setTargetStaffId("");
         fetchMasterTelemetry();
@@ -445,7 +430,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 5. Change Role
   const handleExecuteRoleChange = async () => {
     if (!roleUserId.trim()) {
       return showAlert("Validation Error", "Target user identifier is required.");
@@ -476,7 +460,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 6. Security Credential Override
   const handleExecutePasswordOverride = async () => {
     if (!pwdUserId.trim() || (!pwdNew && !pinNew)) {
       return showAlert("Validation Error", "Target identifier and new password or PIN are required.");
@@ -509,7 +492,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // 7. Lock / Unlock Account
   const handleExecuteToggleLock = async (lock) => {
     if (!lockUserId.trim()) {
       return showAlert("Validation Error", "Target identifier is required.");
@@ -542,7 +524,50 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  // Filtered Users List
+  const handleSendBroadcastNotification = async () => {
+    if (!notifTitle.trim() || !notifMessage.trim()) {
+      return showAlert("Validation Error", "Title and Body Message are required.");
+    }
+
+    if (notifAudience === "single" && !notifTargetUser.trim()) {
+      return showAlert("Validation Error", "Target phone, email or ID is required for direct messaging.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const payload = {
+        title: notifTitle.trim(),
+        message: notifMessage.trim(),
+        category: notifCategory,
+        audience: notifAudience,
+        recipientId: notifAudience === "single" ? notifTargetUser.trim() : null,
+        isBroadcast: notifAudience !== "single",
+      };
+
+      const res = await axios.post(`${BASE_URL}/superadmin/broadcast-notification`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() =>
+        axios.post(`${BASE_URL}/notifications/send`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+
+      if (res.data?.success || res.status === 200 || res.status === 201) {
+        showAlert("Broadcast Dispatched", res.data.message || "Notification delivered successfully.");
+        setNotificationModalVisible(false);
+        setNotifTitle("");
+        setNotifMessage("");
+        setNotifTargetUser("");
+        setNotifAudience("all");
+      }
+    } catch (err) {
+      showAlert("Notification Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const filteredUsers = allUsersList.filter((u) => {
     const roleMatch = userRoleFilter === "all" || (u.role || "user").toLowerCase() === userRoleFilter.toLowerCase();
     const q = userSearchQuery.toLowerCase();
@@ -554,7 +579,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     return roleMatch && (nameMatch || phoneMatch || emailMatch || stateMatch || lgaMatch);
   });
 
-  // National Directors (NSD) & State Managers (SM)
   const nationalDirectorsList = allUsersList.filter((u) => {
     const r = (u.role || "").toLowerCase();
     return r === "national_sales_director" || r === "super_leader";
@@ -565,7 +589,6 @@ const SuperAdminDashboard = ({ navigation }) => {
     return r === "state_manager" || r === "leader";
   });
 
-  // Open Inspector Sheet for any Staff, SM, or State
   const openInspector = (entity, type = "user") => {
     setInspectedEntity(entity);
     setInspectedType(type);
@@ -616,7 +639,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-      {/* TOP SUPREME APP BAR */}
+      {/* TOP BAR */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)} activeOpacity={0.7}>
           <Feather name="menu" size={24} color="#f8fafc" />
@@ -657,7 +680,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </View>
 
-      {/* MAIN NAVIGATION TAB SWITCHER */}
+      {/* NAVIGATION BAR */}
       <View style={styles.mainNavBar}>
         <TouchableOpacity
           style={[styles.mainNavTab, activeMainTab === "overview" && styles.mainNavTabActive]}
@@ -710,7 +733,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* MAIN SCROLLABLE BODY */}
+      {/* MAIN BODY */}
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContentContainer}
@@ -721,15 +744,12 @@ const SuperAdminDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          {/* =========================================================================
-              TAB 1: EXECUTIVE OVERVIEW (WITH STATE TARGET MATRIX)
-             ========================================================================= */}
+          {/* TAB 1: EXECUTIVE OVERVIEW */}
           {activeMainTab === "overview" && (
             <View style={styles.tabWrapper}>
-              {/* Financial Telemetry */}
               <View style={styles.telemetrySection}>
                 <View style={styles.sectionHeaderRow}>
-                  <Text style={styles.sectionHeaderLabel}>REAL-TIME COMPANY FINANCIAL TELEMETRY</Text>
+                  <Text style={styles.sectionHeaderLabel}>REAL-TIME FINANCIAL TELEMETRY</Text>
                   <View style={styles.liveBadge}>
                     <View style={[styles.livePulseDot, { backgroundColor: "#10b981" }]} />
                     <Text style={styles.liveBadgeText}>
@@ -785,7 +805,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
               </View>
 
-              {/* NIGERIAN STATES TARGETS & LIVE PERFORMANCE MATRIX */}
+              {/* NIGERIAN STATES MATRIX */}
               <View style={styles.statesSection}>
                 <View style={styles.sectionHeaderRow}>
                   <View>
@@ -802,12 +822,10 @@ const SuperAdminDashboard = ({ navigation }) => {
 
                 <View style={styles.stateCardsGrid}>
                   {ALL_NIGERIAN_STATES.map((stateName) => {
-                    // Find assigned State Manager
                     const assignedSm = stateManagersList.find(
                       (sm) => (sm.state || "").toLowerCase() === stateName.toLowerCase()
                     );
 
-                    // Calculate state metrics
                     const stateSupervisors = allUsersList.filter(
                       (u) =>
                         ((u.role || "").toLowerCase() === "supervisor" || (u.role || "").toLowerCase() === "field_supervisor") &&
@@ -870,7 +888,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                           </View>
                         </View>
 
-                        {/* Progress Bar */}
                         <View style={styles.stateProgressTrack}>
                           <View
                             style={[
@@ -885,10 +902,10 @@ const SuperAdminDashboard = ({ navigation }) => {
 
                         <View style={styles.stateCardFooter}>
                           <Text style={styles.stateFootMetric}>
-                            📦 Data: <Text style={{ color: "#10b981", fontWeight: "700" }}>{achievedDataGB}GB</Text>/{targetDataGB}GB
+                            Data: <Text style={{ color: "#10b981", fontWeight: "700" }}>{achievedDataGB}GB</Text>/{targetDataGB}GB
                           </Text>
                           <Text style={styles.stateFootMetric}>
-                            👥 {stateSupervisors.length} Sup • {stateAgents.length} Agents
+                            {stateSupervisors.length} Sup • {stateAgents.length} Agents
                           </Text>
                         </View>
                       </TouchableOpacity>
@@ -899,9 +916,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* =========================================================================
-              TAB 2: NATIONAL DIRECTORS (NSD) & STATE MANAGERS (SM) HIERARCHY
-             ========================================================================= */}
+          {/* TAB 2: NATIONAL SALES DIRECTORS & STATE MANAGERS */}
           {activeMainTab === "sm_hierarchy" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
@@ -919,7 +934,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* NATIONAL SALES DIRECTORS (NSD) */}
                 <Text style={styles.hierarchyCategoryTitle}>NATIONAL SALES DIRECTORS (NSD)</Text>
                 {nationalDirectorsList.length > 0 ? (
                   nationalDirectorsList.map((nsd) => (
@@ -938,9 +952,9 @@ const SuperAdminDashboard = ({ navigation }) => {
                             {nsd.name || `${nsd.firstName || ""} ${nsd.surname || ""}`}
                           </Text>
                           <Text style={styles.smDirectorRole}>
-                            NATIONAL SALES DIRECTOR • 📞 {nsd.phone}
+                            NATIONAL SALES DIRECTOR • Phone: {nsd.phone}
                           </Text>
-                          <Text style={styles.smDirectorEmail}>✉️ {nsd.email}</Text>
+                          <Text style={styles.smDirectorEmail}>Email: {nsd.email}</Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
                           <Text style={styles.smWalletBalText}>
@@ -963,7 +977,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   </View>
                 )}
 
-                {/* STATE MANAGERS (SM) */}
                 <Text style={[styles.hierarchyCategoryTitle, { marginTop: 20 }]}>
                   APPOINTED STATE MANAGERS (SM) ({stateManagersList.length})
                 </Text>
@@ -996,9 +1009,9 @@ const SuperAdminDashboard = ({ navigation }) => {
                               {sm.name || `${sm.firstName || ""} ${sm.surname || ""}`}
                             </Text>
                             <Text style={styles.smDirectorRole}>
-                              STATE MANAGER ({sm.state ? sm.state.toUpperCase() : "GENERAL"}) • 📞 {sm.phone}
+                              STATE MANAGER ({sm.state ? sm.state.toUpperCase() : "GENERAL"}) • Phone: {sm.phone}
                             </Text>
-                            <Text style={styles.smDirectorEmail}>✉️ {sm.email}</Text>
+                            <Text style={styles.smDirectorEmail}>Email: {sm.email}</Text>
                           </View>
                           <View style={{ alignItems: "flex-end" }}>
                             <Text style={styles.smWalletBalText}>
@@ -1009,7 +1022,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                         </View>
                         <View style={styles.smCardFooterRow}>
                           <Text style={styles.smCardFooterText}>
-                            📍 {smSupervisors.length} Supervisors • {smAgents.length} Retail Agents
+                            {smSupervisors.length} Supervisors • {smAgents.length} Retail Agents
                           </Text>
                           <Text style={styles.smCardInspectLink}>Inspect State Target ➔</Text>
                         </View>
@@ -1025,9 +1038,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* =========================================================================
-              TAB 3: USERS & STAFF DIRECTORY (WITH DEEP SEARCH)
-             ========================================================================= */}
+          {/* TAB 3: DIRECTORY */}
           {activeMainTab === "users" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
@@ -1045,7 +1056,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Role Filter Pills */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                   {["all", "agent", "supervisor", "state_manager", "national_sales_director", "support", "admin", "user"].map((roleKey) => (
                     <TouchableOpacity
@@ -1060,7 +1070,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   ))}
                 </ScrollView>
 
-                {/* Deep Search Bar */}
                 <View style={styles.searchBar}>
                   <Ionicons name="search" size={16} color="#64748b" style={{ marginRight: 8 }} />
                   <TextInput
@@ -1109,11 +1118,11 @@ const SuperAdminDashboard = ({ navigation }) => {
                           <View style={{ marginLeft: 12, flex: 1 }}>
                             <Text style={styles.userEntityName}>{uName}</Text>
                             <Text style={styles.userEntitySub}>
-                              📞 {item.phone || "No phone"} • ✉️ {item.email || "No email"}
+                              Phone: {item.phone || "No phone"} • Email: {item.email || "No email"}
                             </Text>
                             {item.state && (
                               <Text style={styles.userEntityLocation}>
-                                📍 {item.state} {item.lga ? `(${item.lga} LGA)` : ""}
+                                Region: {item.state} {item.lga ? `(${item.lga} LGA)` : ""}
                               </Text>
                             )}
                           </View>
@@ -1149,9 +1158,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* =========================================================================
-              TAB 4: PENDING REFUNDS QUEUE
-             ========================================================================= */}
+          {/* TAB 4: PENDING REFUNDS */}
           {activeMainTab === "refunds" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
@@ -1172,7 +1179,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                       <View key={item._id || idx.toString()} style={styles.refundQueueCard}>
                         <View style={styles.refundQueueTop}>
                           <View style={{ flex: 1 }}>
-                            <Text style={styles.refundQueueBeneficiary}>👤 {beneficiary}</Text>
+                            <Text style={styles.refundQueueBeneficiary}>Account: {beneficiary}</Text>
                             <Text style={styles.refundQueueRef}>Ref: {ref}</Text>
                             <Text style={styles.refundQueueReason}>
                               Reason: <Text style={{ color: "#f8fafc" }}>{item.reason || item.refundReason || "Debited without value"}</Text>
@@ -1201,7 +1208,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                   <View style={styles.emptyFeed}>
                     <Ionicons name="checkmark-done-circle-outline" size={40} color="#10b981" />
                     <Text style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>
-                      No pending refund disputes. All customer tickets are clear!
+                      No pending refund disputes. All customer tickets are clear.
                     </Text>
                   </View>
                 )}
@@ -1209,9 +1216,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* =========================================================================
-              TAB 5: AUDIT LOG (ALL TRANSACTIONS)
-             ========================================================================= */}
+          {/* TAB 5: AUDIT LOG */}
           {activeMainTab === "history" && (
             <View style={styles.tabWrapper}>
               <View style={styles.historyTabContainer}>
@@ -1290,9 +1295,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* =========================================================================
-          INSPECTOR MODAL (DEEP DIVE INTO SM, STATE, SUPERVISOR, OR AGENT)
-         ========================================================================= */}
+      {/* INSPECTOR MODAL */}
       <Modal visible={inspectorModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxWidth: 580, maxHeight: "90%" }]}>
@@ -1305,8 +1308,8 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
                   {inspectedType === "state"
-                    ? "Full regional supervisor & agent performance telemetry"
-                    : `Role: ${String(inspectedEntity?.role || "user").toUpperCase()} • Full Override Terminal`}
+                    ? "Regional supervisor and agent performance telemetry"
+                    : `Role: ${String(inspectedEntity?.role || "user").toUpperCase()} • Administrative Override Terminal`}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setInspectorModalVisible(false)}>
@@ -1315,20 +1318,19 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
-              {/* STATE LEVEL INSPECTION */}
               {inspectedType === "state" && inspectedEntity && (
                 <View>
                   <View style={styles.inspectorDetailCard}>
                     <Text style={styles.inspectorSectionHeading}>APPOINTED STATE MANAGER</Text>
                     <Text style={styles.inspectorValueText}>
-                      👤 {inspectedEntity.assignedSm ? inspectedEntity.assignedSm.name || `${inspectedEntity.assignedSm.firstName} ${inspectedEntity.assignedSm.surname}` : "Vacant / Not Appointed"}
+                      Account: {inspectedEntity.assignedSm ? inspectedEntity.assignedSm.name || `${inspectedEntity.assignedSm.firstName} ${inspectedEntity.assignedSm.surname}` : "Vacant / Not Appointed"}
                     </Text>
                     {inspectedEntity.assignedSm && (
                       <>
-                        <Text style={styles.inspectorSubText}>📞 Phone: {inspectedEntity.assignedSm.phone}</Text>
-                        <Text style={styles.inspectorSubText}>✉️ Email: {inspectedEntity.assignedSm.email}</Text>
+                        <Text style={styles.inspectorSubText}>Phone: {inspectedEntity.assignedSm.phone}</Text>
+                        <Text style={styles.inspectorSubText}>Email: {inspectedEntity.assignedSm.email}</Text>
                         <Text style={styles.inspectorSubText}>
-                          💳 SM Float Balance: <Text style={{ color: "#10b981", fontWeight: "bold" }}>₦{Number(inspectedEntity.assignedSm.walletBalance || inspectedEntity.assignedSm.balance || 0).toLocaleString()}</Text>
+                          SM Float Balance: <Text style={{ color: "#10b981", fontWeight: "bold" }}>₦{Number(inspectedEntity.assignedSm.walletBalance || inspectedEntity.assignedSm.balance || 0).toLocaleString()}</Text>
                         </Text>
                       </>
                     )}
@@ -1337,20 +1339,19 @@ const SuperAdminDashboard = ({ navigation }) => {
                   <View style={styles.inspectorDetailCard}>
                     <Text style={styles.inspectorSectionHeading}>STATE PERFORMANCE & TARGET METRICS</Text>
                     <Text style={styles.inspectorSubText}>
-                      📦 Data Sales: <Text style={{ color: "#00f0ff", fontWeight: "bold" }}>{inspectedEntity.achievedDataGB} GB</Text> / {inspectedEntity.targetDataGB} GB Goal
+                      Data Sales: <Text style={{ color: "#00f0ff", fontWeight: "bold" }}>{inspectedEntity.achievedDataGB} GB</Text> / {inspectedEntity.targetDataGB} GB Goal
                     </Text>
                     <Text style={styles.inspectorSubText}>
-                      💳 Airtime Sales Target: <Text style={{ color: "#10b981", fontWeight: "bold" }}>₦{Number(inspectedEntity.targetAirtime).toLocaleString()}</Text>
+                      Airtime Sales Target: <Text style={{ color: "#10b981", fontWeight: "bold" }}>₦{Number(inspectedEntity.targetAirtime).toLocaleString()}</Text>
                     </Text>
                     <Text style={styles.inspectorSubText}>
-                      👥 Retail Agents: <Text style={{ color: "#c084fc", fontWeight: "bold" }}>{inspectedEntity.agentsCount}</Text> Active / {inspectedEntity.agentsGoal} Recruited Goal
+                      Retail Agents: <Text style={{ color: "#c084fc", fontWeight: "bold" }}>{inspectedEntity.agentsCount}</Text> Active / {inspectedEntity.agentsGoal} Recruited Goal
                     </Text>
                     <Text style={styles.inspectorSubText}>
-                      👔 Field Supervisors: <Text style={{ color: "#f59e0b", fontWeight: "bold" }}>{inspectedEntity.supervisorsCount}</Text> Assigned
+                      Field Supervisors: <Text style={{ color: "#f59e0b", fontWeight: "bold" }}>{inspectedEntity.supervisorsCount}</Text> Assigned
                     </Text>
                   </View>
 
-                  {/* Quick Action to Assign Target to this State SM */}
                   {inspectedEntity.assignedSm && (
                     <TouchableOpacity
                       style={[styles.primaryActionBtn, { backgroundColor: "#d97706", marginTop: 8 }]}
@@ -1369,41 +1370,39 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </View>
               )}
 
-              {/* INDIVIDUAL USER / SM / SUPERVISOR / AGENT INSPECTION */}
               {inspectedType === "user" && inspectedEntity && (
                 <View>
                   <View style={styles.inspectorDetailCard}>
                     <Text style={styles.inspectorSectionHeading}>FINANCIAL & PROFILE AUDIT</Text>
                     <Text style={styles.inspectorValueText}>
-                      👤 {inspectedEntity.name || `${inspectedEntity.firstName || ""} ${inspectedEntity.surname || ""}`}
+                      Account: {inspectedEntity.name || `${inspectedEntity.firstName || ""} ${inspectedEntity.surname || ""}`}
                     </Text>
-                    <Text style={styles.inspectorSubText}>📞 Phone: <Text style={{ color: "#f8fafc", fontWeight: "bold" }}>{inspectedEntity.phone}</Text></Text>
-                    <Text style={styles.inspectorSubText}>✉️ Email: {inspectedEntity.email}</Text>
+                    <Text style={styles.inspectorSubText}>Phone: <Text style={{ color: "#f8fafc", fontWeight: "bold" }}>{inspectedEntity.phone}</Text></Text>
+                    <Text style={styles.inspectorSubText}>Email: {inspectedEntity.email}</Text>
                     <Text style={styles.inspectorSubText}>
-                      💼 Role: <Text style={{ color: "#00f0ff", fontWeight: "bold" }}>{(inspectedEntity.role || "user").toUpperCase()}</Text>
+                      Role: <Text style={{ color: "#00f0ff", fontWeight: "bold" }}>{(inspectedEntity.role || "user").toUpperCase()}</Text>
                     </Text>
                     <Text style={styles.inspectorSubText}>
-                      📍 Location: {inspectedEntity.state || "Kano"} {inspectedEntity.lga ? `(${inspectedEntity.lga} LGA)` : ""}
+                      Location: {inspectedEntity.state || "Kano"} {inspectedEntity.lga ? `(${inspectedEntity.lga} LGA)` : ""}
                     </Text>
                     <Text style={[styles.inspectorSubText, { fontSize: 14, marginTop: 6 }]}>
-                      💳 Live Wallet Balance: <Text style={{ color: "#10b981", fontWeight: "900" }}>₦{Number(inspectedEntity.walletBalance || inspectedEntity.balance || 0).toLocaleString()}</Text>
+                      Live Wallet Balance: <Text style={{ color: "#10b981", fontWeight: "900" }}>₦{Number(inspectedEntity.walletBalance || inspectedEntity.balance || 0).toLocaleString()}</Text>
                     </Text>
                   </View>
 
                   <View style={styles.inspectorDetailCard}>
                     <Text style={styles.inspectorSectionHeading}>ASSIGNED PERFORMANCE TARGETS</Text>
                     <Text style={styles.inspectorSubText}>
-                      📦 Data Quota Goal: <Text style={{ color: "#00f0ff", fontWeight: "bold" }}>{inspectedEntity.targets?.dataGoal || 500} GB</Text>
+                      Data Quota Goal: <Text style={{ color: "#00f0ff", fontWeight: "bold" }}>{inspectedEntity.targets?.dataGoal || 500} GB</Text>
                     </Text>
                     <Text style={styles.inspectorSubText}>
-                      👥 Agent Recruitment Goal: <Text style={{ color: "#c084fc", fontWeight: "bold" }}>{inspectedEntity.targets?.agentGoal || 10} Agents</Text>
+                      Agent Recruitment Goal: <Text style={{ color: "#c084fc", fontWeight: "bold" }}>{inspectedEntity.targets?.agentGoal || 10} Agents</Text>
                     </Text>
                     <Text style={styles.inspectorSubText}>
-                      💳 Airtime Quota: <Text style={{ color: "#10b981", fontWeight: "bold" }}>₦{Number(inspectedEntity.targets?.airtimeGoal || 0).toLocaleString()}</Text>
+                      Airtime Quota: <Text style={{ color: "#10b981", fontWeight: "bold" }}>₦{Number(inspectedEntity.targets?.airtimeGoal || 0).toLocaleString()}</Text>
                     </Text>
                   </View>
 
-                  {/* OVERRIDE BUTTONS GRID */}
                   <Text style={[styles.formFieldLabel, { marginTop: 10 }]}>EXECUTIVE OVERRIDE COMMANDS</Text>
                   <View style={styles.overrideBtnGrid}>
                     <TouchableOpacity
@@ -1462,9 +1461,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          FULL SIDEBAR DRAWER (CONTAINS ALL COMMAND MODULES)
-         ========================================================================= */}
+      {/* SIDEBAR DRAWER */}
       {sidebarOpen && (
         <TouchableOpacity style={styles.sidebarBackdrop} activeOpacity={1} onPress={() => toggleSidebar(false)}>
           <Animated.View
@@ -1613,16 +1610,14 @@ const SuperAdminDashboard = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
-      {/* =========================================================================
-          MODAL: CREATE USER & APPOINT STAFF
-         ========================================================================= */}
+      {/* CREATE USER MODAL */}
       <Modal visible={createUserModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { maxWidth: 540 }]}>
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Provision Database User / Staff</Text>
-                <Text style={styles.modalCardSubtitle}>Create account & appoint role with full DB sync</Text>
+                <Text style={styles.modalCardSubtitle}>Create account and appoint role with full DB synchronization</Text>
               </View>
               <TouchableOpacity onPress={() => setCreateUserModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
@@ -1760,9 +1755,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL: DEPLOY FIELD / SM TARGET
-         ========================================================================= */}
+      {/* DEPLOY TARGET MODAL */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1848,9 +1841,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL: DIRECT LEDGER ADJUSTMENT
-         ========================================================================= */}
+      {/* WALLET ADJUSTMENT MODAL */}
       <Modal visible={walletModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1934,9 +1925,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL: CHANGE ROLE
-         ========================================================================= */}
+      {/* CHANGE ROLE MODAL */}
       <Modal visible={roleModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1992,9 +1981,7 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL: SECURITY CREDENTIAL OVERRIDE
-         ========================================================================= */}
+      {/* RESET SECURITY MODAL */}
       <Modal visible={passwordModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -2056,86 +2043,107 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL: BROADCAST NOTIFICATION
-         ========================================================================= */}
-      <Modal visible={notificationModalVisible} transparent animationType="fade">
+      {/* BROADCAST NOTIFICATION MODAL */}
+      <Modal visible={notificationModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { maxWidth: 520 }]}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>Broadcast Notification</Text>
-                <Text style={styles.modalCardSubtitle}>Push real-time alerts to mobile app users</Text>
+                <Text style={styles.modalCardTitle}>Dispatch Notification</Text>
+                <Text style={styles.modalCardSubtitle}>Target a specific group or single account</Text>
               </View>
               <TouchableOpacity onPress={() => setNotificationModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#94a3b8" />
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.formFieldLabel}>TARGET USER (LEAVE EMPTY FOR BROADCAST ALL)</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder="e.g. 09033738409 or user@ayaxdata.online"
-              placeholderTextColor="#64748b"
-              value={notifTargetUser}
-              onChangeText={setNotifTargetUser}
-            />
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <Text style={styles.formFieldLabel}>TARGET AUDIENCE</Text>
+              <View style={styles.pillGrid}>
+                {[
+                  { key: "all", label: "All Users" },
+                  { key: "agents", label: "All Agents" },
+                  { key: "supervisors", label: "All Supervisors" },
+                  { key: "state_managers", label: "All SCM / SMs" },
+                  { key: "nsd", label: "All NSDs" },
+                  { key: "users", label: "Customers Only" },
+                  { key: "single", label: "Single User" },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.key}
+                    style={[styles.pillBtn, notifAudience === item.key && styles.activePillBtn]}
+                    onPress={() => setNotifAudience(item.key)}
+                  >
+                    <Text style={[styles.pillBtnText, notifAudience === item.key && styles.activePillBtnText]}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-            <Text style={styles.formFieldLabel}>NOTIFICATION TITLE</Text>
-            <TextInput
-              style={styles.textInputStyle}
-              placeholder="e.g. Official System Directive"
-              placeholderTextColor="#64748b"
-              value={notifTitle}
-              onChangeText={setNotifTitle}
-            />
-
-            <Text style={styles.formFieldLabel}>BODY MESSAGE</Text>
-            <TextInput
-              style={[styles.textInputStyle, { height: 80, textAlignVertical: "top" }]}
-              placeholder="Type your announcement or directive here..."
-              placeholderTextColor="#64748b"
-              multiline
-              value={notifMessage}
-              onChangeText={setNotifMessage}
-            />
-
-            <TouchableOpacity
-              style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
-              onPress={async () => {
-                if (!notifTitle.trim() || !notifMessage.trim()) return showAlert("Error", "Title & Message required.");
-                setActionLoading(true);
-                try {
-                  const token = await AsyncStorage.getItem("userToken");
-                  await axios.post(
-                    `${BASE_URL}/notifications/send`,
-                    {
-                      title: notifTitle.trim(),
-                      message: notifMessage.trim(),
-                      category: notifCategory,
-                      recipientId: notifTargetUser.trim() || null,
-                      isBroadcast: !notifTargetUser.trim(),
-                    },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                  );
-                  showAlert("Dispatched 🚀", "Notification sent successfully.");
-                  setNotificationModalVisible(false);
-                  setNotifTitle("");
-                  setNotifMessage("");
-                } catch (e) {
-                  showAlert("Error", e.message);
-                } finally {
-                  setActionLoading(false);
-                }
-              }}
-              disabled={actionLoading}
-            >
-              {actionLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.primaryActionBtnText}>DISPATCH NOTIFICATION</Text>
+              {notifAudience === "single" && (
+                <View style={{ marginTop: 6 }}>
+                  <Text style={[styles.formFieldLabel, { color: "#00f0ff" }]}>
+                    TARGET PHONE, EMAIL, OR USER ID *
+                  </Text>
+                  <TextInput
+                    style={[styles.textInputStyle, { borderColor: "#00f0ff" }]}
+                    placeholder="e.g. 08012345678 or user@ayaxdata.online"
+                    placeholderTextColor="#64748b"
+                    value={notifTargetUser}
+                    onChangeText={setNotifTargetUser}
+                  />
+                </View>
               )}
-            </TouchableOpacity>
+
+              <Text style={styles.formFieldLabel}>NOTIFICATION TITLE *</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="e.g. Operational Directive / Flash Promo"
+                placeholderTextColor="#64748b"
+                value={notifTitle}
+                onChangeText={setNotifTitle}
+              />
+
+              <Text style={styles.formFieldLabel}>CATEGORY</Text>
+              <View style={styles.pillGrid}>
+                {["ADMIN_BROADCAST", "SYSTEM_UPDATE", "DIRECTIVE", "PRICE_ALERT", "SECURITY"].map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.pillBtn, notifCategory === cat && styles.activePillBtn]}
+                    onPress={() => setNotifCategory(cat)}
+                  >
+                    <Text style={[styles.pillBtnText, notifCategory === cat && styles.activePillBtnText]}>
+                      {cat.replace(/_/g, " ")}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.formFieldLabel}>BODY MESSAGE *</Text>
+              <TextInput
+                style={[styles.textInputStyle, { height: 90, textAlignVertical: "top", paddingTop: 8 }]}
+                placeholder="Type your official announcement here..."
+                placeholderTextColor="#64748b"
+                multiline
+                value={notifMessage}
+                onChangeText={setNotifMessage}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleSendBroadcastNotification}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>
+                    DISPATCH NOTIFICATION ({notifAudience.toUpperCase().replace(/_/g, " ")})
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2246,8 +2254,6 @@ const styles = StyleSheet.create({
   metricLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   metricValue: { fontSize: 17, fontWeight: "900", marginVertical: 4 },
   metricSub: { color: "#64748b", fontSize: 10, fontWeight: "600" },
-
-  // States Section & Grid
   statesSection: { paddingHorizontal: isLargeScreen ? 24 : 16, marginTop: 4 },
   miniHeaderActionBtn: {
     backgroundColor: "rgba(0, 240, 255, 0.1)",
@@ -2291,8 +2297,6 @@ const styles = StyleSheet.create({
   stateProgressFill: { height: "100%", borderRadius: 3 },
   stateCardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   stateFootMetric: { color: "#94a3b8", fontSize: 9.5 },
-
-  // SM Director Card
   tariffTabContainer: { padding: isLargeScreen ? 24 : 16 },
   hierarchyCategoryTitle: { color: "#00f0ff", fontSize: 11, fontWeight: "900", letterSpacing: 0.8, marginBottom: 8 },
   smDirectorCard: {
@@ -2329,8 +2333,6 @@ const styles = StyleSheet.create({
   },
   smCardFooterText: { color: "#94a3b8", fontSize: 10.5 },
   smCardInspectLink: { color: "#00f0ff", fontSize: 10.5, fontWeight: "bold" },
-
-  // User Directorate Cards
   userEntityCard: {
     backgroundColor: "#0f172a",
     borderRadius: 14,
@@ -2354,7 +2356,6 @@ const styles = StyleSheet.create({
   roleBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 4 },
   roleBadgeText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   userWalletBalance: { color: "#10b981", fontSize: 13.5, fontWeight: "900" },
-
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -2388,8 +2389,6 @@ const styles = StyleSheet.create({
   categoryTabActive: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
   categoryTabText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   categoryTabTextActive: { color: "#ffffff" },
-
-  // Refund Queue Styles
   refundQueueCard: {
     backgroundColor: "#0f172a",
     borderRadius: 14,
@@ -2417,7 +2416,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   approveRefundBtnText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
-
   historyTabContainer: { padding: isLargeScreen ? 24 : 16 },
   historyCard: {
     backgroundColor: "#0f172a",
@@ -2449,8 +2447,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1e293b",
   },
-
-  // Inspector Modal Styles
   inspectorDetailCard: {
     backgroundColor: "#1e293b",
     borderRadius: 10,
@@ -2473,8 +2469,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   overrideBtnText: { color: "#ffffff", fontSize: 11, fontWeight: "bold" },
-
-  // Sidebar Drawer Styles
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
@@ -2541,8 +2535,6 @@ const styles = StyleSheet.create({
     borderTopColor: "#1e293b",
   },
   logoutBtnText: { color: "#ef4444", fontSize: 13, fontWeight: "800", marginLeft: 10 },
-
-  // Universal Modals
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.8)",
