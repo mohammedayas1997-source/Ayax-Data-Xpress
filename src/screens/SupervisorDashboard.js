@@ -44,8 +44,9 @@ const SupervisorDashboard = ({ navigation }) => {
 
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
+  const [targetHistoryList, setTargetHistoryList] = useState([]);
 
-  // Supervisor's Target (Karɓa daga State Manager kawai don bibiya)
+  // Supervisor's Target (Daga State Manager)
   const [myTarget, setMyTarget] = useState({
     dataGoal: 0,
     airtimeGoal: 0,
@@ -68,18 +69,16 @@ const SupervisorDashboard = ({ navigation }) => {
 
   // Search & Navigation Tabs
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("agents");
+  const [activeTab, setActiveTab] = useState("agents"); // 'agents' | 'performance' | 'history_targets' | 'logs'
 
   // Sidebar Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarWidth = isLargeScreen ? 340 : Math.min(width * 0.88, 360);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // Modal: Dalla-dallar Duban Agent (Inspector Modal)
+  // Modals
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
-
-  // Modal: Directive Broadcast
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
@@ -118,7 +117,6 @@ const SupervisorDashboard = ({ navigation }) => {
     showAlert("Copied 📋", `Referral Code: ${code} copied to clipboard.`);
   };
 
-  // KAI TSAYE ZUWA SIGNUP SCREEN TARE DA REFERRAL CODE DA LGA NA SUPERVISOR
   const handleNavigateToSignup = () => {
     const registrationParams = {
       role: "agent",
@@ -148,7 +146,6 @@ const SupervisorDashboard = ({ navigation }) => {
     }
   };
 
-  // 1. Kwaso dukkan bayanan Supervisor da Agents a Real Live
   const fetchDashboardData = useCallback(
     async (isBackground = false) => {
       try {
@@ -168,16 +165,16 @@ const SupervisorDashboard = ({ navigation }) => {
 
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [supDashRes, targetRes, agentsRes, logsRes] = await Promise.all([
+        const [supDashRes, targetRes, agentsRes, logsRes, histRes] = await Promise.all([
           axios.get(`${BASE_URL}/supervisor/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/supervisor/my-target`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/supervisor/agents`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/supervisor/activity-logs`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
+          axios.get(`${BASE_URL}/supervisor/target-history`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
         ]);
 
         const dashData = supDashRes.data?.data || supDashRes.data || {};
-        
-        // Tace duk inda aka dawo da agents din kar a rasa kowa
+
         const listA = Array.isArray(dashData.agents) ? dashData.agents : [];
         const listB = Array.isArray(agentsRes.data?.agents) ? agentsRes.data.agents : [];
         const listC = Array.isArray(agentsRes.data?.data) ? agentsRes.data.data : [];
@@ -201,7 +198,13 @@ const SupervisorDashboard = ({ navigation }) => {
           (Array.isArray(logsRes.data) ? logsRes.data : []) ||
           [];
 
-        // CIKAKKEN GYARAN TARGET (Duba Data, Airtime da Agent Target)
+        const fetchedHist =
+          dashData.targetHistory ||
+          histRes.data?.history ||
+          histRes.data?.data ||
+          (Array.isArray(histRes.data) ? histRes.data : []) ||
+          [];
+
         const t1 = dashData.myTarget || {};
         const t2 = dashData.targets || {};
         const t3 = targetRes.data?.targets || targetRes.data?.data?.targets || targetRes.data?.data || {};
@@ -235,6 +238,7 @@ const SupervisorDashboard = ({ navigation }) => {
 
         setAgents(fetchedAgents);
         setActivityLogs(fetchedLogs);
+        setTargetHistoryList(fetchedHist);
 
         const totalFloat = fetchedAgents.reduce(
           (acc, curr) => acc + Number(curr.walletBalance || curr.balance || 0),
@@ -437,11 +441,11 @@ const SupervisorDashboard = ({ navigation }) => {
         >
           <Ionicons
             name="people"
-            size={16}
+            size={15}
             color={activeTab === "agents" ? "#1e40af" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "agents" && styles.mainNavTabTextActive]}>
-            Retail Outlets ({filteredAgents.length})
+            Outlets ({filteredAgents.length})
           </Text>
         </TouchableOpacity>
 
@@ -451,25 +455,39 @@ const SupervisorDashboard = ({ navigation }) => {
         >
           <MaterialCommunityIcons
             name="chart-timeline-variant-shimmer"
-            size={16}
+            size={15}
             color={activeTab === "performance" ? "#1e40af" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "performance" && styles.mainNavTabTextActive]}>
-            Target Overview
+            Overview
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.mainNavTab, activeTab === "history" && styles.mainNavTabActive]}
-          onPress={() => setActiveTab("history")}
+          style={[styles.mainNavTab, activeTab === "history_targets" && styles.mainNavTabActive]}
+          onPress={() => setActiveTab("history_targets")}
+        >
+          <MaterialIcons
+            name="history-edu"
+            size={16}
+            color={activeTab === "history_targets" ? "#1e40af" : "#64748b"}
+          />
+          <Text style={[styles.mainNavTabText, activeTab === "history_targets" && styles.mainNavTabTextActive]}>
+            Target History
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainNavTab, activeTab === "logs" && styles.mainNavTabActive]}
+          onPress={() => setActiveTab("logs")}
         >
           <Feather
             name="activity"
             size={14}
-            color={activeTab === "history" ? "#1e40af" : "#64748b"}
+            color={activeTab === "logs" ? "#1e40af" : "#64748b"}
           />
-          <Text style={[styles.mainNavTabText, activeTab === "history" && styles.mainNavTabTextActive]}>
-            Live Logs
+          <Text style={[styles.mainNavTabText, activeTab === "logs" && styles.mainNavTabTextActive]}>
+            Logs
           </Text>
         </TouchableOpacity>
       </View>
@@ -501,38 +519,38 @@ const SupervisorDashboard = ({ navigation }) => {
             <View style={styles.execMetricsGrid}>
               {/* 1. Data Target */}
               <View style={styles.execMetricBoxDark}>
-                <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>DATA SALES (GB)</Text>
+                <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>DATA TARGET (GB)</Text>
                 <Text style={styles.execMetricValueDark}>
                   {myTarget.dataSold} / {myTarget.dataGoal} GB
                 </Text>
                 <View style={styles.execProgressBarBgDark}>
                   <View style={[styles.execProgressBarFill, { width: `${dataProgress}%`, backgroundColor: "#38bdf8" }]} />
                 </View>
-                <Text style={styles.execPercentSubDark}>{dataProgress}% Volume Sold</Text>
+                <Text style={styles.execPercentSubDark}>{dataProgress}% Completed</Text>
               </View>
 
               {/* 2. Airtime Target */}
               <View style={styles.execMetricBoxDark}>
-                <Text style={[styles.execMetricLabelDark, { color: "#fbbf24" }]}>AIRTIME SALES (₦)</Text>
+                <Text style={[styles.execMetricLabelDark, { color: "#fbbf24" }]}>AIRTIME TARGET (₦)</Text>
                 <Text style={styles.execMetricValueDark}>
                   ₦{Number(myTarget.airtimeSold).toLocaleString()} / ₦{Number(myTarget.airtimeGoal).toLocaleString()}
                 </Text>
                 <View style={styles.execProgressBarBgDark}>
                   <View style={[styles.execProgressBarFill, { width: `${airtimeProgress}%`, backgroundColor: "#fbbf24" }]} />
                 </View>
-                <Text style={styles.execPercentSubDark}>{airtimeProgress}% Sales Quota</Text>
+                <Text style={styles.execPercentSubDark}>{airtimeProgress}% Quota Achieved</Text>
               </View>
 
-              {/* 3. Agent Enrollment Target (Daga SM) */}
+              {/* 3. Agent Enrollment Target */}
               <View style={styles.execMetricBoxDark}>
-                <Text style={[styles.execMetricLabelDark, { color: "#34d399" }]}>AGENT RECRUITMENT</Text>
+                <Text style={[styles.execMetricLabelDark, { color: "#34d399" }]}>AGENT REGISTRATION</Text>
                 <Text style={styles.execMetricValueDark}>
                   {stats.totalAgents} / {myTarget.agentGoal || 10}
                 </Text>
                 <View style={styles.execProgressBarBgDark}>
                   <View style={[styles.execProgressBarFill, { width: `${agentProgress}%`, backgroundColor: "#34d399" }]} />
                 </View>
-                <Text style={styles.execPercentSubDark}>{agentProgress}% Outlets Enrolled</Text>
+                <Text style={styles.execPercentSubDark}>{agentProgress}% Outlets Registered</Text>
               </View>
 
               {/* 4. Team Float Balance */}
@@ -544,7 +562,7 @@ const SupervisorDashboard = ({ navigation }) => {
                 <View style={styles.execProgressBarBgDark}>
                   <View style={[styles.execProgressBarFill, { width: `100%`, backgroundColor: "#a78bfa" }]} />
                 </View>
-                <Text style={styles.execPercentSubDark}>Live Wallet Balance</Text>
+                <Text style={styles.execPercentSubDark}>Live Float Balance</Text>
               </View>
             </View>
           </View>
@@ -576,7 +594,7 @@ const SupervisorDashboard = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <Ionicons name="person-add" size={15} color="#ffffff" />
-              <Text style={styles.actionBtnFullText}>+ REGISTER NEW AGENT (QUOTA: {stats.totalAgents}/{myTarget.agentGoal})</Text>
+              <Text style={styles.actionBtnFullText}>+ REGISTER AGENT ({stats.totalAgents}/{myTarget.agentGoal})</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -585,7 +603,7 @@ const SupervisorDashboard = ({ navigation }) => {
               activeOpacity={0.8}
             >
               <Ionicons name="megaphone-outline" size={15} color="#0284c7" />
-              <Text style={styles.actionBtnSecondaryText}>DISPATCH DIRECTIVE</Text>
+              <Text style={styles.actionBtnSecondaryText}>DIRECTIVE</Text>
             </TouchableOpacity>
           </View>
 
@@ -606,12 +624,12 @@ const SupervisorDashboard = ({ navigation }) => {
             ) : null}
           </View>
 
-          {/* TAB 1: RETAIL AGENTS LIST */}
+          {/* TAB 1: RETAIL AGENTS DIRECTORY TARE DA CIKAKKEN TARGET NA KOWANE AGENT */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>
-                  GRASSROOT RETAIL OUTLETS DIRECTORY ({filteredAgents.length})
+                  GRASSROOT RETAIL OUTLETS & TARGETS ({filteredAgents.length})
                 </Text>
                 <TouchableOpacity
                   style={styles.actionPillBtn}
@@ -629,8 +647,14 @@ const SupervisorDashboard = ({ navigation }) => {
                   const agPhone = ag.phone || "No Phone";
                   const agEmail = ag.email || `${agPhone}@ayaxdata.online`;
                   const agFloat = Number(ag.walletBalance || ag.balance || 0);
+
                   const agDataGoal = Number(ag.targets?.dataGoal || ag.dataGoal || 0);
                   const agAirtimeGoal = Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 0);
+                  const agDataSold = Number(ag.dataVolumeSold || ag.dataSold || 0);
+                  const agAirtimeSold = Number(ag.airtimeSold || 0);
+
+                  const agDataProg = agDataGoal > 0 ? Math.min(Math.round((agDataSold / agDataGoal) * 100), 100) : 0;
+                  const agAirProg = agAirtimeGoal > 0 ? Math.min(Math.round((agAirtimeSold / agAirtimeGoal) * 100), 100) : 0;
 
                   return (
                     <View key={agId || index.toString()} style={styles.agentCard}>
@@ -649,7 +673,7 @@ const SupervisorDashboard = ({ navigation }) => {
                             </Text>
                             {ag.address ? (
                               <Text style={styles.addressTagText}>
-                                🏬 Address: {ag.address}
+                                🏬 {ag.address}
                               </Text>
                             ) : null}
                           </View>
@@ -663,20 +687,37 @@ const SupervisorDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* Quota Breakdown da SM ya sa masa da abinda ya sayar */}
-                      <View style={styles.agentQuotaRow}>
-                        <Text style={styles.agentQuotaText}>
-                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{agDataGoal} GB</Text>
-                        </Text>
-                        <Text style={styles.agentQuotaText}>
-                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{agAirtimeGoal.toLocaleString()}</Text>
-                        </Text>
-                        <Text style={styles.agentQuotaText}>
-                          Data Sold: <Text style={{ color: "#059669", fontWeight: "bold" }}>{ag.dataVolumeSold || ag.dataSold || 0} GB</Text>
-                        </Text>
+                      {/* CIKAKKEN QUOTA & SALES NA KOWANE AGENT A FILI */}
+                      <View style={styles.agentTargetBox}>
+                        <View style={styles.agentTargetHeaderRow}>
+                          <Text style={styles.agentTargetBoxTitle}>SM ASSIGNED MONTHLY TARGET</Text>
+                          <Text style={styles.agentTargetMonthText}>{ag.targets?.currentMonth || myTarget.currentMonth}</Text>
+                        </View>
+
+                        {/* Data Target Bar */}
+                        <View style={styles.agentTargetMetricRow}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                            <Text style={styles.targetMetricName}>Data: {agDataSold} / {agDataGoal} GB</Text>
+                            <Text style={[styles.targetMetricName, { color: "#1e40af", fontWeight: "bold" }]}>{agDataProg}%</Text>
+                          </View>
+                          <View style={styles.agentMiniProgBg}>
+                            <View style={[styles.agentMiniProgFill, { width: `${agDataProg}%`, backgroundColor: "#38bdf8" }]} />
+                          </View>
+                        </View>
+
+                        {/* Airtime Target Bar */}
+                        <View style={[styles.agentTargetMetricRow, { marginTop: 6 }]}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                            <Text style={styles.targetMetricName}>Airtime: ₦{agAirtimeSold.toLocaleString()} / ₦{agAirtimeGoal.toLocaleString()}</Text>
+                            <Text style={[styles.targetMetricName, { color: "#d97706", fontWeight: "bold" }]}>{agAirProg}%</Text>
+                          </View>
+                          <View style={styles.agentMiniProgBg}>
+                            <View style={[styles.agentMiniProgFill, { width: `${agAirProg}%`, backgroundColor: "#fbbf24" }]} />
+                          </View>
+                        </View>
                       </View>
 
-                      {/* Action Row: Call, Email, da Inspect */}
+                      {/* Action Row */}
                       <View style={styles.agentCardBottom}>
                         <TouchableOpacity
                           style={styles.inspectBtn}
@@ -719,7 +760,7 @@ const SupervisorDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: TARGET OVERVIEW */}
+          {/* TAB 2: OVERVIEW */}
           {activeTab === "performance" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -747,19 +788,56 @@ const SupervisorDashboard = ({ navigation }) => {
               </View>
 
               <View style={styles.performanceCard}>
-                <Text style={styles.perfCardTitle}>Agent Recruitment & Onboarding Quota</Text>
+                <Text style={styles.perfCardTitle}>Agent Enrollment Quota (Recruitment Goal)</Text>
                 <View style={styles.perfProgressBarBg}>
                   <View style={[styles.perfProgressBarFill, { width: `${agentProgress}%`, backgroundColor: "#34d399" }]} />
                 </View>
                 <Text style={styles.perfSubText}>
-                  {stats.totalAgents} retail outlets registered out of {myTarget.agentGoal} required goal ({agentProgress}%).
+                  {stats.totalAgents} out of {myTarget.agentGoal} retail agents onboarded ({agentProgress}%).
                 </Text>
               </View>
             </View>
           )}
 
-          {/* TAB 3: LIVE LOGS */}
-          {activeTab === "history" && (
+          {/* TAB 3: TARGET HISTORY (TARIHIN DUKKAN TARGETS DA SM YA TURA) */}
+          {activeTab === "history_targets" && (
+            <View style={styles.tabContentWrapper}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeaderLabel}>TARGET ALLOCATION HISTORY ARCHIVE</Text>
+              </View>
+
+              {/* Current Month Card */}
+              <View style={styles.historyCardHighlight}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <Text style={styles.historyCardMonth}>{myTarget.currentMonth.toUpperCase()} (CURRENT)</Text>
+                  <View style={styles.activePill}>
+                    <Text style={styles.activePillText}>ACTIVE</Text>
+                  </View>
+                </View>
+                <View style={styles.historyMetricsGrid}>
+                  <Text style={styles.historyMetricText}>🎯 Data: <Text style={{ fontWeight: "bold", color: "#1e40af" }}>{myTarget.dataGoal} GB</Text></Text>
+                  <Text style={styles.historyMetricText}>🎯 Airtime: <Text style={{ fontWeight: "bold", color: "#d97706" }}>₦{Number(myTarget.airtimeGoal).toLocaleString()}</Text></Text>
+                  <Text style={styles.historyMetricText}>🎯 Agents: <Text style={{ fontWeight: "bold", color: "#059669" }}>{myTarget.agentGoal} Outlets</Text></Text>
+                </View>
+              </View>
+
+              {targetHistoryList.length > 0 ? (
+                targetHistoryList.map((hist, idx) => (
+                  <View key={hist._id || idx.toString()} style={styles.historyCard}>
+                    <Text style={styles.historyCardMonth}>{hist.month || hist.currentMonth || "Previous Month"}</Text>
+                    <View style={styles.historyMetricsGrid}>
+                      <Text style={styles.historyMetricText}>Data Goal: {hist.dataGoal || 0} GB</Text>
+                      <Text style={styles.historyMetricText}>Airtime Goal: ₦{Number(hist.airtimeGoal || 0).toLocaleString()}</Text>
+                      <Text style={styles.historyMetricText}>Agent Goal: {hist.agentGoal || 10}</Text>
+                    </View>
+                  </View>
+                ))
+              ) : null}
+            </View>
+          )}
+
+          {/* TAB 4: LIVE DISPATCH LOGS */}
+          {activeTab === "logs" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>REAL-TIME FIELD DISPATCH LOGS</Text>
@@ -1036,7 +1114,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderBottomWidth: 1,
     borderBottomColor: "#e2e8f0",
-    paddingHorizontal: isLargeScreen ? 32 : 12,
+    paddingHorizontal: isLargeScreen ? 20 : 6,
   },
   mainNavTab: {
     flex: 1,
@@ -1048,7 +1126,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
   },
   mainNavTabActive: { borderBottomColor: "#1e40af" },
-  mainNavTabText: { color: "#64748b", fontSize: 12, fontWeight: "700", marginLeft: 6 },
+  mainNavTabText: { color: "#64748b", fontSize: 11, fontWeight: "700", marginLeft: 4 },
   mainNavTabTextActive: { color: "#1e40af", fontWeight: "900" },
   scrollArea: { flex: 1, width: "100%" },
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
@@ -1152,7 +1230,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 6,
   },
-  actionBtnFullText: { color: "#ffffff", fontSize: 11, fontWeight: "900", marginLeft: 6 },
+  actionBtnFullText: { color: "#ffffff", fontSize: 10.5, fontWeight: "900", marginLeft: 4 },
   actionBtnSecondary: {
     flex: 1,
     flexDirection: "row",
@@ -1165,7 +1243,7 @@ const styles = StyleSheet.create({
     borderColor: "#bfdbfe",
     marginLeft: 6,
   },
-  actionBtnSecondaryText: { color: "#0284c7", fontSize: 11, fontWeight: "900", marginLeft: 6 },
+  actionBtnSecondaryText: { color: "#0284c7", fontSize: 11, fontWeight: "900", marginLeft: 4 },
 
   searchBar: {
     flexDirection: "row",
@@ -1221,17 +1299,24 @@ const styles = StyleSheet.create({
   addressTagText: { color: "#475569", fontSize: 10.5, marginTop: 2, fontStyle: "italic" },
   agentSalesText: { color: "#059669", fontSize: 14, fontWeight: "900" },
   agentSalesSub: { color: "#94a3b8", fontSize: 9.5 },
-  agentQuotaRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+
+  // CIKAKKEN KATIN TARGET NA KOWANE AGENT
+  agentTargetBox: {
     backgroundColor: "#f8fafc",
-    padding: 8,
-    borderRadius: 8,
+    borderRadius: 10,
+    padding: 10,
     marginTop: 10,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  agentQuotaText: { fontSize: 10.5, color: "#64748b" },
+  agentTargetHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  agentTargetBoxTitle: { color: "#1e40af", fontSize: 9.5, fontWeight: "800", letterSpacing: 0.5 },
+  agentTargetMonthText: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
+  agentTargetMetricRow: { width: "100%" },
+  targetMetricName: { fontSize: 11, color: "#334155", fontWeight: "600" },
+  agentMiniProgBg: { height: 5, backgroundColor: "#e2e8f0", borderRadius: 2.5, overflow: "hidden" },
+  agentMiniProgFill: { height: 5, borderRadius: 2.5 },
+
   agentCardBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1263,6 +1348,30 @@ const styles = StyleSheet.create({
   perfProgressBarBg: { height: 8, backgroundColor: "#f1f5f9", borderRadius: 4, overflow: "hidden", marginBottom: 6 },
   perfProgressBarFill: { height: 8, borderRadius: 4 },
   perfSubText: { color: "#64748b", fontSize: 11 },
+
+  // TARGET HISTORY STYLES
+  historyCardHighlight: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1.5,
+    borderColor: "#38bdf8",
+    elevation: 2,
+  },
+  historyCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  historyCardMonth: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
+  activePill: { backgroundColor: "#eff6ff", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: "#bfdbfe" },
+  activePillText: { color: "#1e40af", fontSize: 9.5, fontWeight: "900" },
+  historyMetricsGrid: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
+  historyMetricText: { fontSize: 11.5, color: "#475569" },
 
   logCard: {
     backgroundColor: "#ffffff",
