@@ -50,7 +50,6 @@ const AdminDashboard = () => {
     totalRevenue: 0,
     totalWalletLiabilities: 0,
     companyTotalBalance: 0,
-    // Sales telemetry
     totalDataSoldGB: 0,
     totalDataRevenue: 0,
     totalAirtimeSold: 0,
@@ -455,7 +454,7 @@ const AdminDashboard = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0284c7" />}
       >
         {/* ========================================================
-            TAB 1: OVERVIEW & COMPANY BALANCE TELEMETRY
+            TAB 1: OVERVIEW & COMPANY BALANCE TELEMETRY (DARK THEME TELEMETRY)
         ======================================================== */}
         {activeTab === "overview" && (
           <>
@@ -464,49 +463,52 @@ const AdminDashboard = () => {
               <Text style={styles.sectionHeaderLive}>REAL-TIME LIVE</Text>
             </View>
 
-            <View style={styles.metricGrid}>
-              <View style={[styles.metricCard, { borderTopColor: "#10b981" }]}>
-                <View style={styles.metricCardHeader}>
-                  <Text style={styles.metricCardLabel}>Company Total Float</Text>
-                  <Ionicons name="shield-checkmark" size={16} color="#10b981" />
+            {/* DARK TELEMETRY CARDS */}
+            <View style={styles.darkTelemetryContainer}>
+              <View style={styles.metricGrid}>
+                <View style={[styles.darkMetricCard, { borderTopColor: "#10b981" }]}>
+                  <View style={styles.metricCardHeader}>
+                    <Text style={styles.darkMetricCardLabel}>Company Total Float</Text>
+                    <Ionicons name="shield-checkmark" size={16} color="#10b981" />
+                  </View>
+                  <Text style={[styles.darkMetricCardValue, { color: "#34d399" }]}>
+                    ₦{Number(stats.companyTotalBalance || 4850000).toLocaleString()}
+                  </Text>
+                  <Text style={styles.darkMetricCardSub}>Vault Reserves & Total Float</Text>
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#059669" }]}>
-                  ₦{Number(stats.companyTotalBalance || 4850000).toLocaleString()}
-                </Text>
-                <Text style={styles.metricCardSub}>Total Vault Reserves & Capital</Text>
-              </View>
 
-              <View style={[styles.metricCard, { borderTopColor: "#0284c7" }]}>
-                <View style={styles.metricCardHeader}>
-                  <Text style={styles.metricCardLabel}>Wallet Liabilities</Text>
-                  <MaterialCommunityIcons name="wallet-outline" size={16} color="#0284c7" />
+                <View style={[styles.darkMetricCard, { borderTopColor: "#38bdf8" }]}>
+                  <View style={styles.metricCardHeader}>
+                    <Text style={styles.darkMetricCardLabel}>Wallet Liabilities</Text>
+                    <MaterialCommunityIcons name="wallet-outline" size={16} color="#38bdf8" />
+                  </View>
+                  <Text style={[styles.darkMetricCardValue, { color: "#38bdf8" }]}>
+                    ₦{Number(stats.totalWalletLiabilities || 250000).toLocaleString()}
+                  </Text>
+                  <Text style={styles.darkMetricCardSub}>Customer/Agent Balances</Text>
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#0284c7" }]}>
-                  ₦{Number(stats.totalWalletLiabilities || 250000).toLocaleString()}
-                </Text>
-                <Text style={styles.metricCardSub}>Customer & Merchant Balances</Text>
-              </View>
 
-              <View style={[styles.metricCard, { borderTopColor: "#9333ea" }]}>
-                <View style={styles.metricCardHeader}>
-                  <Text style={styles.metricCardLabel}>Settled Transactions</Text>
-                  <Feather name="trending-up" size={16} color="#9333ea" />
+                <View style={[styles.darkMetricCard, { borderTopColor: "#c084fc" }]}>
+                  <View style={styles.metricCardHeader}>
+                    <Text style={styles.darkMetricCardLabel}>Settled Transactions</Text>
+                    <Feather name="trending-up" size={16} color="#c084fc" />
+                  </View>
+                  <Text style={[styles.darkMetricCardValue, { color: "#c084fc" }]}>
+                    {Number(stats.totalTransactions || 1280).toLocaleString()}
+                  </Text>
+                  <Text style={styles.darkMetricCardSub}>VTU, Bills, NIMC, BVN</Text>
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#9333ea" }]}>
-                  {Number(stats.totalTransactions || 1280).toLocaleString()} Orders
-                </Text>
-                <Text style={styles.metricCardSub}>VTU, Bills, NIMC, BVN</Text>
-              </View>
 
-              <View style={[styles.metricCard, { borderTopColor: "#e11d48" }]}>
-                <View style={styles.metricCardHeader}>
-                  <Text style={styles.metricCardLabel}>Pending Refunds</Text>
-                  <Ionicons name="alert-circle-outline" size={16} color="#e11d48" />
+                <View style={[styles.darkMetricCard, { borderTopColor: "#fb7185" }]}>
+                  <View style={styles.metricCardHeader}>
+                    <Text style={styles.darkMetricCardLabel}>Pending Refunds</Text>
+                    <Ionicons name="alert-circle-outline" size={16} color="#fb7185" />
+                  </View>
+                  <Text style={[styles.darkMetricCardValue, { color: "#fb7185" }]}>
+                    {stats.pendingRefunds || 0}
+                  </Text>
+                  <Text style={styles.darkMetricCardSub}>Failed/Disputed Orders</Text>
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#e11d48" }]}>
-                  {stats.pendingRefunds || 0}
-                </Text>
-                <Text style={styles.metricCardSub}>Failed/Disputed Transactions</Text>
               </View>
             </View>
 
@@ -521,7 +523,7 @@ const AdminDashboard = () => {
                 { title: "National Sales Directors", role: "national_sales_director", icon: "crown", color: "#d97706", count: 2, sub: "National Commands" },
                 { title: "State Managers (SM)", role: "state_manager", icon: "building", color: "#0284c7", count: stats.totalLeaders || 14, sub: "State Quotas" },
                 { title: "Field Supervisors", role: "supervisor", icon: "user-tie", color: "#6366f1", count: stats.totalSupervisors || 36, sub: "LGA Clusters" },
-                { title: "Retail Merchant Agents", role: "agent", icon: "store", color: "#059669", count: stats.totalAgents || 148, sub: "Active Pos Outlets" },
+                { title: "Retail Merchant Agents", role: "agent", icon: "store", color: "#059669", count: stats.totalAgents || 148, sub: "Active POS Outlets" },
               ].map((item, idx) => (
                 <TouchableOpacity
                   key={idx}
@@ -555,26 +557,26 @@ const AdminDashboard = () => {
               <Text style={styles.sectionHeaderLabel}>DATA BUNDLE & AIRTIME SALES TELEMETRY</Text>
             </View>
 
-            <View style={styles.salesHeroCard}>
+            <View style={styles.darkTelemetryContainer}>
               <View style={styles.salesHeroRow}>
                 <View style={styles.salesItem}>
                   <View style={[styles.salesIconCircle, { backgroundColor: "#0284c7" }]}>
                     <Ionicons name="wifi" size={20} color="#ffffff" />
                   </View>
-                  <Text style={styles.salesItemLabel}>Total Data Vended</Text>
-                  <Text style={styles.salesItemValue}>{Number(stats.totalDataSoldGB).toLocaleString()} GB</Text>
-                  <Text style={styles.salesItemSub}>₦{Number(stats.totalDataRevenue).toLocaleString()} Volume</Text>
+                  <Text style={styles.darkMetricCardLabel}>Total Data Vended</Text>
+                  <Text style={styles.darkMetricCardValue}>{Number(stats.totalDataSoldGB).toLocaleString()} GB</Text>
+                  <Text style={[styles.darkMetricCardSub, { color: "#34d399" }]}>₦{Number(stats.totalDataRevenue).toLocaleString()} Volume</Text>
                 </View>
 
-                <View style={styles.salesDivider} />
+                <View style={styles.darkSalesDivider} />
 
                 <View style={styles.salesItem}>
                   <View style={[styles.salesIconCircle, { backgroundColor: "#10b981" }]}>
                     <Ionicons name="call" size={20} color="#ffffff" />
                   </View>
-                  <Text style={styles.salesItemLabel}>Total Airtime Sold</Text>
-                  <Text style={styles.salesItemValue}>₦{Number(stats.totalAirtimeSold).toLocaleString()}</Text>
-                  <Text style={styles.salesItemSub}>Automated VTU Delivery</Text>
+                  <Text style={styles.darkMetricCardLabel}>Total Airtime Sold</Text>
+                  <Text style={styles.darkMetricCardValue}>₦{Number(stats.totalAirtimeSold).toLocaleString()}</Text>
+                  <Text style={[styles.darkMetricCardSub, { color: "#38bdf8" }]}>Automated VTU Delivery</Text>
                 </View>
               </View>
             </View>
@@ -1377,33 +1379,40 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   sectionHeaderSub: { color: "#0284c7", fontSize: 9.5, fontWeight: "700" },
+  
+  // --- DARK TELEMETRY STYLING ---
+  darkTelemetryContainer: {
+    backgroundColor: "#0f172a",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+  },
+  darkMetricCard: {
+    width: "48.5%",
+    backgroundColor: "#1e293b",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderTopWidth: 3,
+  },
+  darkMetricCardLabel: { color: "#94a3b8", fontSize: 10.5, fontWeight: "700", flex: 1 },
+  darkMetricCardValue: { fontSize: 15, fontWeight: "900", marginVertical: 4, color: "#f8fafc" },
+  darkMetricCardSub: { color: "#64748b", fontSize: 9.5, fontWeight: "600" },
+  darkSalesDivider: { width: 1, height: 60, backgroundColor: "#334155", marginHorizontal: 8 },
+
   metricGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  metricCard: {
-    width: "48.5%",
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderTopWidth: 3,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
-  metricCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  metricCardLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "700", flex: 1 },
-  metricCardValue: { fontSize: 14.5, fontWeight: "900", marginVertical: 4 },
-  metricCardSub: { color: "#94a3b8", fontSize: 9.5, fontWeight: "600" },
   rosterCardGrid: { gap: 8, marginBottom: 12 },
   rosterCard: {
     backgroundColor: "#ffffff",
@@ -1428,18 +1437,6 @@ const styles = StyleSheet.create({
   rosterCardTitle: { color: "#0f172a", fontSize: 12.5, fontWeight: "800" },
   rosterCardSub: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
   rosterCardCount: { fontSize: 16, fontWeight: "900" },
-  salesHeroCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-  },
   salesHeroRow: { flexDirection: "row", alignItems: "center" },
   salesItem: { flex: 1, alignItems: "center" },
   salesIconCircle: {
@@ -1450,10 +1447,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  salesItemLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
-  salesItemValue: { color: "#0f172a", fontSize: 15, fontWeight: "900", marginTop: 2 },
-  salesItemSub: { color: "#059669", fontSize: 10.5, fontWeight: "700", marginTop: 2 },
-  salesDivider: { width: 1, height: 60, backgroundColor: "#e2e8f0", marginHorizontal: 8 },
   networkGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   networkCard: {
     width: "48.5%",
