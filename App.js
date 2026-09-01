@@ -16,6 +16,7 @@ import CustomDrawerContent from "./src/components/CustomDrawerContent";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
 
 // --- SCREENS ---
+import OnboardingScreen from "./src/screens/OnboardingScreen";
 import LoginScreen from "./src/screens/LoginScreen";
 import HomeScreen from "./src/screens/HomeScreen";
 import BuyDataScreen from "./src/screens/BuyDataScreen";
@@ -48,7 +49,6 @@ import BVNScreen from "./src/screens/BVNScreen";
 import BVNHistory from "./src/screens/User/BVNHistory";
 import UpdatePin from "./src/screens/UpdatePin";
 import SupportDashboard from "./src/screens/SupportDashboard";
-import OnboardingScreen from "./src/screens/OnboardingScreen";
 import AboutScreen from "./src/screens/AboutScreen";
 import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
 import TermsScreen from "./src/screens/TermsScreen";
@@ -85,7 +85,7 @@ function AppContent() {
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
       <Stack.Navigator
-        initialRouteName="Login"
+        initialRouteName="Onboarding"
         screenOptions={{
           headerStyle: { backgroundColor: "#0f172a" },
           headerTintColor: "#38bdf8",
