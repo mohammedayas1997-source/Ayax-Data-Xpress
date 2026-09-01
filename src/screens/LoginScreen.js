@@ -35,192 +35,139 @@ const LoginScreen = ({ navigation }) => {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    checkLoginStatus();
     checkBiometricStatus();
   }, []);
 
-  // 1. Gyaran Routing don gane dukkan Accounts
-const routeUserByRole = (rawRole, rawIdentifier = "") => {
-  const role = String(rawRole || "").trim().toLowerCase();
-  const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
+  // Safe Navigation Dispatcher
+  const routeUserByRole = (rawRole, rawIdentifier = "") => {
+    if (!navigation || typeof navigation.reset !== "function") return;
 
-  // SuperAdmin
-  if (
-    role === "superadmin" ||
-    identifier === "mohammed.ayas@ayaxdata.online" ||
-    identifier === "09033738409"
-  ) {
-    navigation.reset({ index: 0, routes: [{ name: "SuperAdminDashboard" }] });
-    return;
-  }
+    const role = String(rawRole || "").trim().toLowerCase();
+    const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
 
-  // Operations Admin
-  if (
-    role === "admin" ||
-    identifier === "mohammed@ayaxdata.online" ||
-    identifier === "admin@ayaxdata.online" ||
-    identifier === "08011112222"
-  ) {
-    navigation.reset({ index: 0, routes: [{ name: "AdminDashboard" }] });
-    return;
-  }
-
-  // National Sales Director
-  if (
-    role === "national_sales_director" ||
-    role === "super_leader" ||
-    identifier === "nsd@ayaxdata.online" ||
-    identifier === "08099990000"
-  ) {
-    navigation.reset({ index: 0, routes: [{ name: "NsdDashboard" }] });
-    return;
-  }
-
-  // State Manager
-  if (role === "state_manager" || role === "leader") {
-    navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
-    return;
-  }
-
-  // Field Supervisor
-  if (role === "supervisor" || role === "field_supervisor") {
-    navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
-    return;
-  }
-
-  // Retail Agent
-  if (role === "agent") {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Main", state: { routes: [{ name: "AgentDashboard" }] } }],
-    });
-    return;
-  }
-
-  // Customer Support Desk
-  if (
-    role === "support" ||
-    role === "customer_service" ||
-    identifier === "support@ayaxdata.online" ||
-    identifier === "08077778888" ||
-    identifier === "09033738400"
-  ) {
-    navigation.reset({ index: 0, routes: [{ name: "SupportDashboard" }] });
-    return;
-  }
-
-  // Normal Customer
-  navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-};
-
-// 2. Tsayayyen handleLogin
-const handleLogin = async () => {
-  setErrorMessage("");
-
-  const cleanInput = identifierInput.trim();
-  const cleanPassword = password.trim();
-
-  if (!cleanInput || !cleanPassword) {
-    setErrorMessage("Please provide your email address/phone and password.");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const payload = {
-      identifier: cleanInput,
-      email: cleanInput,
-      phone: cleanInput,
-      username: cleanInput,
-      password: cleanPassword,
-    };
-
-    const response = await axios.post(`${BASE_URL}/auth/login`, payload, {
-      headers: { "Content-Type": "application/json" },
-      timeout: 25000,
-    });
-
-    const resData = response.data || {};
-    const token = resData.token || resData.accessToken || resData.data?.token || "";
-    const userPayload = resData.user || resData.data?.user || resData.data || {};
-
-    let userRole = (
-      userPayload?.role ||
-      resData.role ||
-      resData.data?.role ||
-      "user"
-    )
-      .trim()
-      .toLowerCase();
-
-    if (cleanInput.toLowerCase() === "mohammed.ayas@ayaxdata.online" || cleanInput === "09033738409") {
-      userRole = "superadmin";
-    } else if (
-      cleanInput.toLowerCase() === "mohammed@ayaxdata.online" ||
-      cleanInput.toLowerCase() === "admin@ayaxdata.online" ||
-      cleanInput === "08011112222"
+    // 1. SuperAdmin
+    if (
+      role === "superadmin" ||
+      identifier === "mohammed.ayas@ayaxdata.online" ||
+      identifier === "09033738409"
     ) {
-      userRole = "admin";
-    } else if (cleanInput.toLowerCase() === "support@ayaxdata.online" || cleanInput === "08077778888") {
-      userRole = "support";
-    }
-
-    if (!token) {
-      setErrorMessage("Authentication token missing from server response.");
-      setLoading(false);
+      navigation.reset({ index: 0, routes: [{ name: "SuperAdminDashboard" }] });
       return;
     }
 
-    await AsyncStorage.setItem("userToken", token);
-    await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
-    await AsyncStorage.setItem("savedIdentifier", cleanInput);
-    await AsyncStorage.setItem("savedPassword", cleanPassword);
-
-    routeUserByRole(userRole, cleanInput);
-  } catch (error) {
-    console.log("Login Error:", error?.response?.data || error.message);
-
-    if (error.response) {
-      const status = error.response.status;
-      const backendMessage = error.response.data?.message || "Invalid credentials.";
-      setErrorMessage(status === 401 ? "Invalid email/phone or password." : backendMessage);
-    } else {
-      setErrorMessage("Network error. Please check your internet connection.");
+    // 2. Operations Admin
+    if (
+      role === "admin" ||
+      identifier === "mohammed@ayaxdata.online" ||
+      identifier === "admin@ayaxdata.online" ||
+      identifier === "08011112222"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "AdminDashboard" }] });
+      return;
     }
-  } finally {
-    setLoading(false);
-  }
-};
 
-  const handleBiometricLogin = async () => {
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Authenticate to Ayax Xpress",
-        fallbackLabel: "Use Password",
-        disableDeviceFallback: false,
+    // 3. National Sales Director
+    if (
+      role === "national_sales_director" ||
+      role === "super_leader" ||
+      identifier === "nsd@ayaxdata.online" ||
+      identifier === "08099990000"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "NsdDashboard" }] });
+      return;
+    }
+
+    // 4. State Manager
+    if (role === "state_manager" || role === "leader") {
+      navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
+      return;
+    }
+
+    // 5. Field Supervisor
+    if (role === "supervisor" || role === "field_supervisor") {
+      navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
+      return;
+    }
+
+    // 6. Retail Agent
+    if (role === "agent") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Main", state: { routes: [{ name: "AgentDashboard" }] } }],
       });
+      return;
+    }
 
-      if (!result.success) return;
+    // 7. Support Desk
+    if (
+      role === "support" ||
+      role === "customer_service" ||
+      identifier === "support@ayaxdata.online" ||
+      identifier === "08077778888" ||
+      identifier === "09033738400"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "SupportDashboard" }] });
+      return;
+    }
 
-      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
-      const savedPassword = await AsyncStorage.getItem("savedPassword");
+    // 8. Normal Customer
+    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+  };
 
-      if (!savedIdentifier || !savedPassword) {
-        setErrorMessage("Please login using password once before enabling biometrics.");
-        return;
+  const checkBiometricStatus = async () => {
+    try {
+      if (Platform.OS === "web") return;
+      const isEnabled = await AsyncStorage.getItem("useBiometricLogin");
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+      if (isEnabled === "true" && hasHardware && isEnrolled) {
+        setIsBiometricEnabled(true);
       }
+    } catch (e) {
+      console.log("Biometric check skipped:", e?.message);
+    }
+  };
 
-      setLoading(true);
-      const isPhone = /^[0-9+]+$/.test(savedIdentifier);
+  const openWhatsApp = () => {
+    Linking.openURL("whatsapp://send?phone=+2349033738409&text=Hello Ayax Xpress Support").catch(() => {
+      Linking.openURL("https://wa.me/2349033738409");
+    });
+  };
 
-      const response = await axios.post(`${BASE_URL}/auth/login`, {
-        identifier: savedIdentifier,
-        emailOrPhone: savedIdentifier,
-        username: savedIdentifier,
-        email: !isPhone ? savedIdentifier.toLowerCase() : undefined,
-        phone: isPhone ? savedIdentifier : undefined,
-        password: savedPassword,
+  const openEmail = () => {
+    Linking.openURL("mailto:support@ayaxdata.online");
+  };
+
+  const makeCall = () => {
+    Linking.openURL("tel:+2349033738409");
+  };
+
+  const handleLogin = async () => {
+    setErrorMessage("");
+
+    const cleanInput = identifierInput.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanInput || !cleanPassword) {
+      setErrorMessage("Please enter your email/phone and password.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const payload = {
+        identifier: cleanInput,
+        email: cleanInput,
+        phone: cleanInput,
+        username: cleanInput,
+        password: cleanPassword,
+      };
+
+      const response = await axios.post(`${BASE_URL}/auth/login`, payload, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 25000,
       });
 
       const resData = response.data || {};
@@ -236,22 +183,84 @@ const handleLogin = async () => {
         .trim()
         .toLowerCase();
 
-      if (savedIdentifier === "mohammed.ayas@ayaxdata.online" || savedIdentifier === "09033738409") {
+      if (cleanInput.toLowerCase() === "mohammed.ayas@ayaxdata.online" || cleanInput === "09033738409") {
         userRole = "superadmin";
-      } else if (savedIdentifier === "support@ayaxdata.online" || savedIdentifier === "08077778888") {
+      } else if (
+        cleanInput.toLowerCase() === "mohammed@ayaxdata.online" ||
+        cleanInput.toLowerCase() === "admin@ayaxdata.online" ||
+        cleanInput === "08011112222"
+      ) {
+        userRole = "admin";
+      } else if (cleanInput.toLowerCase() === "support@ayaxdata.online" || cleanInput === "08077778888") {
         userRole = "support";
       }
 
       if (!token) {
-        setErrorMessage("Authentication token missing from server.");
+        setErrorMessage("Authentication token missing from server response.");
         setLoading(false);
         return;
       }
 
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+      await AsyncStorage.setItem("savedIdentifier", cleanInput);
+      await AsyncStorage.setItem("savedPassword", cleanPassword);
 
-      routeUserByRole(userRole, savedIdentifier);
+      routeUserByRole(userRole, cleanInput);
+    } catch (error) {
+      console.log("Login Error:", error?.response?.data || error.message);
+
+      if (error.response) {
+        const status = error.response.status;
+        const backendMessage = error.response.data?.message || "Invalid credentials.";
+        setErrorMessage(status === 401 ? "Invalid email/phone or password." : backendMessage);
+      } else {
+        setErrorMessage("Network error. Please check your internet connection.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      if (Platform.OS === "web") return;
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Authenticate to Ayax Xpress",
+        fallbackLabel: "Use Password",
+        disableDeviceFallback: false,
+      });
+
+      if (!result.success) return;
+
+      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
+      const savedPassword = await AsyncStorage.getItem("savedPassword");
+
+      if (!savedIdentifier || !savedPassword) {
+        setErrorMessage("Please login with password once first.");
+        return;
+      }
+
+      setLoading(true);
+
+      const response = await axios.post(`${BASE_URL}/auth/login`, {
+        identifier: savedIdentifier,
+        email: savedIdentifier,
+        phone: savedIdentifier,
+        username: savedIdentifier,
+        password: savedPassword,
+      });
+
+      const resData = response.data || {};
+      const token = resData.token || resData.accessToken || resData.data?.token || "";
+      const userPayload = resData.user || resData.data?.user || resData.data || {};
+      const userRole = (userPayload?.role || resData.role || "user").trim().toLowerCase();
+
+      if (token) {
+        await AsyncStorage.setItem("userToken", token);
+        await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+        routeUserByRole(userRole, savedIdentifier);
+      }
     } catch (error) {
       setErrorMessage("Biometric authentication failed. Please enter password.");
     } finally {
@@ -273,10 +282,7 @@ const handleLogin = async () => {
         <View style={styles.contentWrapper}>
           <View style={styles.headerSection}>
             <View style={styles.logoCircle}>
-              <Image
-                source={require("../assets/Logo.png")}
-                style={styles.logoImg}
-              />
+              <Ionicons name="flash" size={40} color="#0284c7" />
             </View>
             <Text style={styles.appName}>Ayax Xpress</Text>
             <Text style={styles.tagline}>Swift & Reliable Utility Payments</Text>
@@ -361,9 +367,9 @@ const handleLogin = async () => {
                     navigation.navigate("ForgotPassword");
                   }
                 }}
-                style={styles.forgotPasswordBtn}
+                style={styles.forgotBtn}
               >
-                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
               </TouchableOpacity>
             </View>
 
@@ -467,17 +473,14 @@ const styles = StyleSheet.create({
   },
   headerSection: { alignItems: "center", marginBottom: 30 },
   logoCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#ffffff",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#e0f2fe",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
   },
-  logoImg: { width: 60, height: 60, resizeMode: "contain" },
   appName: { fontSize: 28, fontWeight: "bold", color: "#0f172a" },
   tagline: { fontSize: 14, color: "#64748b", marginTop: 5 },
   formSection: { width: "100%" },
