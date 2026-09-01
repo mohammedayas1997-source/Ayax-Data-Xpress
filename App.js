@@ -1,4 +1,3 @@
-import "react-native-gesture-handler"; // Dole ne ya kasance a farkon layi domin Drawer
 import React, { useContext } from "react";
 import {
   NavigationContainer,
@@ -13,8 +12,7 @@ import { ThemeProvider, ThemeContext } from "./src/context/ThemeContext";
 
 // --- COMPONENTS ---
 import CustomDrawerContent from "./src/components/CustomDrawerContent";
-import NotificationsScreen from "./src/screens/NotificationsScreen";
-
+import NotificationsScreen from "./src/screens/NotificationsScreen"; // Ka tabbatar wannan path ɗin daidai yake
 // --- SCREENS ---
 import LoginScreen from "./src/screens/LoginScreen";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -78,13 +76,10 @@ function DrawerNavigator() {
 }
 
 function AppContent() {
-  const themeContext = useContext(ThemeContext);
-  const isDarkMode = themeContext ? themeContext.isDarkMode : false;
-
+  const { isDarkMode } = useContext(ThemeContext);
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
       <Stack.Navigator
-        initialRouteName="Login"
         screenOptions={{
           headerStyle: { backgroundColor: "#0f172a" },
           headerTintColor: "#38bdf8",
@@ -124,22 +119,12 @@ function AppContent() {
         <Stack.Screen name="Cable" component={CableScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Contact" component={ContactScreen} />
-
-        {/* OPERATIONS ADMIN SCREENS */}
-        <Stack.Screen
-          name="AdminDashboard"
-          component={AdminControlScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AdminControl"
-          component={AdminControlScreen}
-        />
-
+        <Stack.Screen name="AdminControl" component={AdminControlScreen} />
         <Stack.Screen
           name="SupervisorDashboard"
           component={SupervisorDashboard}
         />
+
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AssignTarget" component={AssignTargetScreen} />
