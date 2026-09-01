@@ -1,4 +1,3 @@
-import "react-native-gesture-handler";
 import React, { useContext } from "react";
 import {
   NavigationContainer,
@@ -13,8 +12,7 @@ import { ThemeProvider, ThemeContext } from "./src/context/ThemeContext";
 
 // --- COMPONENTS ---
 import CustomDrawerContent from "./src/components/CustomDrawerContent";
-import NotificationsScreen from "./src/screens/NotificationsScreen";
-
+import NotificationsScreen from "./src/screens/NotificationsScreen"; // Ka tabbatar wannan path ɗin daidai yake
 // --- SCREENS ---
 import LoginScreen from "./src/screens/LoginScreen";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -78,13 +76,10 @@ function DrawerNavigator() {
 }
 
 function AppContent() {
-  const themeContext = useContext(ThemeContext);
-  const isDarkMode = themeContext?.isDarkMode ?? false;
-
+  const { isDarkMode } = useContext(ThemeContext);
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
       <Stack.Navigator
-        initialRouteName="Login"
         screenOptions={{
           headerStyle: { backgroundColor: "#0f172a" },
           headerTintColor: "#38bdf8",
@@ -110,49 +105,11 @@ function AppContent() {
           component={DrawerNavigator}
           options={{ headerShown: false }}
         />
-
-        {/* OPERATIONS ADMIN SCREENS */}
-        <Stack.Screen
-          name="AdminDashboard"
-          component={AdminControlScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AdminControl"
-          component={AdminControlScreen}
-          options={{ headerShown: true, title: "Operations Admin" }}
-        />
-
-        {/* OTHER ROLES DASHBOARDS */}
-        <Stack.Screen
-          name="SuperAdminDashboard"
-          component={SuperAdminDashboard}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="NsdDashboard"
-          component={NsdDashboard}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="LeaderDashboard"
-          component={LeaderDashboard}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="SupervisorDashboard"
-          component={SupervisorDashboard}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="SupportDashboard"
-          component={SupportDashboard}
-          options={{ headerShown: false }}
-        />
-
-        {/* SERVICES & UTILITY SCREENS */}
         <Stack.Screen name="Success" component={SuccessScreen} />
-        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen
+          name="ForgotPassword"
+          component={ForgotPasswordScreen}
+        />
         <Stack.Screen name="BuyAirtime" component={AirtimeScreen} />
         <Stack.Screen name="FundWallet" component={FundWalletScreen} />
         <Stack.Screen name="BuyData" component={BuyDataScreen} />
@@ -162,14 +119,37 @@ function AppContent() {
         <Stack.Screen name="Cable" component={CableScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Contact" component={ContactScreen} />
+        <Stack.Screen name="AdminControl" component={AdminControlScreen} />
+        <Stack.Screen
+          name="SupervisorDashboard"
+          component={SupervisorDashboard}
+        />
+
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AssignTarget" component={AssignTargetScreen} />
-        <Stack.Screen name="CreateSupervisor" component={CreateSupervisorScreen} />
+        <Stack.Screen name="LeaderDashboard" component={LeaderDashboard} />
+        <Stack.Screen
+          name="CreateSupervisor"
+          component={CreateSupervisorScreen}
+        />
         <Stack.Screen name="ManageAgents" component={ManageAgentsScreen} />
         <Stack.Screen name="SuperAdminUsers" component={UserManagement} />
+        <Stack.Screen
+          name="SuperAdminDashboard"
+          component={SuperAdminDashboard}
+        />
+        <Stack.Screen 
+          name="NsdDashboard" 
+          component={NsdDashboard} 
+          options={{ headerShown: false }} 
+        />
+        <Stack.Screen name="SupportDashboard" component={SupportDashboard} />
         <Stack.Screen name="NIMCRequests" component={NIMCRequests} />
-        <Stack.Screen name="NIMCModification" component={NIMCModificationScreen} />
+        <Stack.Screen
+          name="NIMCModification"
+          component={NIMCModificationScreen}
+        />
         <Stack.Screen name="UpdatePin" component={UpdatePin} />
         <Stack.Screen name="About" component={AboutScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
