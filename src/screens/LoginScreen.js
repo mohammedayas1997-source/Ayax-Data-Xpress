@@ -282,7 +282,10 @@ const LoginScreen = ({ navigation }) => {
         <View style={styles.contentWrapper}>
           <View style={styles.headerSection}>
             <View style={styles.logoCircle}>
-              <Ionicons name="flash" size={40} color="#0284c7" />
+              <Image
+                source={require("../assets/Logo.png")}
+                style={styles.logoImg}
+              />
             </View>
             <Text style={styles.appName}>Ayax Xpress</Text>
             <Text style={styles.tagline}>Swift & Reliable Utility Payments</Text>
@@ -473,14 +476,17 @@ const styles = StyleSheet.create({
   },
   headerSection: { alignItems: "center", marginBottom: 30 },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#e0f2fe",
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
   },
+  logoImg: { width: 60, height: 60, resizeMode: "contain" },
   appName: { fontSize: 28, fontWeight: "bold", color: "#0f172a" },
   tagline: { fontSize: 14, color: "#64748b", marginTop: 5 },
   formSection: { width: "100%" },
