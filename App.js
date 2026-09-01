@@ -12,7 +12,8 @@ import { ThemeProvider, ThemeContext } from "./src/context/ThemeContext";
 
 // --- COMPONENTS ---
 import CustomDrawerContent from "./src/components/CustomDrawerContent";
-import NotificationsScreen from "./src/screens/NotificationsScreen"; // Ka tabbatar wannan path ɗin daidai yake
+import NotificationsScreen from "./src/screens/NotificationsScreen";
+
 // --- SCREENS ---
 import LoginScreen from "./src/screens/LoginScreen";
 import HomeScreen from "./src/screens/HomeScreen";
@@ -119,7 +120,18 @@ function AppContent() {
         <Stack.Screen name="Cable" component={CableScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Contact" component={ContactScreen} />
-        <Stack.Screen name="AdminControl" component={AdminControlScreen} />
+
+        {/* OPERATIONS ADMIN ROUTES (Biyu domin magance matsalar suna) */}
+        <Stack.Screen 
+          name="AdminDashboard" 
+          component={AdminControlScreen} 
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="AdminControl" 
+          component={AdminControlScreen} 
+        />
+
         <Stack.Screen
           name="SupervisorDashboard"
           component={SupervisorDashboard}
