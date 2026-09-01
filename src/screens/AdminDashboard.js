@@ -229,7 +229,6 @@ const AdminDashboard = () => {
     let matchedSubordinates = [];
 
     if (leaderRole.includes("state_manager") || leaderRole.includes("leader") || leaderRole.includes("nsd")) {
-      // Find Supervisors and Agents in this leader's state or assigned to him
       matchedSubordinates = usersList.filter(
         (u) =>
           String(u.assignedLeader) === leaderId ||
@@ -237,7 +236,6 @@ const AdminDashboard = () => {
           (u.state && leader.state && u.state.toLowerCase() === leader.state.toLowerCase() && u._id !== leader._id)
       );
     } else if (leaderRole.includes("supervisor")) {
-      // Find Agents under this specific Supervisor
       matchedSubordinates = usersList.filter(
         (u) =>
           String(u.assignedSupervisor) === leaderId ||
@@ -375,8 +373,8 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <View style={styles.loaderContainer}>
-        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-        <ActivityIndicator size="large" color="#38bdf8" />
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+        <ActivityIndicator size="large" color="#0284c7" />
         <Text style={styles.loaderTitle}>AYAX ENTERPRISE PORTAL</Text>
         <Text style={styles.loaderSub}>Synchronizing Operations Engine...</Text>
       </View>
@@ -397,12 +395,12 @@ const AdminDashboard = () => {
 
   return (
     <View style={styles.mainWrapper}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       {/* Top Application Bar */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.menuToggleBtn} onPress={openSidebar} activeOpacity={0.7}>
-          <Feather name="menu" size={22} color="#38bdf8" />
+          <Feather name="menu" size={22} color="#0284c7" />
         </TouchableOpacity>
 
         <View style={styles.headerTitleWrap}>
@@ -415,10 +413,10 @@ const AdminDashboard = () => {
 
         <View style={styles.topActions}>
           <TouchableOpacity style={styles.actionIconBtn} onPress={onRefresh} activeOpacity={0.7}>
-            <Feather name="rotate-cw" size={17} color="#38bdf8" />
+            <Feather name="rotate-cw" size={17} color="#0284c7" />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.actionIconBtn, styles.logoutBtn]} onPress={handleLogout} activeOpacity={0.7}>
-            <Feather name="log-out" size={17} color="#f43f5e" />
+            <Feather name="log-out" size={17} color="#e11d48" />
           </TouchableOpacity>
         </View>
       </View>
@@ -440,7 +438,7 @@ const AdminDashboard = () => {
               style={[styles.tabBtn, activeTab === tab.key && styles.tabBtnActive]}
               onPress={() => setActiveTab(tab.key)}
             >
-              <Feather name={tab.icon} size={13} color={activeTab === tab.key ? "#0f172a" : "#cbd5e1"} />
+              <Feather name={tab.icon} size={13} color={activeTab === tab.key ? "#ffffff" : "#475569"} />
               <Text style={[styles.tabBtnText, activeTab === tab.key && styles.tabBtnTextActive]}>
                 {tab.label}
               </Text>
@@ -454,7 +452,7 @@ const AdminDashboard = () => {
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#38bdf8" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0284c7" />}
       >
         {/* ========================================================
             TAB 1: OVERVIEW & COMPANY BALANCE TELEMETRY
@@ -472,40 +470,40 @@ const AdminDashboard = () => {
                   <Text style={styles.metricCardLabel}>Company Total Float</Text>
                   <Ionicons name="shield-checkmark" size={16} color="#10b981" />
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#10b981" }]}>
+                <Text style={[styles.metricCardValue, { color: "#059669" }]}>
                   ₦{Number(stats.companyTotalBalance || 4850000).toLocaleString()}
                 </Text>
                 <Text style={styles.metricCardSub}>Total Vault Reserves & Capital</Text>
               </View>
 
-              <View style={[styles.metricCard, { borderTopColor: "#38bdf8" }]}>
+              <View style={[styles.metricCard, { borderTopColor: "#0284c7" }]}>
                 <View style={styles.metricCardHeader}>
                   <Text style={styles.metricCardLabel}>Wallet Liabilities</Text>
-                  <MaterialCommunityIcons name="wallet-outline" size={16} color="#38bdf8" />
+                  <MaterialCommunityIcons name="wallet-outline" size={16} color="#0284c7" />
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#38bdf8" }]}>
+                <Text style={[styles.metricCardValue, { color: "#0284c7" }]}>
                   ₦{Number(stats.totalWalletLiabilities || 250000).toLocaleString()}
                 </Text>
                 <Text style={styles.metricCardSub}>Customer & Merchant Balances</Text>
               </View>
 
-              <View style={[styles.metricCard, { borderTopColor: "#a855f7" }]}>
+              <View style={[styles.metricCard, { borderTopColor: "#9333ea" }]}>
                 <View style={styles.metricCardHeader}>
                   <Text style={styles.metricCardLabel}>Settled Transactions</Text>
-                  <Feather name="trending-up" size={16} color="#a855f7" />
+                  <Feather name="trending-up" size={16} color="#9333ea" />
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#a855f7" }]}>
+                <Text style={[styles.metricCardValue, { color: "#9333ea" }]}>
                   {Number(stats.totalTransactions || 1280).toLocaleString()} Orders
                 </Text>
                 <Text style={styles.metricCardSub}>VTU, Bills, NIMC, BVN</Text>
               </View>
 
-              <View style={[styles.metricCard, { borderTopColor: "#f43f5e" }]}>
+              <View style={[styles.metricCard, { borderTopColor: "#e11d48" }]}>
                 <View style={styles.metricCardHeader}>
                   <Text style={styles.metricCardLabel}>Pending Refunds</Text>
-                  <Ionicons name="alert-circle-outline" size={16} color="#f43f5e" />
+                  <Ionicons name="alert-circle-outline" size={16} color="#e11d48" />
                 </View>
-                <Text style={[styles.metricCardValue, { color: "#f43f5e" }]}>
+                <Text style={[styles.metricCardValue, { color: "#e11d48" }]}>
                   {stats.pendingRefunds || 0}
                 </Text>
                 <Text style={styles.metricCardSub}>Failed/Disputed Transactions</Text>
@@ -520,10 +518,10 @@ const AdminDashboard = () => {
 
             <View style={styles.rosterCardGrid}>
               {[
-                { title: "National Sales Directors", role: "national_sales_director", icon: "crown", color: "#f59e0b", count: 2, sub: "National Commands" },
-                { title: "State Managers (SM)", role: "state_manager", icon: "building", color: "#38bdf8", count: stats.totalLeaders || 14, sub: "State Quotas" },
-                { title: "Field Supervisors", role: "supervisor", icon: "user-tie", color: "#818cf8", count: stats.totalSupervisors || 36, sub: "LGA Clusters" },
-                { title: "Retail Merchant Agents", role: "agent", icon: "store", color: "#34d399", count: stats.totalAgents || 148, sub: "Active Pos Outlets" },
+                { title: "National Sales Directors", role: "national_sales_director", icon: "crown", color: "#d97706", count: 2, sub: "National Commands" },
+                { title: "State Managers (SM)", role: "state_manager", icon: "building", color: "#0284c7", count: stats.totalLeaders || 14, sub: "State Quotas" },
+                { title: "Field Supervisors", role: "supervisor", icon: "user-tie", color: "#6366f1", count: stats.totalSupervisors || 36, sub: "LGA Clusters" },
+                { title: "Retail Merchant Agents", role: "agent", icon: "store", color: "#059669", count: stats.totalAgents || 148, sub: "Active Pos Outlets" },
               ].map((item, idx) => (
                 <TouchableOpacity
                   key={idx}
@@ -534,7 +532,7 @@ const AdminDashboard = () => {
                   }}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.rosterIconWrap, { backgroundColor: `${item.color}20` }]}>
+                  <View style={[styles.rosterIconWrap, { backgroundColor: `${item.color}18` }]}>
                     <FontAwesome5 name={item.icon} size={16} color={item.color} />
                   </View>
                   <View style={{ flex: 1, marginLeft: 10 }}>
@@ -588,15 +586,15 @@ const AdminDashboard = () => {
 
             <View style={styles.networkGrid}>
               {[
-                { name: "MTN Nigeria", color: "#eab308", share: "58%", vol: "8,600 GB", rev: "₦2,279,000" },
-                { name: "Airtel Nigeria", color: "#ef4444", share: "26%", vol: "3,850 GB", rev: "₦1,020,000" },
-                { name: "Glo Mobile", color: "#22c55e", share: "12%", vol: "1,800 GB", rev: "₦450,000" },
-                { name: "9mobile", color: "#14b8a6", share: "4%", vol: "600 GB", rev: "₦112,000" },
+                { name: "MTN Nigeria", color: "#d97706", share: "58%", vol: "8,600 GB", rev: "₦2,279,000" },
+                { name: "Airtel Nigeria", color: "#e11d48", share: "26%", vol: "3,850 GB", rev: "₦1,020,000" },
+                { name: "Glo Mobile", color: "#16a34a", share: "12%", vol: "1,800 GB", rev: "₦450,000" },
+                { name: "9mobile", color: "#0d9488", share: "4%", vol: "600 GB", rev: "₦112,000" },
               ].map((net, i) => (
                 <View key={i} style={styles.networkCard}>
                   <View style={styles.networkCardHeader}>
                     <Text style={styles.networkName}>{net.name}</Text>
-                    <View style={[styles.netBadge, { backgroundColor: `${net.color}25` }]}>
+                    <View style={[styles.netBadge, { backgroundColor: `${net.color}18` }]}>
                       <Text style={[styles.netBadgeText, { color: net.color }]}>{net.share}</Text>
                     </View>
                   </View>
@@ -649,7 +647,7 @@ const AdminDashboard = () => {
                     </View>
                   </View>
                   <View style={styles.inspectArrowWrap}>
-                    <Feather name="chevron-right" size={20} color="#38bdf8" />
+                    <Feather name="chevron-right" size={20} color="#0284c7" />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -667,13 +665,13 @@ const AdminDashboard = () => {
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Search name, phone, LGA, or email..."
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor="#94a3b8"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                 />
                 {searchQuery ? (
                   <TouchableOpacity onPress={() => setSearchQuery("")}>
-                    <Feather name="x" size={16} color="#94a3b8" />
+                    <Feather name="x" size={16} color="#64748b" />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -682,7 +680,7 @@ const AdminDashboard = () => {
                 style={styles.addUserInlineBtn}
                 onPress={() => setCreateUserModalVisible(true)}
               >
-                <Feather name="user-plus" size={16} color="#0f172a" />
+                <Feather name="user-plus" size={16} color="#ffffff" />
                 <Text style={styles.addUserInlineText}>New Staff</Text>
               </TouchableOpacity>
             </View>
@@ -735,7 +733,7 @@ const AdminDashboard = () => {
                 </View>
                 <View style={styles.userBalanceSide}>
                   <Text style={styles.userBalanceVal}>₦{Number(u.walletBalance || u.balance || 0).toLocaleString()}</Text>
-                  <Feather name="chevron-right" size={16} color="#64748b" />
+                  <Feather name="chevron-right" size={16} color="#94a3b8" />
                 </View>
               </TouchableOpacity>
             ))}
@@ -767,7 +765,7 @@ const AdminDashboard = () => {
                       setPricingModalVisible(true);
                     }}
                   >
-                    <Feather name="edit-2" size={14} color="#38bdf8" />
+                    <Feather name="edit-2" size={14} color="#0284c7" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -812,7 +810,7 @@ const AdminDashboard = () => {
               value={targetPayload.dataVolumeGoal}
               onChangeText={(t) => setTargetPayload({ ...targetPayload, dataVolumeGoal: t })}
               placeholder="e.g. 5000"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
 
             <Text style={styles.inputFieldLabel}>Airtime Sales Target (₦)</Text>
@@ -822,7 +820,7 @@ const AdminDashboard = () => {
               value={targetPayload.airtimeGoal}
               onChangeText={(t) => setTargetPayload({ ...targetPayload, airtimeGoal: t })}
               placeholder="e.g. 500000"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
 
             <Text style={styles.inputFieldLabel}>Retail Merchant Recruitment Quota</Text>
@@ -832,7 +830,7 @@ const AdminDashboard = () => {
               value={targetPayload.agentRecruitGoal}
               onChangeText={(t) => setTargetPayload({ ...targetPayload, agentRecruitGoal: t })}
               placeholder="e.g. 50"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
 
             <Text style={styles.inputFieldLabel}>Executive Command / Directive Note</Text>
@@ -842,7 +840,7 @@ const AdminDashboard = () => {
               value={targetPayload.commandNote}
               onChangeText={(t) => setTargetPayload({ ...targetPayload, commandNote: t })}
               placeholder="Type official directive..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
 
             <TouchableOpacity style={styles.submitFormBtn} onPress={handleDispatchDirective}>
@@ -889,7 +887,7 @@ const AdminDashboard = () => {
                   value={targetUserEmail}
                   onChangeText={setTargetUserEmail}
                   placeholder="e.g. 08011223344 or user@ayaxdata.online"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor="#94a3b8"
                 />
               </>
             )}
@@ -900,7 +898,7 @@ const AdminDashboard = () => {
               value={notifTitle}
               onChangeText={setNotifTitle}
               placeholder="e.g. Price Slash / System Maintenance"
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
 
             <Text style={styles.inputFieldLabel}>Notification Body</Text>
@@ -910,12 +908,12 @@ const AdminDashboard = () => {
               value={notifMessage}
               onChangeText={setNotifMessage}
               placeholder="Type message content here..."
-              placeholderTextColor="#64748b"
+              placeholderTextColor="#94a3b8"
             />
 
             <TouchableOpacity style={styles.submitFormBtn} onPress={handleSendNotification} disabled={sendingNotif}>
               {sendingNotif ? (
-                <ActivityIndicator color="#0f172a" />
+                <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text style={styles.submitFormBtnText}>TRANSMIT BROADCAST</Text>
               )}
@@ -935,7 +933,7 @@ const AdminDashboard = () => {
           <Animated.View style={[styles.sidebarContainer, { transform: [{ translateX: slideAnim }] }]}>
             <View style={styles.sidebarHeader}>
               <View style={styles.sidebarLogoWrap}>
-                <Ionicons name="shield-checkmark" size={24} color="#38bdf8" />
+                <Ionicons name="shield-checkmark" size={24} color="#0284c7" />
               </View>
               <View style={{ marginLeft: 12 }}>
                 <Text style={styles.sidebarBrandTitle}>AYAX CENTRAL</Text>
@@ -962,7 +960,7 @@ const AdminDashboard = () => {
                     closeSidebar();
                   }}
                 >
-                  <Feather name={m.icon} size={17} color={activeTab === m.key ? "#38bdf8" : "#94a3b8"} />
+                  <Feather name={m.icon} size={17} color={activeTab === m.key ? "#0284c7" : "#64748b"} />
                   <Text style={[styles.sidebarNavText, activeTab === m.key && styles.sidebarNavTextActive]}>
                     {m.label}
                   </Text>
@@ -977,7 +975,7 @@ const AdminDashboard = () => {
                   navigation.navigate("NIMCRequests");
                 }}
               >
-                <Ionicons name="card-outline" size={17} color="#38bdf8" />
+                <Ionicons name="card-outline" size={17} color="#0284c7" />
                 <Text style={styles.sidebarNavText}>NIMC Queue ({stats.pendingNIMC || 0})</Text>
               </TouchableOpacity>
 
@@ -988,7 +986,7 @@ const AdminDashboard = () => {
                   navigation.navigate("BVNScreen");
                 }}
               >
-                <FontAwesome5 name="fingerprint" size={15} color="#fbbf24" />
+                <FontAwesome5 name="fingerprint" size={15} color="#d97706" />
                 <Text style={styles.sidebarNavText}>BVN Desk</Text>
               </TouchableOpacity>
 
@@ -999,13 +997,13 @@ const AdminDashboard = () => {
                   navigation.navigate("SupportDashboard");
                 }}
               >
-                <Ionicons name="headset-outline" size={17} color="#f43f5e" />
+                <Ionicons name="headset-outline" size={17} color="#e11d48" />
                 <Text style={styles.sidebarNavText}>Support Desk</Text>
               </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity style={styles.sidebarLogoutBtn} onPress={handleLogout}>
-              <Feather name="log-out" size={17} color="#f43f5e" />
+              <Feather name="log-out" size={17} color="#e11d48" />
               <Text style={styles.sidebarLogoutText}>Sign Out Console</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -1028,14 +1026,14 @@ const AdminDashboard = () => {
                 )}
               </View>
               <TouchableOpacity onPress={() => setHierarchyModalVisible(false)}>
-                <Feather name="x" size={20} color="#94a3b8" />
+                <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
               {subordinatesList.length === 0 ? (
                 <View style={styles.emptyWrap}>
-                  <Feather name="users" size={32} color="#475569" />
+                  <Feather name="users" size={32} color="#94a3b8" />
                   <Text style={styles.emptyTitle}>No retail agents or officers assigned yet under this station.</Text>
                 </View>
               ) : (
@@ -1071,7 +1069,7 @@ const AdminDashboard = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Provision New Staff / Account</Text>
               <TouchableOpacity onPress={() => setCreateUserModalVisible(false)}>
-                <Feather name="x" size={20} color="#94a3b8" />
+                <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -1082,7 +1080,7 @@ const AdminDashboard = () => {
                 value={userFormData.name}
                 onChangeText={(t) => setUserFormData({ ...userFormData, name: t })}
                 placeholder="e.g. Ibrahim Sani"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
               />
 
               <Text style={styles.inputFieldLabel}>Phone Number</Text>
@@ -1092,7 +1090,7 @@ const AdminDashboard = () => {
                 onChangeText={(t) => setUserFormData({ ...userFormData, phone: t })}
                 placeholder="e.g. 08011223344"
                 keyboardType="phone-pad"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
               />
 
               <Text style={styles.inputFieldLabel}>Email Address</Text>
@@ -1103,7 +1101,7 @@ const AdminDashboard = () => {
                 placeholder="e.g. officer@ayaxdata.online"
                 keyboardType="email-address"
                 autoCapitalize="none"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
               />
 
               <Text style={styles.inputFieldLabel}>Assigned Role</Text>
@@ -1133,7 +1131,7 @@ const AdminDashboard = () => {
                 value={userFormData.state}
                 onChangeText={(t) => setUserFormData({ ...userFormData, state: t })}
                 placeholder="e.g. Kano / Abuja"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
               />
 
               <Text style={styles.inputFieldLabel}>LGA / Ward</Text>
@@ -1142,7 +1140,7 @@ const AdminDashboard = () => {
                 value={userFormData.lga}
                 onChangeText={(t) => setUserFormData({ ...userFormData, lga: t })}
                 placeholder="e.g. Municipal / Ajingi"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
               />
 
               <Text style={styles.inputFieldLabel}>Assigned Monthly Data Goal (GB)</Text>
@@ -1152,7 +1150,7 @@ const AdminDashboard = () => {
                 onChangeText={(t) => setUserFormData({ ...userFormData, dataGoal: t })}
                 placeholder="e.g. 1500"
                 keyboardType="numeric"
-                placeholderTextColor="#64748b"
+                placeholderTextColor="#94a3b8"
               />
 
               <TouchableOpacity style={styles.submitFormBtn} onPress={handleCreateUser}>
@@ -1172,7 +1170,7 @@ const AdminDashboard = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>User Record & Account Status</Text>
               <TouchableOpacity onPress={() => setUserModalVisible(false)}>
-                <Feather name="x" size={20} color="#94a3b8" />
+                <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -1185,12 +1183,12 @@ const AdminDashboard = () => {
                 <Text style={styles.detailVal}>{selectedUser.phone} • {selectedUser.email || "No email"}</Text>
 
                 <Text style={styles.detailLabel}>Role Cadre</Text>
-                <Text style={[styles.detailVal, { color: "#38bdf8", fontWeight: "900" }]}>
+                <Text style={[styles.detailVal, { color: "#0284c7", fontWeight: "900" }]}>
                   {String(selectedUser.role).toUpperCase()}
                 </Text>
 
                 <Text style={styles.detailLabel}>Wallet Balance</Text>
-                <Text style={[styles.detailVal, { color: "#10b981", fontSize: 16, fontWeight: "900" }]}>
+                <Text style={[styles.detailVal, { color: "#059669", fontSize: 16, fontWeight: "900" }]}>
                   ₦{Number(selectedUser.walletBalance || selectedUser.balance || 0).toLocaleString()}
                 </Text>
 
@@ -1199,7 +1197,7 @@ const AdminDashboard = () => {
 
                 <View style={styles.modalActionButtons}>
                   <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#f43f5e" }]}
+                    style={[styles.modalBtn, { backgroundColor: "#e11d48" }]}
                     onPress={() => handleUpdateUserStatus(selectedUser._id, "suspended")}
                   >
                     <Text style={styles.modalBtnText}>Suspend Account</Text>
@@ -1227,7 +1225,7 @@ const AdminDashboard = () => {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Set Selling Tariff</Text>
               <TouchableOpacity onPress={() => setPricingModalVisible(false)}>
-                <Feather name="x" size={20} color="#94a3b8" />
+                <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
@@ -1243,7 +1241,7 @@ const AdminDashboard = () => {
                   value={newPlanPrice}
                   onChangeText={setNewPlanPrice}
                   keyboardType="numeric"
-                  placeholderTextColor="#64748b"
+                  placeholderTextColor="#94a3b8"
                 />
 
                 <TouchableOpacity style={styles.submitFormBtn} onPress={handleSavePrice}>
@@ -1259,23 +1257,23 @@ const AdminDashboard = () => {
 };
 
 const styles = StyleSheet.create({
-  mainWrapper: { flex: 1, backgroundColor: "#0b132b" },
+  mainWrapper: { flex: 1, backgroundColor: "#f8fafc" },
   loaderContainer: {
     flex: 1,
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f8fafc",
     justifyContent: "center",
     alignItems: "center",
   },
   loaderTitle: {
-    color: "#38bdf8",
+    color: "#0284c7",
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 1.2,
     marginTop: 16,
   },
-  loaderSub: { color: "#94a3b8", fontSize: 12, fontWeight: "600", marginTop: 6 },
+  loaderSub: { color: "#64748b", fontSize: 12, fontWeight: "600", marginTop: 6 },
   topBar: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     paddingTop: Platform.OS === "ios" ? 50 : 38,
     paddingBottom: 12,
     paddingHorizontal: 16,
@@ -1283,59 +1281,63 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
   },
   menuToggleBtn: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
   },
   headerTitleWrap: { alignItems: "center" },
   liveIndicator: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(56, 189, 248, 0.12)",
+    backgroundColor: "#e0f2fe",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
     marginBottom: 2,
     borderWidth: 1,
-    borderColor: "rgba(56, 189, 248, 0.3)",
+    borderColor: "#bae6fd",
   },
   pulseDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#38bdf8",
+    backgroundColor: "#0284c7",
     marginRight: 6,
   },
-  liveText: { color: "#38bdf8", fontSize: 8.5, fontWeight: "900", letterSpacing: 0.6 },
-  brandTitle: { color: "#f8fafc", fontSize: 12.5, fontWeight: "900", letterSpacing: 0.5 },
+  liveText: { color: "#0284c7", fontSize: 8.5, fontWeight: "900", letterSpacing: 0.6 },
+  brandTitle: { color: "#0f172a", fontSize: 12.5, fontWeight: "900", letterSpacing: 0.5 },
   topActions: { flexDirection: "row", alignItems: "center" },
   actionIconBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     marginLeft: 6,
   },
   logoutBtn: {
-    borderColor: "#f43f5e",
-    backgroundColor: "rgba(244, 63, 94, 0.12)",
+    borderColor: "#fecdd3",
+    backgroundColor: "#ffe4e6",
   },
   tabRibbon: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: "#e2e8f0",
     paddingVertical: 8,
   },
   tabScroll: { paddingHorizontal: 12 },
@@ -1345,15 +1347,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f1f5f9",
     marginRight: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     gap: 6,
   },
-  tabBtnActive: { backgroundColor: "#38bdf8", borderColor: "#38bdf8" },
-  tabBtnText: { color: "#94a3b8", fontSize: 11.5, fontWeight: "700" },
-  tabBtnTextActive: { color: "#0f172a", fontWeight: "900" },
+  tabBtnActive: { backgroundColor: "#0284c7", borderColor: "#0284c7" },
+  tabBtnText: { color: "#475569", fontSize: 11.5, fontWeight: "700" },
+  tabBtnTextActive: { color: "#ffffff", fontWeight: "900" },
   scrollArea: { flex: 1 },
   scrollContent: { padding: 14 },
   sectionHeaderRow: {
@@ -1364,17 +1366,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionHeaderLabel: {
-    color: "#94a3b8",
+    color: "#475569",
     fontSize: 10.5,
     fontWeight: "900",
     letterSpacing: 0.8,
   },
   sectionHeaderLive: {
-    color: "#10b981",
+    color: "#059669",
     fontSize: 10,
     fontWeight: "800",
   },
-  sectionHeaderSub: { color: "#38bdf8", fontSize: 9.5, fontWeight: "700" },
+  sectionHeaderSub: { color: "#0284c7", fontSize: 9.5, fontWeight: "700" },
   metricGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1382,31 +1384,39 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     width: "48.5%",
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     borderTopWidth: 3,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
   metricCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  metricCardLabel: { color: "#94a3b8", fontSize: 10.5, fontWeight: "700", flex: 1 },
+  metricCardLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "700", flex: 1 },
   metricCardValue: { fontSize: 14.5, fontWeight: "900", marginVertical: 4 },
-  metricCardSub: { color: "#64748b", fontSize: 9.5, fontWeight: "600" },
+  metricCardSub: { color: "#94a3b8", fontSize: 9.5, fontWeight: "600" },
   rosterCardGrid: { gap: 8, marginBottom: 12 },
   rosterCard: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
   },
   rosterIconWrap: {
     width: 36,
@@ -1415,16 +1425,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  rosterCardTitle: { color: "#f8fafc", fontSize: 12.5, fontWeight: "800" },
-  rosterCardSub: { color: "#94a3b8", fontSize: 10.5, marginTop: 1 },
+  rosterCardTitle: { color: "#0f172a", fontSize: 12.5, fontWeight: "800" },
+  rosterCardSub: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
   rosterCardCount: { fontSize: 16, fontWeight: "900" },
   salesHeroCard: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
   salesHeroRow: { flexDirection: "row", alignItems: "center" },
   salesItem: { flex: 1, alignItems: "center" },
@@ -1436,163 +1450,183 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  salesItemLabel: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
-  salesItemValue: { color: "#f8fafc", fontSize: 15, fontWeight: "900", marginTop: 2 },
-  salesItemSub: { color: "#10b981", fontSize: 10.5, fontWeight: "700", marginTop: 2 },
-  salesDivider: { width: 1, height: 60, backgroundColor: "#334155", marginHorizontal: 8 },
+  salesItemLabel: { color: "#64748b", fontSize: 11, fontWeight: "700" },
+  salesItemValue: { color: "#0f172a", fontSize: 15, fontWeight: "900", marginTop: 2 },
+  salesItemSub: { color: "#059669", fontSize: 10.5, fontWeight: "700", marginTop: 2 },
+  salesDivider: { width: 1, height: 60, backgroundColor: "#e2e8f0", marginHorizontal: 8 },
   networkGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   networkCard: {
     width: "48.5%",
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
   },
   networkCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  networkName: { color: "#f8fafc", fontSize: 12, fontWeight: "800" },
+  networkName: { color: "#0f172a", fontSize: 12, fontWeight: "800" },
   netBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   netBadgeText: { fontSize: 10, fontWeight: "900" },
-  netVolText: { color: "#38bdf8", fontSize: 13, fontWeight: "900", marginTop: 6 },
-  netRevText: { color: "#94a3b8", fontSize: 10.5, marginTop: 1 },
+  netVolText: { color: "#0284c7", fontSize: 13, fontWeight: "900", marginTop: 6 },
+  netRevText: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
   hierarchyHint: { color: "#64748b", fontSize: 11, marginBottom: 10, fontStyle: "italic" },
   leaderCard: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     flexDirection: "row",
     alignItems: "center",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
   },
   leaderAvatar: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: "#e0f2fe",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
-  leaderAvatarText: { color: "#38bdf8", fontSize: 14, fontWeight: "900" },
+  leaderAvatarText: { color: "#0284c7", fontSize: 14, fontWeight: "900" },
   leaderInfo: { flex: 1 },
   leaderNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  leaderName: { color: "#f8fafc", fontSize: 12.5, fontWeight: "800", flexShrink: 1 },
-  leaderRolePill: { backgroundColor: "#0b132b", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
-  leaderRolePillText: { color: "#38bdf8", fontSize: 8.5, fontWeight: "900" },
-  leaderSubText: { color: "#94a3b8", fontSize: 10.5, marginTop: 2 },
+  leaderName: { color: "#0f172a", fontSize: 12.5, fontWeight: "800", flexShrink: 1 },
+  leaderRolePill: { backgroundColor: "#f1f5f9", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  leaderRolePillText: { color: "#0284c7", fontSize: 8.5, fontWeight: "900" },
+  leaderSubText: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
   targetProgressRow: { marginTop: 3 },
-  targetProgressText: { color: "#10b981", fontSize: 10, fontWeight: "700" },
+  targetProgressText: { color: "#059669", fontSize: 10, fontWeight: "700" },
   inspectArrowWrap: { paddingLeft: 6 },
   searchFilterContainer: { flexDirection: "row", gap: 8, marginBottom: 8, alignItems: "center" },
   searchBar: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 10,
     paddingHorizontal: 10,
     height: 42,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     gap: 8,
   },
-  searchInput: { flex: 1, color: "#f8fafc", fontSize: 13 },
+  searchInput: { flex: 1, color: "#0f172a", fontSize: 13 },
   addUserInlineBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#38bdf8",
+    backgroundColor: "#0284c7",
     paddingHorizontal: 12,
     height: 42,
     borderRadius: 10,
     gap: 4,
   },
-  addUserInlineText: { color: "#0f172a", fontSize: 12, fontWeight: "900" },
+  addUserInlineText: { color: "#ffffff", fontSize: 12, fontWeight: "900" },
   roleFilterScroll: { marginBottom: 10 },
   roleBadge: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
     marginRight: 6,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
   },
-  roleBadgeActive: { borderColor: "#38bdf8", backgroundColor: "rgba(56, 189, 248, 0.15)" },
-  roleBadgeText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
-  roleBadgeTextActive: { color: "#38bdf8", fontWeight: "900" },
+  roleBadgeActive: { borderColor: "#0284c7", backgroundColor: "#e0f2fe" },
+  roleBadgeText: { color: "#64748b", fontSize: 11, fontWeight: "700" },
+  roleBadgeTextActive: { color: "#0284c7", fontWeight: "900" },
   userListItem: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     flexDirection: "row",
     alignItems: "center",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
   },
   userAvatar: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: "#e0f2fe",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
   },
-  userAvatarTxt: { color: "#38bdf8", fontSize: 13, fontWeight: "900" },
+  userAvatarTxt: { color: "#0284c7", fontSize: 13, fontWeight: "900" },
   userInfo: { flex: 1 },
   userNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  userName: { color: "#f8fafc", fontSize: 12.5, fontWeight: "800", flexShrink: 1 },
-  userRoleTag: { backgroundColor: "#0b132b", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
-  userRoleTagTxt: { color: "#38bdf8", fontSize: 8.5, fontWeight: "900" },
-  userSub: { color: "#94a3b8", fontSize: 10.5, marginTop: 2 },
-  userLoc: { color: "#64748b", fontSize: 10 },
+  userName: { color: "#0f172a", fontSize: 12.5, fontWeight: "800", flexShrink: 1 },
+  userRoleTag: { backgroundColor: "#f1f5f9", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+  userRoleTagTxt: { color: "#0284c7", fontSize: 8.5, fontWeight: "900" },
+  userSub: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
+  userLoc: { color: "#94a3b8", fontSize: 10 },
   userBalanceSide: { alignItems: "flex-end", gap: 3 },
-  userBalanceVal: { color: "#10b981", fontSize: 12, fontWeight: "900" },
+  userBalanceVal: { color: "#059669", fontSize: 12, fontWeight: "900" },
   priceRowCard: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
   },
-  priceNetworkTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
-  priceCostSub: { color: "#94a3b8", fontSize: 10.5, marginTop: 2 },
+  priceNetworkTitle: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
+  priceCostSub: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
   priceActionRight: { flexDirection: "row", alignItems: "center", gap: 10 },
-  priceSellingText: { color: "#10b981", fontSize: 14.5, fontWeight: "900" },
+  priceSellingText: { color: "#059669", fontSize: 14.5, fontWeight: "900" },
   editPriceBtn: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f1f5f9",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
   },
   formCard: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
-  formCardTitle: { color: "#f8fafc", fontSize: 13.5, fontWeight: "900" },
-  formCardSub: { color: "#94a3b8", fontSize: 11, marginTop: 2, marginBottom: 14 },
-  inputFieldLabel: { color: "#cbd5e1", fontSize: 11, fontWeight: "700", marginBottom: 5 },
+  formCardTitle: { color: "#0f172a", fontSize: 13.5, fontWeight: "900" },
+  formCardSub: { color: "#64748b", fontSize: 11, marginTop: 2, marginBottom: 14 },
+  inputFieldLabel: { color: "#334155", fontSize: 11, fontWeight: "700", marginBottom: 5 },
   formInput: {
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f8fafc",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#334155",
-    color: "#f8fafc",
+    borderColor: "#cbd5e1",
+    color: "#0f172a",
     paddingHorizontal: 12,
     paddingVertical: 8,
     fontSize: 12.5,
@@ -1600,25 +1634,25 @@ const styles = StyleSheet.create({
   },
   targetRoleSelectorRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   targetCadreBtn: {
-    backgroundColor: "#0b132b",
+    backgroundColor: "#f1f5f9",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
   },
-  targetCadreBtnActive: { borderColor: "#38bdf8", backgroundColor: "rgba(56, 189, 248, 0.2)" },
-  targetCadreBtnText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
-  targetCadreBtnTextActive: { color: "#38bdf8", fontWeight: "900" },
+  targetCadreBtnActive: { borderColor: "#0284c7", backgroundColor: "#e0f2fe" },
+  targetCadreBtnText: { color: "#475569", fontSize: 11, fontWeight: "700" },
+  targetCadreBtnTextActive: { color: "#0284c7", fontWeight: "900" },
   submitFormBtn: {
-    backgroundColor: "#38bdf8",
+    backgroundColor: "#0284c7",
     borderRadius: 10,
     height: 44,
     justifyContent: "center",
     alignItems: "center",
     marginTop: 6,
   },
-  submitFormBtnText: { color: "#0f172a", fontSize: 12.5, fontWeight: "900", letterSpacing: 0.5 },
+  submitFormBtnText: { color: "#ffffff", fontSize: 12.5, fontWeight: "900", letterSpacing: 0.5 },
   sidebarBackdrop: {
     position: "absolute",
     top: 0,
@@ -1628,44 +1662,48 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     zIndex: 999,
   },
-  backdropTouch: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.65)" },
+  backdropTouch: { flex: 1, backgroundColor: "rgba(15, 23, 42, 0.45)" },
   sidebarContainer: {
     position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
     width: width * 0.8,
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRightWidth: 1,
-    borderRightColor: "#334155",
+    borderRightColor: "#e2e8f0",
     paddingTop: Platform.OS === "ios" ? 50 : 35,
     paddingBottom: 25,
     paddingHorizontal: 16,
     zIndex: 1000,
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   sidebarHeader: {
     flexDirection: "row",
     alignItems: "center",
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: "#e2e8f0",
     marginBottom: 12,
   },
   sidebarLogoWrap: {
     width: 42,
     height: 42,
     borderRadius: 10,
-    backgroundColor: "rgba(56, 189, 248, 0.15)",
+    backgroundColor: "#e0f2fe",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#38bdf8",
+    borderColor: "#bae6fd",
   },
-  sidebarBrandTitle: { color: "#f8fafc", fontSize: 14, fontWeight: "900" },
-  sidebarRoleSub: { color: "#94a3b8", fontSize: 10 },
+  sidebarBrandTitle: { color: "#0f172a", fontSize: 14, fontWeight: "900" },
+  sidebarRoleSub: { color: "#64748b", fontSize: 10 },
   sidebarNavScroll: { flex: 1 },
   sidebarNavSectionTitle: {
-    color: "#64748b",
+    color: "#94a3b8",
     fontSize: 9.5,
     fontWeight: "900",
     letterSpacing: 0.8,
@@ -1681,67 +1719,71 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 3,
   },
-  sidebarNavItemActive: { backgroundColor: "rgba(56, 189, 248, 0.15)" },
-  sidebarNavText: { color: "#cbd5e1", fontSize: 12, fontWeight: "700" },
-  sidebarNavTextActive: { color: "#38bdf8", fontWeight: "900" },
+  sidebarNavItemActive: { backgroundColor: "#e0f2fe" },
+  sidebarNavText: { color: "#475569", fontSize: 12, fontWeight: "700" },
+  sidebarNavTextActive: { color: "#0284c7", fontWeight: "900" },
   sidebarLogoutBtn: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#334155",
+    borderTopColor: "#e2e8f0",
     gap: 8,
     marginTop: 10,
   },
-  sidebarLogoutText: { color: "#f43f5e", fontSize: 12.5, fontWeight: "800" },
+  sidebarLogoutText: { color: "#e11d48", fontSize: 12.5, fontWeight: "800" },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(15, 23, 42, 0.5)",
     justifyContent: "center",
     padding: 16,
   },
   modalCard: {
-    backgroundColor: "#1c2541",
+    backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#334155",
+    borderColor: "#e2e8f0",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: "#e2e8f0",
     paddingBottom: 10,
     marginBottom: 10,
   },
-  modalTitle: { color: "#f8fafc", fontSize: 13.5, fontWeight: "900" },
-  modalSubLeader: { color: "#38bdf8", fontSize: 11, marginTop: 2 },
+  modalTitle: { color: "#0f172a", fontSize: 13.5, fontWeight: "900" },
+  modalSubLeader: { color: "#0284c7", fontSize: 11, marginTop: 2 },
   subordinateRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#334155",
+    borderBottomColor: "#f1f5f9",
     gap: 8,
   },
   subAvatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#0b132b",
+    backgroundColor: "#e0f2fe",
     justifyContent: "center",
     alignItems: "center",
   },
-  subAvatarText: { color: "#38bdf8", fontSize: 12, fontWeight: "900" },
-  subName: { color: "#f8fafc", fontSize: 12, fontWeight: "800" },
-  subDetail: { color: "#94a3b8", fontSize: 10 },
-  subTarget: { color: "#10b981", fontSize: 9.5, fontWeight: "700", marginTop: 2 },
+  subAvatarText: { color: "#0284c7", fontSize: 12, fontWeight: "900" },
+  subName: { color: "#0f172a", fontSize: 12, fontWeight: "800" },
+  subDetail: { color: "#64748b", fontSize: 10 },
+  subTarget: { color: "#059669", fontSize: 9.5, fontWeight: "700", marginTop: 2 },
   subBalance: { alignItems: "flex-end" },
-  subBalText: { color: "#10b981", fontSize: 12, fontWeight: "900" },
-  detailLabel: { color: "#94a3b8", fontSize: 10, fontWeight: "700", marginTop: 8 },
-  detailVal: { color: "#f8fafc", fontSize: 12.5, marginTop: 1 },
+  subBalText: { color: "#059669", fontSize: 12, fontWeight: "900" },
+  detailLabel: { color: "#64748b", fontSize: 10, fontWeight: "700", marginTop: 8 },
+  detailVal: { color: "#0f172a", fontSize: 12.5, marginTop: 1 },
   modalActionButtons: { flexDirection: "row", gap: 8, marginTop: 16 },
   modalBtn: {
     flex: 1,
@@ -1752,7 +1794,7 @@ const styles = StyleSheet.create({
   },
   modalBtnText: { color: "#ffffff", fontSize: 11, fontWeight: "900" },
   emptyWrap: { alignItems: "center", paddingVertical: 30 },
-  emptyTitle: { color: "#94a3b8", fontSize: 12, marginTop: 6, textAlign: "center" },
+  emptyTitle: { color: "#64748b", fontSize: 12, marginTop: 6, textAlign: "center" },
 });
 
 export default AdminDashboard;
