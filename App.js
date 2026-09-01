@@ -1,3 +1,4 @@
+import "react-native-gesture-handler"; // Dole ne ya kasance a farkon layi domin Drawer
 import React, { useContext } from "react";
 import {
   NavigationContainer,
@@ -78,7 +79,7 @@ function DrawerNavigator() {
 
 function AppContent() {
   const themeContext = useContext(ThemeContext);
-  const isDarkMode = themeContext?.isDarkMode ?? false;
+  const isDarkMode = themeContext ? themeContext.isDarkMode : false;
 
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
@@ -124,22 +125,21 @@ function AppContent() {
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="Contact" component={ContactScreen} />
 
-        {/* OPERATIONS ADMIN ROUTES (Biyu domin magance matsalar suna) */}
-        <Stack.Screen 
-          name="AdminDashboard" 
-          component={AdminControlScreen} 
+        {/* OPERATIONS ADMIN SCREENS */}
+        <Stack.Screen
+          name="AdminDashboard"
+          component={AdminControlScreen}
           options={{ headerShown: false }}
         />
-        <Stack.Screen 
-          name="AdminControl" 
-          component={AdminControlScreen} 
+        <Stack.Screen
+          name="AdminControl"
+          component={AdminControlScreen}
         />
 
         <Stack.Screen
           name="SupervisorDashboard"
           component={SupervisorDashboard}
         />
-
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="AssignTarget" component={AssignTargetScreen} />
