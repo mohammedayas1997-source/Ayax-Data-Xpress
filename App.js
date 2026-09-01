@@ -53,6 +53,7 @@ import AboutScreen from "./src/screens/AboutScreen";
 import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
 import TermsScreen from "./src/screens/TermsScreen";
 import NINValidation from "./src/screens/NINValidation";
+import AdminDashboard from "./src/screens/AdminDashboard";
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -114,7 +115,7 @@ function AppContent() {
         {/* OPERATIONS ADMIN SCREENS */}
         <Stack.Screen
           name="AdminDashboard"
-          component={AdminControlScreen}
+          component={AdminDashboard}
           options={{ headerShown: false }}
         />
         <Stack.Screen
