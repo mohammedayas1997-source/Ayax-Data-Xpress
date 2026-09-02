@@ -166,10 +166,11 @@ const BVNScreen = ({ navigation }) => {
 
   // 3. Initiate Verification Form
   const handleInitiateVerification = () => {
-    if (!searchValue.trim() || searchValue.trim().length < 10) {
+    const sanitized = searchValue.replace(/\D/g, "");
+    if (!sanitized || sanitized.length < 10) {
       return showAlert(
         "Invalid Input",
-        `Please enter a valid ${selectedService?.name || "BVN / Phone Number"}.`
+        `Please enter a valid 11-digit ${selectedService?.name || "BVN / Phone Number"}.`
       );
     }
     setPinModalVisible(true);
@@ -191,10 +192,15 @@ const BVNScreen = ({ navigation }) => {
         });
       }
 
+      // Tace lambar don zama lambobi zalla ba space ba
+      const sanitizedNumber = searchValue.replace(/\D/g, "").trim();
+
       const res = await axios.post(
         `${BASE_URL}/bvn/verify-and-generate`,
         {
-          searchValue: searchValue.trim(),
+          bvn: sanitizedNumber,
+          bvnNumber: sanitizedNumber,
+          searchValue: sanitizedNumber,
           serviceType: selectedService?.id,
           amount: prices[selectedService?.id] || 150,
           pin: pin.trim(),
@@ -205,7 +211,7 @@ const BVNScreen = ({ navigation }) => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 30000,
+          timeout: 45000,
         }
       );
 
@@ -258,7 +264,6 @@ const BVNScreen = ({ navigation }) => {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* Executive BVN Hero Banner */}
           <LinearGradient
             colors={["#0c4a6e", "#0f172a"]}
             start={{ x: 0, y: 0 }}
@@ -505,7 +510,6 @@ const BVNScreen = ({ navigation }) => {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
           <View style={styles.resultCard}>
-            {/* User Photo */}
             <View style={styles.photoContainer}>
               {bvnData?.photo || bvnData?.image ? (
                 <Image
@@ -527,7 +531,6 @@ const BVNScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Profile Info Details */}
             <View style={styles.detailsList}>
               <BVNResultRow label="Full Name" value={fullName} />
               <BVNResultRow
@@ -544,7 +547,6 @@ const BVNScreen = ({ navigation }) => {
               <BVNResultRow label="Enrollment Branch" value={bvnData?.enrollmentBranch || "N/A"} />
             </View>
 
-            {/* Download PDF Action */}
             <TouchableOpacity style={styles.downloadPdfBtn} onPress={handleDownloadPDF} activeOpacity={0.85}>
               <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 6 }} />
               <Text style={styles.downloadPdfBtnText}>DOWNLOAD PRINTABLE SLIP (PDF)</Text>
@@ -558,7 +560,6 @@ const BVNScreen = ({ navigation }) => {
   return null;
 };
 
-// Row item for slip result
 const BVNResultRow = ({ label, value, copyable, onCopy }) => (
   <View style={styles.resultRowContainer}>
     <View style={{ flex: 1 }}>
