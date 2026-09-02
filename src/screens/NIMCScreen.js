@@ -159,9 +159,22 @@ const NIMCScreen = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/admin/nimc/update-price`,
-        { serviceId: editingService.id, price: numericPrice },
-        { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
+        `${BASE_URL}/nimc/submit-request`,
+        {
+          nin: searchValue.trim(),
+          searchValue: searchValue.trim(),
+          serviceType: selectedSearch?.id || "nin_verification",
+          amount: prices[selectedSearch?.id] || 100,
+          pin: pin.trim(),
+          transactionPin: pin.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 30000,
+        }
       );
 
       if (res.data?.success) {
@@ -210,23 +223,15 @@ const NIMCScreen = ({ navigation }) => {
         });
       }
 
-      const res = await axios.post(
-        `${BASE_URL}/nimc/verify-and-charge`,
-        {
-          searchValue: searchValue.trim(),
-          searchType: selectedSearch?.id,
-          amount: prices[selectedSearch?.id] || 100,
-          pin: pin.trim(),
-          transactionPin: pin.trim(),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          timeout: 30000,
-        }
-      );
+    const res = await axios.post(
+      `${BASE_URL}/nimc/admin/set-price`,
+      {
+        serviceType: editingService.id,
+        amount: numericPrice,
+        name: editingService.name,
+      },
+      { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
+    );
 
       const result = res.data;
       if (result.success || result.status === "success") {
