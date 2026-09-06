@@ -114,26 +114,42 @@ const BVNScreen = ({ navigation }) => {
       );
 
       const result = res.data;
+      console.log("BVN Verification Full Response:", JSON.stringify(result));
+
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
 
-        const pdfUrl =
+        // Ciro ainihin link din koda a ina ya fada a cikin JSON
+        const resolvedPdfUrl =
           result.slipUrl ||
           result.pdfUrl ||
           result.downloadUrl ||
           result.data?.slipUrl ||
           result.data?.pdfUrl ||
+          result.data?.downloadUrl ||
+          result.data?.details?.slipUrl ||
+          result.data?.details?.pdfUrl ||
+          result.details?.slipUrl ||
+          result.details?.pdfUrl ||
           null;
 
         setSlipResult({
           bvn: cleanBvn,
           slipType: selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip",
-          url: pdfUrl,
+          url: resolvedPdfUrl,
         });
 
-        // Canza shafi zuwa allon sakamako cikin aminci
         setView("result");
+
+        // Idan link din yana nan nan take, bude shi kai tsaye
+        if (resolvedPdfUrl) {
+          if (Platform.OS === "web") {
+            window.open(resolvedPdfUrl, "_blank");
+          } else {
+            Linking.openURL(resolvedPdfUrl).catch(() => {});
+          }
+        }
       } else {
         throw new Error(result.message || "Failed to generate BVN slip.");
       }
@@ -148,23 +164,23 @@ const BVNScreen = ({ navigation }) => {
   };
 
   const openDocument = async () => {
-    if (!slipResult?.url) {
-      return showAlert("Notice", "Document link is currently unavailable.");
+    const targetUrl = slipResult?.url;
+
+    if (!targetUrl || typeof targetUrl !== "string") {
+      return showAlert(
+        "Document Link Notice",
+        "Slip link is not directly available. Checking server record..."
+      );
     }
 
     try {
       if (Platform.OS === "web") {
-        window.open(slipResult.url, "_blank");
+        window.open(targetUrl, "_blank");
       } else {
-        const canOpen = await Linking.canOpenURL(slipResult.url);
-        if (canOpen) {
-          await Linking.openURL(slipResult.url);
-        } else {
-          await Linking.openURL(slipResult.url);
-        }
+        await Linking.openURL(targetUrl);
       }
     } catch (err) {
-      showAlert("Error", "Could not open document directly: " + err.message);
+      showAlert("Notice", "Could not launch PDF viewer: " + err.message);
     }
   };
 
