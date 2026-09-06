@@ -162,61 +162,28 @@ const BVNScreen = ({ navigation }) => {
   };
 
   const downloadSlipFile = () => {
+    const targetUrl = slipResult?.url;
+    if (!targetUrl) {
+      return showAlert("Notice", "Document link is not available.");
+    }
+
     setDownloading(true);
     try {
-      const fileName = `BVN_Slip_${slipResult?.bvn || "DOCUMENT"}.pdf`;
+      // Backend Proxy URL wanda zai zazzago ainihin PDF din ba tare da gurbata shi ba
+      const proxyDownloadUrl = `${BASE_URL}/bvn/download-slip?url=${encodeURIComponent(
+        targetUrl
+      )}&bvn=${slipResult?.bvn || "SLIP"}`;
 
-      // HANYAR FARKO: Idan akwai Base64 (Yana sauke PDF din ba tare da bude shafi ba)
-      if (slipResult?.base64) {
-        if (Platform.OS === "web") {
-          const byteCharacters = atob(slipResult.base64);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: "application/pdf" });
-          const blobUrl = window.URL.createObjectURL(blob);
-
-          const link = document.createElement("a");
-          link.href = blobUrl;
-          link.download = fileName;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(blobUrl);
-          return;
-        }
-      }
-
-      // HANYAR BIYU: Idan babu Base64, sauke shi a matsayin Blob
-      if (slipResult?.url) {
-        if (Platform.OS === "web") {
-          fetch(slipResult.url)
-            .then((res) => res.blob())
-            .then((blob) => {
-              const blobUrl = window.URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = blobUrl;
-              link.download = fileName;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(blobUrl);
-            })
-            .catch(() => {
-              showAlert("Notice", "Could not complete direct download.");
-            });
-        } else {
-          Linking.openURL(slipResult.url);
-        }
+      if (Platform.OS === "web") {
+        // Wannan ba zai canza shafi ba saboda server ta saita Content-Disposition: attachment
+        window.location.href = proxyDownloadUrl;
       } else {
-        showAlert("Notice", "Document file is not available.");
+        Linking.openURL(proxyDownloadUrl);
       }
     } catch (err) {
-      showAlert("Download Notice", "Could not process PDF: " + err.message);
+      showAlert("Download Notice", "Could not trigger download: " + err.message);
     } finally {
-      setDownloading(false);
+      setTimeout(() => setDownloading(false), 2000);
     }
   };
 
