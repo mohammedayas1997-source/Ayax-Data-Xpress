@@ -44,6 +44,7 @@ const BVNScreen = ({ navigation }) => {
   const [pin, setPin] = useState("");
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [prices, setPrices] = useState({ bvn_full_details: 150, bvn_premium: 150 });
   const [slipResult, setSlipResult] = useState(null);
 
@@ -118,7 +119,8 @@ const BVNScreen = ({ navigation }) => {
       const isOk =
         result.success === true ||
         result.status === "success" ||
-        String(result.message || "").toLowerCase().includes("pdf generated");
+        String(result.message || "").toLowerCase().includes("pdf generated") ||
+        String(result.message || "").toLowerCase().includes("successful");
 
       if (isOk) {
         setPinModalVisible(false);
@@ -150,7 +152,7 @@ const BVNScreen = ({ navigation }) => {
       }
     } catch (err) {
       showAlert(
-        "Verification Failed",
+        "Verification Notice",
         err.response?.data?.message || err.message || "Service request timed out."
       );
     } finally {
@@ -158,17 +160,16 @@ const BVNScreen = ({ navigation }) => {
     }
   };
 
-const downloadSlipFile = async () => {
+  const downloadSlipFile = async () => {
     const targetUrl = slipResult?.url;
     if (!targetUrl) {
       return showAlert("Notice", "Document link is not available.");
     }
 
+    setDownloading(true);
     try {
-      setLoading(true);
-
-      // Idan a Yanar Gizo (Web/Browser) ne
       if (Platform.OS === "web") {
+        // Direct Blob Download - yana sauke fayil din a device ba tare da redirect ba
         const response = await fetch(targetUrl);
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
@@ -181,18 +182,16 @@ const downloadSlipFile = async () => {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(blobUrl);
       } else {
-        // Idan a waya ce (Android/iOS)
         await Linking.openURL(targetUrl);
       }
     } catch (err) {
-      // Idan server din uwar garke ta toshe direct fetch, bude shi a sabon shafi a matsayin fallback
       if (Platform.OS === "web") {
         window.open(targetUrl, "_blank");
       } else {
-        showAlert("Download Notice", "Could not complete download: " + err.message);
+        showAlert("Download Notice", "Could not download file: " + err.message);
       }
     } finally {
-      setLoading(false);
+      setDownloading(false);
     }
   };
 
@@ -327,7 +326,7 @@ const downloadSlipFile = async () => {
   }
 
   // ==========================================
-  // VIEW 2: SUCCESS & DOWNLOAD SCREEN
+  // VIEW 2: SUCCESS & DIRECT DOWNLOAD SCREEN
   // ==========================================
   return (
     <View style={styles.container}>
@@ -355,7 +354,7 @@ const downloadSlipFile = async () => {
 
           <Text style={styles.resultTitle}>Verification Successful!</Text>
           <Text style={styles.resultSub}>
-            Your official government-standard BVN slip has been generated and is ready for immediate access.
+            Your official government-standard BVN slip has been generated and is ready for immediate download.
           </Text>
 
           <View style={styles.infoBox}>
@@ -373,26 +372,22 @@ const downloadSlipFile = async () => {
             </View>
           </View>
 
-          {/* DIRECT PDF OPEN/DOWNLOAD BUTTON */}
-          {Platform.OS === "web" && slipResult?.url ? (
-            <a
-              href={slipResult.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              download={`BVN_${slipResult?.bvn || "SLIP"}.pdf`}
-              style={{ width: "100%", textDecoration: "none" }}
-            >
-              <View style={styles.downloadBigBtn}>
-                <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD OFFICIAL SLIP (PDF)</Text>
-              </View>
-            </a>
-          ) : (
-            <TouchableOpacity style={styles.downloadBigBtn} onPress={openDocument} activeOpacity={0.85}>
-              <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD OFFICIAL SLIP (PDF)</Text>
-            </TouchableOpacity>
-          )}
+          {/* DIRECT PDF DOWNLOAD BUTTON */}
+          <TouchableOpacity
+            style={[styles.downloadBigBtn, downloading && { opacity: 0.7 }]}
+            onPress={downloadSlipFile}
+            disabled={downloading}
+            activeOpacity={0.85}
+          >
+            {downloading ? (
+              <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
+            ) : (
+              <MaterialCommunityIcons name="download" size={22} color="#fff" style={{ marginRight: 8 }} />
+            )}
+            <Text style={styles.downloadBigBtnText}>
+              {downloading ? "DOWNLOADING SLIP..." : "DOWNLOAD OFFICIAL SLIP (PDF)"}
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.newSearchBtn}
