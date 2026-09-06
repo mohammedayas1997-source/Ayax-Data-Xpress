@@ -113,9 +113,8 @@ const BVNScreen = ({ navigation }) => {
         }
       );
 
-const result = res.data;
+      const result = res.data;
 
-      // Idan server ta ce success ko kuma sakon ya kunshi nasarar samar da PDF
       const isOk =
         result.success === true ||
         result.status === "success" ||
@@ -125,19 +124,24 @@ const result = res.data;
         setPinModalVisible(false);
         setPin("");
 
-        const pdfUrl =
+        let resolvedPdfUrl =
           result.slipUrl ||
           result.pdfUrl ||
           result.downloadUrl ||
           result.url ||
           result.data?.slipUrl ||
           result.data?.pdfUrl ||
+          result.data?.downloadUrl ||
           null;
+
+        if (resolvedPdfUrl && !String(resolvedPdfUrl).startsWith("http")) {
+          resolvedPdfUrl = `https://abjiktech.com.ng/${String(resolvedPdfUrl).replace(/^\/+/, "")}`;
+        }
 
         setSlipResult({
           bvn: cleanBvn,
           slipType: selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip",
-          url: pdfUrl,
+          url: resolvedPdfUrl,
         });
 
         setView("result");
@@ -159,13 +163,20 @@ const result = res.data;
     if (!targetUrl) {
       return showAlert("Notice", "Document link is not available.");
     }
-    if (Platform.OS === "web") {
-      window.open(targetUrl, "_blank");
-    } else {
-      await Linking.openURL(targetUrl);
+    try {
+      if (Platform.OS === "web") {
+        window.open(targetUrl, "_blank");
+      } else {
+        await Linking.openURL(targetUrl);
+      }
+    } catch (err) {
+      showAlert("Notice", "Could not launch PDF viewer: " + err.message);
     }
   };
 
+  // ==========================================
+  // VIEW 1: SELECTION & VERIFY FORM
+  // ==========================================
   if (view === "main") {
     return (
       <View style={styles.container}>
@@ -293,6 +304,9 @@ const result = res.data;
     );
   }
 
+  // ==========================================
+  // VIEW 2: SUCCESS & DOWNLOAD SCREEN
+  // ==========================================
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#050811" />
@@ -313,43 +327,48 @@ const result = res.data;
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>Verification Successful</Text>
+          <View style={styles.successIconCircle}>
+            <Ionicons name="checkmark-done-circle" size={54} color="#10b981" />
+          </View>
+
+          <Text style={styles.resultTitle}>Verification Successful!</Text>
           <Text style={styles.resultSub}>
-            Below is your authentic electronic identity document issued by the clearing authority.
+            Your official government-standard BVN slip has been generated and is ready for immediate access.
           </Text>
 
-          {slipResult?.url && Platform.OS === "web" ? (
-            <iframe
-              src={slipResult.url}
-              style={{
-                width: "100%",
-                height: 520,
-                border: "1px solid #1e293b",
-                borderRadius: 12,
-                marginTop: 16,
-                backgroundColor: "#fff",
-              }}
-              title="Official BVN Slip"
-            />
-          ) : null}
+          <View style={styles.infoBox}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>BVN Number</Text>
+              <Text style={styles.infoValue}>{slipResult?.bvn}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Document Tier</Text>
+              <Text style={styles.infoValue}>{slipResult?.slipType}</Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Status</Text>
+              <Text style={[styles.infoValue, { color: "#10b981" }]}>Verified & Available</Text>
+            </View>
+          </View>
 
+          {/* DIRECT PDF OPEN/DOWNLOAD BUTTON */}
           {Platform.OS === "web" && slipResult?.url ? (
             <a
               href={slipResult.url}
               target="_blank"
               rel="noopener noreferrer"
-              download="BVN_Slip.pdf"
-              style={{ width: "100%", textDecoration: "none", marginTop: 16 }}
+              download={`BVN_${slipResult?.bvn || "SLIP"}.pdf`}
+              style={{ width: "100%", textDecoration: "none" }}
             >
               <View style={styles.downloadBigBtn}>
-                <MaterialCommunityIcons name="download" size={22} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.downloadBigBtnText}>DOWNLOAD / PRINT OFFICIAL SLIP (PDF)</Text>
+                <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD OFFICIAL SLIP (PDF)</Text>
               </View>
             </a>
           ) : (
-            <TouchableOpacity style={[styles.downloadBigBtn, { marginTop: 16 }]} onPress={openDocument} activeOpacity={0.85}>
-              <MaterialCommunityIcons name="download" size={22} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.downloadBigBtnText}>DOWNLOAD / PRINT OFFICIAL SLIP (PDF)</Text>
+            <TouchableOpacity style={styles.downloadBigBtn} onPress={openDocument} activeOpacity={0.85}>
+              <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD OFFICIAL SLIP (PDF)</Text>
             </TouchableOpacity>
           )}
 
@@ -425,15 +444,40 @@ const styles = StyleSheet.create({
   actionBtnText: { color: "#fff", fontWeight: "900", fontSize: 14 },
   resultCard: {
     backgroundColor: "#0b1120",
-    padding: 20,
+    padding: 24,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#1e293b",
     alignItems: "center",
     marginTop: 10,
   },
+  successIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   resultTitle: { color: "#f8fafc", fontSize: 18, fontWeight: "900" },
   resultSub: { color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 6, lineHeight: 18 },
+  infoBox: {
+    width: "100%",
+    backgroundColor: "#050811",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    padding: 14,
+    marginVertical: 20,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 5,
+  },
+  infoLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
+  infoValue: { color: "#f8fafc", fontSize: 13, fontWeight: "bold" },
   downloadBigBtn: {
     width: "100%",
     backgroundColor: "#dc2626",
