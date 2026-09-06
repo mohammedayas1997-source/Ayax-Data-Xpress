@@ -275,10 +275,26 @@ const NIMCScreen = ({ navigation }) => {
 
   // 5. Download Printable Slip via PDF URL
   const handleDownloadPDF = async () => {
-    if (userData?.pdfUrl || userData?.slipUrl) {
-      await Linking.openURL(userData.pdfUrl || userData.slipUrl);
+    const downloadTarget =
+      userData?.pdfUrl ||
+      userData?.slipUrl ||
+      userData?.url ||
+      userData?.slip;
+
+    if (downloadTarget) {
+      if (Platform.OS === "web") {
+        window.open(downloadTarget, "_blank");
+      } else {
+        await Linking.openURL(downloadTarget);
+      }
+      return;
+    }
+
+    // Idan babu direct PDF link, bawa browser damar buga shafin (Print/Save as PDF)
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.print();
     } else {
-      showAlert("Notice", "Official slip PDF is downloading to your device storage.");
+      showAlert("Notice", "Profile verified. Use screenshot or web version to save official document.");
     }
   };
 

@@ -107,7 +107,9 @@ const BVNScreen = ({ navigation }) => {
       setFetchingPrices(true);
       const res = await axios.get(`${BASE_URL}/bvn/prices`, { timeout: 10000 });
       if (res.data?.success && res.data?.prices) {
-        setPrices(res.data.prices);
+        if (typeof res.data.prices === "object" && !Array.isArray(res.data.prices)) {
+          setPrices((prev) => ({ ...prev, ...res.data.prices }));
+        }
       }
     } catch (err) {
       console.log("BVN live prices fallback active:", err.message);
@@ -192,7 +194,6 @@ const BVNScreen = ({ navigation }) => {
         });
       }
 
-      // Tace lambar don zama lambobi zalla ba space ba
       const sanitizedNumber = searchValue.replace(/\D/g, "").trim();
 
       const res = await axios.post(
@@ -235,12 +236,28 @@ const BVNScreen = ({ navigation }) => {
     }
   };
 
-  // 5. Download Printable PDF Slip
+  // 5. Download Printable PDF Slip ko Window Print
   const handleDownloadPDF = async () => {
-    if (bvnData?.pdfUrl || bvnData?.slipUrl) {
-      await Linking.openURL(bvnData.pdfUrl || bvnData.slipUrl);
+    const downloadTarget =
+      bvnData?.pdfUrl ||
+      bvnData?.slipUrl ||
+      bvnData?.url ||
+      bvnData?.slip;
+
+    if (downloadTarget) {
+      if (Platform.OS === "web") {
+        window.open(downloadTarget, "_blank");
+      } else {
+        await Linking.openURL(downloadTarget);
+      }
+      return;
+    }
+
+    // Idan babu direct link na file, bude dialog na buga takarda (Print / Save as PDF)
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      window.print();
     } else {
-      showAlert("Notice", "Official BVN printing slip PDF is downloading to your device storage.");
+      showAlert("Notice", "BVN Profile verified. You can screenshot or print this page as official document.");
     }
   };
 
@@ -328,7 +345,6 @@ const BVNScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* Admin Price Update Modal */}
         <Modal visible={adminPriceModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -433,7 +449,6 @@ const BVNScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* PIN Verification Modal */}
         <Modal visible={pinModalVisible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
