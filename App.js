@@ -14,7 +14,7 @@ import { ThemeProvider, ThemeContext } from "./src/context/ThemeContext";
 // --- COMPONENTS ---
 import CustomDrawerContent from "./src/components/CustomDrawerContent";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
-import AgentTransferScreen from "./screens/AgentTransferScreen";
+import AgentTransferScreen from "./src/screens/AgentTransferScreen";
 // --- SCREENS ---
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import LoginScreen from "./src/screens/LoginScreen";
