@@ -169,21 +169,50 @@ const BVNScreen = ({ navigation }) => {
 
     setDownloading(true);
     try {
-      // Backend Proxy URL wanda zai zazzago ainihin PDF din ba tare da gurbata shi ba
-      const proxyDownloadUrl = `${BASE_URL}/bvn/download-slip?url=${encodeURIComponent(
-        targetUrl
-      )}&bvn=${slipResult?.bvn || "SLIP"}`;
+      const fileName = `BVN_Slip_${slipResult?.bvn || "DOCUMENT"}.pdf`;
 
       if (Platform.OS === "web") {
-        // Wannan ba zai canza shafi ba saboda server ta saita Content-Disposition: attachment
-        window.location.href = proxyDownloadUrl;
+        // Hanyar amfani da XHR wacce take kaucewa dukkan matsalolin CORS ta tilasta download
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", targetUrl, true);
+        xhr.responseType = "blob";
+
+        xhr.onload = function () {
+          if (this.status === 200) {
+            const blob = this.response;
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = blobUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(blobUrl);
+            }, 100);
+          } else {
+            // Fallback idan browser ta toshe
+            window.open(targetUrl, "_blank");
+          }
+        };
+
+        xhr.onerror = function () {
+          // Idan browser ta ki ba da izinin blob, bude shi a sabon tab don ya yi print kai tsaye
+          window.open(targetUrl, "_blank");
+        };
+
+        xhr.send();
       } else {
-        Linking.openURL(proxyDownloadUrl);
+        Linking.openURL(targetUrl);
       }
     } catch (err) {
-      showAlert("Download Notice", "Could not trigger download: " + err.message);
+      showAlert("Notice", "Opening document link: " + err.message);
+      if (Platform.OS === "web") {
+        window.open(targetUrl, "_blank");
+      }
     } finally {
-      setTimeout(() => setDownloading(false), 2000);
+      setTimeout(() => setDownloading(false), 1500);
     }
   };
 
