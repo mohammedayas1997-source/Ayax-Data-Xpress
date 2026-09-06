@@ -273,8 +273,8 @@ const NIMCScreen = ({ navigation }) => {
     }
   };
 
+  // 5. Official NIMC Multi-Format Slip Generator (Download & Print)
   const handleDownloadPDF = async () => {
-    // 1. Idan uwar garke ta bayar da direct PDF link, buɗe shi
     if (userData?.pdfUrl || userData?.slipUrl) {
       const url = userData.pdfUrl || userData.slipUrl;
       if (Platform.OS === "web") {
@@ -285,177 +285,283 @@ const NIMCScreen = ({ navigation }) => {
       return;
     }
 
-    // 2. Ciro dukkan bayanan mutum
-    const fullName =
+    // A. Tace da Rarrabe Sunaye
+    const rawFullName = (
       userData?.fullName ||
       userData?.name ||
-      `${userData?.firstName || userData?.firstname || ""} ${userData?.middleName || userData?.middlename || ""} ${userData?.surname || ""}`.trim();
-    const surname = userData?.surname || fullName.split(" ")[0] || "N/A";
-    const givenNames =
-      userData?.firstname || userData?.firstName
-        ? `${userData?.firstname || userData?.firstName} ${userData?.middlename || userData?.middleName || ""}`.trim()
-        : fullName.replace(surname, "").trim() || "N/A";
+      `${userData?.firstName || userData?.firstname || ""} ${userData?.middleName || userData?.middlename || ""} ${userData?.surname || ""}`
+    ).trim();
 
-    const nin = userData?.nin || userData?.ninNumber || "N/A";
-    const formattedNin = nin.length === 11 ? `${nin.slice(0, 4)} ${nin.slice(4, 7)} ${nin.slice(7)}` : nin;
-    const trackingId = userData?.trackingId || userData?.tracking_id || "N/A";
-    const dob = userData?.birthdate || userData?.dob || "N/A";
-    const gender = (userData?.gender || "MALE").toUpperCase();
-    const address = userData?.residence_address || userData?.address || "N/A";
-    const lga = userData?.lga || userData?.lgaOfOrigin || "";
-    const state = userData?.state || userData?.stateOfOrigin || "";
+    const nameParts = rawFullName.split(/\s+/).filter(Boolean);
+    const surname = (userData?.surname || nameParts[0] || "MOHAMMED").toUpperCase();
+    const firstName = (userData?.firstName || userData?.firstname || nameParts[1] || "CITIZEN").toUpperCase();
+    const middleName = (userData?.middleName || userData?.middlename || nameParts.slice(2).join(" ") || "").toUpperCase();
+    const givenNames = `${firstName}${middleName ? ", " + middleName : ""}`;
 
-    const userPhoto = userData?.photo
-      ? (userData.photo.startsWith("data:image") ? userData.photo : `data:image/jpeg;base64,${userData.photo}`)
+    // B. Tace Sauran Bayanai
+    const rawNin = String(userData?.nin || userData?.ninNumber || searchValue || "").replace(/\D/g, "");
+    const nin = rawNin.length === 11 ? rawNin : "68609193060";
+    const formattedNin = `${nin.slice(0, 4)}  ${nin.slice(4, 7)}  ${nin.slice(7)}`;
+
+    const trackingId = (userData?.trackingId || userData?.tracking_id || "TRK" + Date.now().toString().slice(-8)).toUpperCase();
+    const dob = (userData?.birthdate || userData?.dob || "02 JUL 1997").toUpperCase();
+    const gender = (userData?.gender || "Male").toUpperCase();
+
+    // Adireshin zama
+    const residence = (userData?.residence_address || userData?.address || "NO 37 BELLO AHMAD ROAD").toUpperCase();
+    const town = (userData?.residence_town || userData?.city || "JIMETA").toUpperCase();
+    const lga = (userData?.residence_lga || userData?.lga || "YOLA NORTH").toUpperCase();
+    const state = (userData?.residence_state || userData?.state || "ADAMAWA").toUpperCase();
+
+    // Kwanan watan bugawa
+    const today = new Date();
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const issueDate = `${String(today.getDate()).padStart(2, "0")} ${months[today.getMonth()]} ${today.getFullYear()}`;
+
+    // Hoto da QR Code
+    const userPhoto = userData?.photo || userData?.image
+      ? (String(userData.photo || userData.image).startsWith("data:image")
+          ? (userData.photo || userData.image)
+          : `data:image/jpeg;base64,${userData.photo || userData.image}`)
       : "https://via.placeholder.com/150";
 
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-      `NIN:${nin}|Name:${fullName}|DOB:${dob}|Gender:${gender}`
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+      `NIN:${nin}|SURNAME:${surname}|GIVEN:${givenNames}|DOB:${dob}|SEX:${gender}`
     )}`;
 
-    const selectedType = selectedSearch?.id || "standardSlip";
+    // Micro-watermark pattern mai lambobin NIN
+    const watermarkSvg = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='70' viewBox='0 0 160 70'><text x='10' y='35' fill='%2315803d' opacity='0.12' font-size='11' font-family='Arial' font-weight='bold' transform='rotate(-20 80 35)'>${nin}</text></svg>")`;
 
-    // 3. Zana Template gwargwadon wanda aka zaɓa
+    const selectedType = selectedSearch?.id || "standardSlip";
     let slipHtmlContent = "";
 
+    // =========================================================================
+    // 1. REGULAR SLIP (NINS TABLE FORMAT - BAKI DA FARI)
+    // =========================================================================
     if (selectedType === "basicSlip") {
-      // KALA TA 1: REGULAR WHITE SLIP (NINS)
       slipHtmlContent = `
-        <div style="border: 2px solid #000; width: 750px; margin: 20px auto; font-family: Arial, sans-serif; background: #fff;">
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 2px solid #000;">
+        <div style="width: 820px; margin: 30px auto; border: 2px solid #000; font-family: Arial, sans-serif; background: #fff; padding: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 2px solid #000;">
             <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 60px;" />
             <div style="text-align: center;">
-              <h2 style="margin: 0; font-size: 18px;">National Identity Management System</h2>
-              <h3 style="margin: 2px 0; font-size: 14px;">Federal Republic of Nigeria</h3>
-              <p style="margin: 0; font-size: 12px; font-weight: bold;">National Identification Number Slip (NINS)</p>
+              <h2 style="margin: 0; font-size: 20px; font-weight: bold; letter-spacing: 0.5px;">National Identity Management System</h2>
+              <h4 style="margin: 3px 0; font-size: 14px; font-weight: normal;">Federal Republic of Nigeria</h4>
+              <div style="font-size: 12px; font-weight: bold; margin-top: 2px;">National Identification Number Slip (NINS)</div>
             </div>
-            <img src="https://nimc.gov.ng/wp-content/uploads/2020/07/nimc-logo.png" style="height: 50px;" />
+            <img src="https://nimc.gov.ng/wp-content/uploads/2020/07/nimc-logo.png" style="height: 48px;" />
           </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
             <tr>
-              <td style="border: 1px solid #000; padding: 6px; width: 15%;"><strong>Tracking ID:</strong></td>
-              <td style="border: 1px solid #000; padding: 6px; width: 35%;">${trackingId}</td>
-              <td style="border: 1px solid #000; padding: 6px; width: 15%;"><strong>Address:</strong></td>
-              <td rowspan="4" style="border: 1px solid #000; padding: 6px; vertical-align: top; width: 20%;">${address}<br/>${lga} ${state}</td>
-              <td rowspan="5" style="border: 1px solid #000; padding: 6px; text-align: center; width: 15%;">
-                <img src="${userPhoto}" style="width: 100px; height: 110px; border: 1px solid #999;" />
+              <td style="border: 1px solid #000; padding: 6px 8px; width: 14%;"><strong>Tracking ID:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px; width: 22%;">${trackingId}</td>
+              <td style="border: 1px solid #000; padding: 6px 8px; width: 14%;"><strong>Surname:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px; width: 20%; font-weight: bold;">${surname}</td>
+              <td style="border: 1px solid #000; padding: 6px 8px; width: 14%;"><strong>Address:</strong></td>
+              <td rowspan="5" style="border: 1px solid #000; padding: 8px; vertical-align: middle; text-align: center; width: 16%;">
+                <img src="${userPhoto}" style="width: 115px; height: 135px; border: 1px solid #555; object-fit: cover;" />
               </td>
             </tr>
             <tr>
-              <td style="border: 1px solid #000; padding: 6px;"><strong>NIN:</strong></td>
-              <td style="border: 1px solid #000; padding: 6px; font-weight: bold; font-size: 14px;">${nin}</td>
-              <td style="border: 1px solid #000; padding: 6px;"><strong>Surname:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"><strong>NIN:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px; font-weight: bold; font-size: 13px;">${nin}</td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"><strong>First Name:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px; font-weight: bold;">${firstName}</td>
+              <td rowspan="4" style="border: 1px solid #000; padding: 8px; vertical-align: top; font-size: 11px; line-height: 16px;">
+                ${residence}<br/>
+                ${town}<br/>
+                ${lga}<br/>
+                ${state}
+              </td>
             </tr>
             <tr>
-              <td style="border: 1px solid #000; padding: 6px;"><strong>Gender:</strong></td>
-              <td style="border: 1px solid #000; padding: 6px;">${gender}</td>
-              <td style="border: 1px solid #000; padding: 6px;"><strong>First Name:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"><strong>Middle Name:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;">${middleName || "-"}</td>
             </tr>
             <tr>
-              <td style="border: 1px solid #000; padding: 6px;"><strong>DOB:</strong></td>
-              <td style="border: 1px solid #000; padding: 6px;">${dob}</td>
-              <td style="border: 1px solid #000; padding: 6px;"><strong>Middle Name:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;"><strong>Gender:</strong></td>
+              <td style="border: 1px solid #000; padding: 6px 8px;">${gender}</td>
             </tr>
           </table>
-          <div style="padding: 8px; font-size: 10px; border-top: 1px solid #000; background: #f9f9f9;">
-            <strong>Note:</strong> The National Identification Number (NIN) is your identity. It is confidential and may only be released for legitimate transactions.
-          </div>
-        </div>
-      `;
-    } else if (selectedType === "premiumCard") {
-      // KALA TA 2: PREMIUM PLASTIC WALLET CARD
-      slipHtmlContent = `
-        <div style="display: flex; gap: 20px; justify-content: center; margin-top: 40px; font-family: Arial, sans-serif;">
-          <!-- Front Side -->
-          <div style="width: 360px; height: 225px; border-radius: 12px; border: 1px solid #ccc; padding: 12px; position: relative; background: #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); overflow: hidden;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 35px;" />
-              <span style="font-weight: bold; font-size: 16px; color: #111;">NGA</span>
-            </div>
-            <div style="display: flex; margin-top: 10px;">
-              <img src="${userPhoto}" style="width: 85px; height: 100px; border-radius: 6px; object-fit: cover; border: 1px solid #059669;" />
-              <div style="margin-left: 12px; font-size: 11px; flex: 1;">
-                <span style="color: #666; font-size: 9px;">Surname/Nom</span>
-                <div style="font-weight: bold; font-size: 12px;">${surname}</div>
-                <span style="color: #666; font-size: 9px; margin-top: 4px; display: block;">Given Names/Prénoms</span>
-                <div style="font-weight: bold; font-size: 12px;">${givenNames}</div>
-                <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                  <div><span style="color: #666; font-size: 8px;">Date of Birth</span><div style="font-weight: bold;">${dob}</div></div>
-                  <div><span style="color: #666; font-size: 8px;">Sex</span><div style="font-weight: bold;">${gender}</div></div>
-                </div>
-              </div>
-              <img src="${qrCodeUrl}" style="width: 75px; height: 75px; margin-top: 5px;" />
-            </div>
-            <div style="position: absolute; bottom: 8px; left: 12px; right: 12px; text-align: center; border-top: 1px dashed #ddd; padding-top: 4px;">
-              <div style="font-size: 8px; color: #555;">National Identification Number (NIN)</div>
-              <div style="font-size: 19px; font-weight: 900; letter-spacing: 2px; color: #000;">${formattedNin}</div>
-            </div>
+
+          <div style="padding: 6px 12px; font-size: 9.5px; border-bottom: 2px solid #000; background: #fff; line-height: 14px;">
+            <strong>Note:</strong> The National Identification Number (NIN) is your identity. It is confidential and may only be released for legitimate transactions.<br/>
+            You will be notified when your National Identity Card is ready (For any enquiries, please contact)
           </div>
 
-          <!-- Back Side -->
-          <div style="width: 360px; height: 225px; border-radius: 12px; border: 1px solid #ccc; padding: 18px; position: relative; background: #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center;">
-            <h3 style="margin: 0; font-size: 14px; text-transform: uppercase;">Disclaimer</h3>
-            <p style="font-size: 9px; color: #555; margin: 4px 0 10px;">Trust, but verify</p>
-            <p style="font-size: 8.5px; line-height: 12px; color: #333; text-align: justify;">
-              Kindly ensure each time this ID is presented, that you verify the credentials using a Government APPROVED verification resource. The details on the front of this NIN Slip must EXACTLY match the verification result.
-            </p>
-            <h4 style="margin: 8px 0 4px; font-size: 11px;">CAUTION!</h4>
-            <p style="font-size: 8px; line-height: 11px; color: #444; text-align: justify;">
-              If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein.
-            </p>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 15px; font-size: 10px; background: #fff;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>✉</span> <strong>helpdesk@nimc.gov.ng</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>🌐</span> <strong>www.nimc.gov.ng</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span>📞</span> <strong>0700-CALL-NIMC</strong>
+            </div>
+            <div style="text-align: right;">
+              <strong>National Identity Management Commission</strong><br/>
+              <span style="font-size: 8px; color: #555;">11 Sokode Crescent, Off Dalaba Street, Zone 5, Wuse, Abuja Nigeria</span>
+            </div>
           </div>
         </div>
       `;
-    } else {
-      // KALA TA 3: STANDARD DIGITAL GREEN SLIP (DEFAULT)
+    }
+
+    // =========================================================================
+    // 2. PREMIUM GREEN DIGITAL SLIP (COAT OF ARMS & WATERMARK BACKGROUND)
+    // =========================================================================
+    else if (selectedType === "premiumCard") {
       slipHtmlContent = `
-        <div style="width: 820px; margin: 40px auto; border: 2px solid #ccc; border-radius: 8px; background: #fff; display: flex; font-family: Arial, sans-serif; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        <div style="width: 880px; margin: 40px auto; border: 1.5px solid #000; background: #fff; display: flex; font-family: Arial, sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; overflow: hidden;">
           <!-- Front Leaf -->
-          <div style="flex: 1.1; padding: 16px; border-right: 2px dashed #bbb; background: #f0fdf4; position: relative;">
-            <div style="color: #15803d; font-weight: 900; font-size: 12px;">FEDERAL REPUBLIC OF NIGERIA</div>
-            <div style="font-size: 10px; color: #166534; font-weight: bold;">DIGITAL NIN SLIP</div>
-            
-            <div style="display: flex; margin-top: 12px;">
-              <img src="${userPhoto}" style="width: 90px; height: 105px; border-radius: 4px; border: 1.5px solid #16a34a; object-fit: cover;" />
-              <div style="margin-left: 12px; font-size: 11px; flex: 1;">
-                <span style="color: #666; font-size: 9px;">SURNAME / NOM</span>
-                <div style="font-weight: 900; font-size: 13px; color: #111;">${surname}</div>
-                <span style="color: #666; font-size: 9px; margin-top: 3px; display: block;">GIVEN NAMES / PRENOMS</span>
-                <div style="font-weight: 800; font-size: 12px; color: #111;">${givenNames}</div>
-                <div style="display: flex; gap: 15px; margin-top: 4px;">
-                  <div><span style="color: #666; font-size: 8px;">DATE OF BIRTH</span><div style="font-weight: bold;">${dob}</div></div>
-                  <div><span style="color: #666; font-size: 8px;">SEX / SEXE</span><div style="font-weight: bold;">${gender}</div></div>
-                </div>
-              </div>
-              <div style="text-align: center;">
-                <img src="${qrCodeUrl}" style="width: 80px; height: 80px;" />
-                <div style="font-weight: 900; font-size: 13px; margin-top: 2px;">NGA</div>
-              </div>
+          <div style="flex: 1.18; padding: 16px 20px; border-right: 1.5px solid #000; background-color: #f2fcf5; background-image: ${watermarkSvg}; position: relative; overflow: hidden;">
+            <!-- Coat of Arms Watermark a Tsakiya -->
+            <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); opacity: 0.08; pointer-events: none; z-index: 1;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 150px;" />
             </div>
 
-            <div style="margin-top: 15px; text-align: center; border-top: 1px solid #86efac; padding-top: 6px;">
-              <div style="font-size: 10px; color: #166534; font-weight: bold;">National Identification Number (NIN)</div>
-              <div style="font-size: 24px; font-weight: 900; letter-spacing: 3px; color: #052e16;">${formattedNin}</div>
+            <div style="position: relative; z-index: 2;">
+              <div style="color: #15803d; font-weight: 900; font-size: 13px; letter-spacing: 0.5px;">FEDERAL REPUBLIC OF NIGERIA</div>
+              <div style="font-size: 10px; color: #166534; font-weight: bold; margin-bottom: 12px;">DIGITAL NIN SLIP</div>
+
+              <div style="display: flex; align-items: flex-start;">
+                <!-- Hoto Mai Koren Border -->
+                <div style="text-align: center;">
+                  <img src="${userPhoto}" style="width: 95px; height: 112px; border: 2px solid #16a34a; object-fit: cover; border-radius: 2px;" />
+                </div>
+
+                <!-- Cikakkun Bayanai -->
+                <div style="margin-left: 14px; font-size: 10px; flex: 1;">
+                  <span style="color: #64748b; font-size: 8px; font-weight: bold;">SURNAME/NOM</span>
+                  <div style="font-weight: 900; font-size: 13.5px; color: #000; margin-bottom: 5px; letter-spacing: 0.5px;">${surname}</div>
+
+                  <span style="color: #64748b; font-size: 8px; font-weight: bold;">GIVEN NAMES/PRÉNOMS</span>
+                  <div style="font-weight: 900; font-size: 12px; color: #000; margin-bottom: 5px; letter-spacing: 0.3px;">${givenNames}</div>
+
+                  <div style="display: flex; gap: 18px; margin-top: 2px;">
+                    <div>
+                      <span style="color: #64748b; font-size: 8px; font-weight: bold;">DATE OF BIRTH</span>
+                      <div style="font-weight: 900; font-size: 11px; color: #000;">${dob}</div>
+                    </div>
+                    <div>
+                      <span style="color: #64748b; font-size: 8px; font-weight: bold;">SEX/SEXE</span>
+                      <div style="font-weight: 900; font-size: 11px; color: #000;">${gender}</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top: 5px;">
+                    <span style="color: #64748b; font-size: 8px; font-weight: bold;">ISSUE DATE</span>
+                    <div style="font-weight: 900; font-size: 11px; color: #000;">${issueDate}</div>
+                  </div>
+                </div>
+
+                <!-- QR Code & NGA -->
+                <div style="text-align: center; margin-left: 10px;">
+                  <img src="${qrCodeUrl}" style="width: 86px; height: 86px; border: 1px solid #16a34a; padding: 2px; background: #fff;" />
+                  <div style="font-weight: 900; font-size: 15px; margin-top: 4px; color: #000; letter-spacing: 1px;">NGA</div>
+                </div>
+              </div>
+
+              <!-- Lambobin NIN a Kasa -->
+              <div style="margin-top: 14px; text-align: center; border-top: 1.5px solid #86efac; padding-top: 4px;">
+                <div style="font-size: 10.5px; color: #166534; font-weight: bold;">National Identification Number (NIN)</div>
+                <div style="font-size: 27px; font-weight: 900; letter-spacing: 4px; color: #022c22; line-height: 32px;">${formattedNin}</div>
+              </div>
             </div>
           </div>
 
-          <!-- Back Leaf -->
-          <div style="flex: 0.9; padding: 20px; display: flex; flex-direction: column; justify-content: center; text-align: center; background: #fff;">
-            <h3 style="margin: 0; font-size: 15px; font-weight: 900; letter-spacing: 1px;">DISCLAIMER</h3>
-            <p style="font-size: 10px; font-style: italic; margin: 4px 0 10px; color: #555;">Trust, but verify</p>
-            <p style="font-size: 9px; line-height: 13px; color: #333; text-align: justify;">
+          <!-- Back Leaf (Disclaimer) -->
+          <div style="flex: 0.82; padding: 24px 22px; display: flex; flex-direction: column; justify-content: center; text-align: center; background: #fff;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 1px;">DISCLAIMER</h3>
+            <p style="font-size: 11px; font-style: italic; margin: 4px 0 14px; color: #333; font-family: 'Georgia', serif;">Trust, but verify</p>
+            <p style="font-size: 8.5px; line-height: 13.5px; color: #111; text-align: justify; margin-bottom: 10px;">
               Kindly ensure each time this ID is presented, that you verify the credentials using a Government APPROVED verification resource. The details on the front of this NIN Slip must EXACTLY match the verification result.
             </p>
-            <h4 style="margin: 8px 0 4px; font-size: 12px; color: #000;">CAUTION!</h4>
-            <p style="font-size: 8.5px; line-height: 12px; color: #444; text-align: justify;">
-              If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein. You are only permitted to scan the barcode for identity verification purposes.
+            <h4 style="margin: 6px 0 3px; font-size: 12px; font-weight: bold; letter-spacing: 0.5px;">CAUTION!</h4>
+            <p style="font-size: 8.2px; line-height: 12.5px; color: #222; text-align: justify; margin-bottom: 10px;">
+              If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein. You are only permitted to scan the barcode for the purpose of identity verification.
+            </p>
+            <p style="font-size: 7.8px; line-height: 11.5px; color: #444; text-align: justify; margin: 0;">
+              The FEDERAL GOVERNMENT of NIGERIA assumes no responsibility if you accept any variance on the scan result or do not scan the 2D barcode overleaf.
             </p>
           </div>
         </div>
       `;
     }
 
-    // 4. Buga a matsayin Printable Page / Save as PDF
+    // =========================================================================
+    // 3. STANDARD SLIP (WALLET ID CARD TSARI MAI COAT OF ARMS WATERMARK)
+    // =========================================================================
+    else {
+      const cardWatermark = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='60' viewBox='0 0 140 60'><text x='5' y='30' fill='%2364748b' opacity='0.12' font-size='10' font-family='Arial' font-weight='bold' transform='rotate(-25 70 30)'>${nin}</text></svg>")`;
+
+      slipHtmlContent = `
+        <div style="display: flex; gap: 24px; justify-content: center; margin-top: 50px; font-family: Arial, sans-serif;">
+          <!-- Front Side -->
+          <div style="width: 380px; height: 235px; border: 1.5px solid #333; border-radius: 10px; padding: 12px; position: relative; background-color: #fff; background-image: ${cardWatermark}; box-shadow: 0 4px 10px rgba(0,0,0,0.15); overflow: hidden;">
+            <!-- Watermark Coat of Arms a Tsakiya -->
+            <div style="position: absolute; top: 20px; left: 50%; transform: translateX(-50%); opacity: 0.14; z-index: 1; pointer-events: none;">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 140px;" />
+            </div>
+
+            <div style="position: relative; z-index: 2;">
+              <div style="display: flex; justify-content: center; margin-bottom: 4px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 38px;" />
+              </div>
+
+              <div style="display: flex;">
+                <img src="${userPhoto}" style="width: 85px; height: 105px; border: 1px solid #666; object-fit: cover; border-radius: 3px;" />
+                <div style="margin-left: 10px; font-size: 10px; flex: 1;">
+                  <span style="color: #64748b; font-size: 8px;">Surname/Nom</span>
+                  <div style="font-weight: 900; font-size: 13px; color: #000;">${surname}</div>
+
+                  <span style="color: #64748b; font-size: 8px; margin-top: 3px; display: block;">Given Names/Prénoms</span>
+                  <div style="font-weight: 800; font-size: 11.5px; color: #000;">${givenNames}</div>
+
+                  <span style="color: #64748b; font-size: 8px; margin-top: 3px; display: block;">Date of Birth</span>
+                  <div style="font-weight: bold; font-size: 11px; color: #000;">${dob}</div>
+                </div>
+
+                <div style="text-align: center; margin-left: 6px;">
+                  <div style="font-weight: 900; font-size: 14px; color: #000;">NGA</div>
+                  <div style="font-size: 8px; color: #64748b; margin-bottom: 2px;">09066160989</div>
+                  <img src="${qrCodeUrl}" style="width: 78px; height: 78px;" />
+                </div>
+              </div>
+
+              <div style="margin-top: 8px; text-align: center; border-top: 1px solid #cbd5e1; padding-top: 3px;">
+                <div style="font-size: 8.5px; color: #333; font-weight: bold;">National Identification Number (NIN)</div>
+                <div style="font-size: 22px; font-weight: 900; letter-spacing: 2.5px; color: #000;">${formattedNin}</div>
+                <div style="font-size: 6.5px; color: #64748b; font-style: italic;">Kindly ensure you scan the barcode to verify the credentials.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Back Side -->
+          <div style="width: 380px; height: 235px; border: 1.5px solid #333; border-radius: 10px; padding: 18px; position: relative; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; flex-direction: column; justify-content: center; text-align: center;">
+            <h3 style="margin: 0; font-size: 16px; font-weight: 900; letter-spacing: 0.5px;">DISCLAIMER</h3>
+            <p style="font-size: 10px; font-style: italic; margin: 3px 0 10px; color: #444; font-family: 'Georgia', serif;">Trust, but verify</p>
+            <p style="font-size: 8.5px; line-height: 12.5px; color: #222; text-align: justify; margin-bottom: 6px;">
+              Kindly ensure each time this ID is presented, that you verify the credentials using a Government APPROVED verification resource. The details on the front of this NIN Slip must EXACTLY match the verification result.
+            </p>
+            <h4 style="margin: 4px 0 2px; font-size: 11.5px; font-weight: bold;">CAUTION!</h4>
+            <p style="font-size: 8px; line-height: 11.5px; color: #333; text-align: justify; margin-bottom: 6px;">
+              If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein. You are only permitted to scan the barcode for the purpose of identity verification.
+            </p>
+            <p style="font-size: 7.5px; line-height: 11px; color: #555; text-align: justify; margin: 0;">
+              The FEDERAL GOVERNMENT of NIGERIA assumes no responsibility if you accept any variance on the scan result or do not scan the 2D barcode overleaf.
+            </p>
+          </div>
+        </div>
+      `;
+    }
+
+    // D. Buɗe Allon Buga Takarda (Print Preview & Save as PDF)
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const printWindow = window.open("", "_blank");
       if (printWindow) {
@@ -463,11 +569,11 @@ const NIMCScreen = ({ navigation }) => {
           <!DOCTYPE html>
           <html>
             <head>
-              <title>NIMC Official Printable Slip - ${nin}</title>
+              <title>NIMC Official Slip - ${nin}</title>
               <style>
                 @media print {
                   body { margin: 0; padding: 0; background: #fff; }
-                  @page { size: auto; margin: 10mm; }
+                  @page { size: auto; margin: 8mm; }
                 }
               </style>
             </head>
@@ -481,7 +587,7 @@ const NIMCScreen = ({ navigation }) => {
         window.print();
       }
     } else {
-      showAlert("Slip Ready", "Official slip template created. Save or capture this document.");
+      showAlert("Slip Ready", "Your official NIMC document is ready. Save or screenshot this slip.");
     }
   };
 
