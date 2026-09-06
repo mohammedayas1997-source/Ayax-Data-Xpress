@@ -109,7 +109,7 @@ const BVNScreen = ({ navigation }) => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 60000,
+          timeout: 65000,
         }
       );
 
@@ -120,19 +120,25 @@ const BVNScreen = ({ navigation }) => {
         setPinModalVisible(false);
         setPin("");
 
-        // Ciro ainihin link din koda a ina ya fada a cikin JSON
-        const resolvedPdfUrl =
+        // Ciro dukkan nau'o'in link da zasu iya fitowa
+        let resolvedPdfUrl =
           result.slipUrl ||
           result.pdfUrl ||
           result.downloadUrl ||
+          result.url ||
           result.data?.slipUrl ||
           result.data?.pdfUrl ||
           result.data?.downloadUrl ||
+          result.data?.url ||
           result.data?.details?.slipUrl ||
           result.data?.details?.pdfUrl ||
           result.details?.slipUrl ||
           result.details?.pdfUrl ||
           null;
+
+        if (resolvedPdfUrl && !String(resolvedPdfUrl).startsWith("http")) {
+          resolvedPdfUrl = `https://abjiktech.com.ng/${String(resolvedPdfUrl).replace(/^\/+/, "")}`;
+        }
 
         setSlipResult({
           bvn: cleanBvn,
@@ -141,15 +147,6 @@ const BVNScreen = ({ navigation }) => {
         });
 
         setView("result");
-
-        // Idan link din yana nan nan take, bude shi kai tsaye
-        if (resolvedPdfUrl) {
-          if (Platform.OS === "web") {
-            window.open(resolvedPdfUrl, "_blank");
-          } else {
-            Linking.openURL(resolvedPdfUrl).catch(() => {});
-          }
-        }
       } else {
         throw new Error(result.message || "Failed to generate BVN slip.");
       }
@@ -169,7 +166,7 @@ const BVNScreen = ({ navigation }) => {
     if (!targetUrl || typeof targetUrl !== "string") {
       return showAlert(
         "Document Link Notice",
-        "Slip link is not directly available. Checking server record..."
+        "Slip link is not directly available. Please refresh or check transaction history."
       );
     }
 
@@ -362,10 +359,25 @@ const BVNScreen = ({ navigation }) => {
             </View>
           </View>
 
-          <TouchableOpacity style={styles.downloadBigBtn} onPress={openDocument} activeOpacity={0.85}>
-            <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD SLIP (PDF)</Text>
-          </TouchableOpacity>
+          {/* Hanyar buɗewa ta Yanar Gizo (Web) da Native (App) */}
+          {Platform.OS === "web" && slipResult?.url ? (
+            <a
+              href={slipResult.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ width: "100%", textDecoration: "none" }}
+            >
+              <View style={styles.downloadBigBtn}>
+                <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD SLIP (PDF)</Text>
+              </View>
+            </a>
+          ) : (
+            <TouchableOpacity style={styles.downloadBigBtn} onPress={openDocument} activeOpacity={0.85}>
+              <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.downloadBigBtnText}>OPEN & DOWNLOAD SLIP (PDF)</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.newSearchBtn}
