@@ -158,19 +158,41 @@ const BVNScreen = ({ navigation }) => {
     }
   };
 
-  const openDocument = async () => {
+const downloadSlipFile = async () => {
     const targetUrl = slipResult?.url;
     if (!targetUrl) {
       return showAlert("Notice", "Document link is not available.");
     }
+
     try {
+      setLoading(true);
+
+      // Idan a Yanar Gizo (Web/Browser) ne
       if (Platform.OS === "web") {
-        window.open(targetUrl, "_blank");
+        const response = await fetch(targetUrl);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = `BVN_${slipResult?.bvn || "SLIP"}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
       } else {
+        // Idan a waya ce (Android/iOS)
         await Linking.openURL(targetUrl);
       }
     } catch (err) {
-      showAlert("Notice", "Could not launch PDF viewer: " + err.message);
+      // Idan server din uwar garke ta toshe direct fetch, bude shi a sabon shafi a matsayin fallback
+      if (Platform.OS === "web") {
+        window.open(targetUrl, "_blank");
+      } else {
+        showAlert("Download Notice", "Could not complete download: " + err.message);
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
