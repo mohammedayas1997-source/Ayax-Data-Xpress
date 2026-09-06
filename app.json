@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ayax Data Xpress",
     "slug": "ayax-data-xpress-ag6zw01xsu8xmxj0rasxl",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,14 +15,15 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ayas8724.AyaxDataXpress"
+      "bundleIdentifier": "com.ayas87244.AyaxdataXpress"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.ayas8724.AyaxDataXpress",
+      "package": "com.ayas87244.AyaxdataXpress",
+      "versionCode": 2,
       "edgeToEdgeEnabled": true,
       "permissions": [
         "INTERNET"
