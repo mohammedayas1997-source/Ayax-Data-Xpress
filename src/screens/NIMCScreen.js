@@ -125,7 +125,15 @@ const NIMCScreen = ({ navigation }) => {
       setFetchingPrices(true);
       const res = await axios.get(`${BASE_URL}/nimc/prices`, { timeout: 10000 });
       if (res.data?.success && res.data?.prices) {
-        setPrices(res.data.prices);
+        if (typeof res.data.prices === "object" && !Array.isArray(res.data.prices)) {
+          setPrices((prev) => ({ ...prev, ...res.data.prices }));
+        } else if (Array.isArray(res.data.prices)) {
+          const map = {};
+          res.data.prices.forEach((p) => {
+            if (p.serviceType) map[p.serviceType] = p.amount;
+          });
+          setPrices((prev) => ({ ...prev, ...map }));
+        }
       }
     } catch (err) {
       console.log("Prices fetch fallback:", err.message);
@@ -155,25 +163,26 @@ const NIMCScreen = ({ navigation }) => {
       return showAlert("Error", "Please enter a valid numeric price.");
     }
 
+    if (!editingService?.id) {
+      return showAlert("Error", "No service selected for price update.");
+    }
+
     setUpdatingPrice(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/nimc/submit-request`,
+        `${BASE_URL}/nimc/admin/set-price`,
         {
-          nin: searchValue.trim(),
-          searchValue: searchValue.trim(),
-          serviceType: selectedSearch?.id || "nin_verification",
-          amount: prices[selectedSearch?.id] || 100,
-          pin: pin.trim(),
-          transactionPin: pin.trim(),
+          serviceType: editingService.id,
+          amount: numericPrice,
+          name: editingService.name,
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 30000,
+          timeout: 15000,
         }
       );
 
@@ -186,7 +195,6 @@ const NIMCScreen = ({ navigation }) => {
         throw new Error(res.data?.message || "Failed to update price on server.");
       }
     } catch (err) {
-      // Local state fallback update
       setPrices((prev) => ({ ...prev, [editingService.id]: numericPrice }));
       setAdminPriceModal(false);
       setNewPriceInput("");
@@ -223,15 +231,27 @@ const NIMCScreen = ({ navigation }) => {
         });
       }
 
-    const res = await axios.post(
-      `${BASE_URL}/nimc/admin/set-price`,
-      {
-        serviceType: editingService.id,
-        amount: numericPrice,
-        name: editingService.name,
-      },
-      { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
-    );
+      const serviceId = selectedSearch?.id || "nin";
+      const activeAmount = prices[serviceId] || 100;
+
+      const res = await axios.post(
+        `${BASE_URL}/nimc/submit-request`,
+        {
+          nin: searchValue.trim(),
+          searchValue: searchValue.trim(),
+          serviceType: serviceId,
+          amount: activeAmount,
+          pin: pin.trim(),
+          transactionPin: pin.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 35000,
+        }
+      );
 
       const result = res.data;
       if (result.success || result.status === "success") {
@@ -282,7 +302,6 @@ const NIMCScreen = ({ navigation }) => {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-          {/* Executive Identity Hero Banner */}
           <LinearGradient
             colors={["#0369a1", "#0f172a"]}
             start={{ x: 0, y: 0 }}
@@ -346,7 +365,6 @@ const NIMCScreen = ({ navigation }) => {
             })}
           </View>
 
-          {/* NIMC Data Modification Redirect Card */}
           <TouchableOpacity
             style={styles.modCard}
             onPress={() => navigation.navigate("NIMCModification")}
@@ -363,7 +381,6 @@ const NIMCScreen = ({ navigation }) => {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* Admin Price Update Modal */}
         <Modal visible={adminPriceModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -468,7 +485,6 @@ const NIMCScreen = ({ navigation }) => {
           </View>
         </ScrollView>
 
-        {/* PIN Verification Modal */}
         <Modal visible={pinModalVisible} transparent animationType="slide">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -545,7 +561,6 @@ const NIMCScreen = ({ navigation }) => {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
           <View style={styles.resultCard}>
-            {/* User Photo */}
             <View style={styles.photoContainer}>
               {userData?.photo ? (
                 <Image
@@ -567,7 +582,6 @@ const NIMCScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Profile Info Fields */}
             <View style={styles.detailsList}>
               <ResultRow label="Full Name" value={fullName} />
               <ResultRow
@@ -589,7 +603,6 @@ const NIMCScreen = ({ navigation }) => {
               <ResultRow label="LGA of Origin" value={userData?.lga || userData?.lgaOfOrigin || "N/A"} />
             </View>
 
-            {/* Download PDF Slip Action */}
             <TouchableOpacity style={styles.downloadPdfBtn} onPress={handleDownloadPDF} activeOpacity={0.85}>
               <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 6 }} />
               <Text style={styles.downloadPdfBtnText}>DOWNLOAD PRINTABLE SLIP (PDF)</Text>
@@ -603,7 +616,6 @@ const NIMCScreen = ({ navigation }) => {
   return null;
 };
 
-// Row item for slip result
 const ResultRow = ({ label, value, copyable, onCopy }) => (
   <View style={styles.resultRowContainer}>
     <View style={{ flex: 1 }}>
@@ -835,8 +847,6 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   downloadPdfBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
-
-  // PIN & Price Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.85)",
