@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,15 +11,14 @@ import {
   StatusBar,
   Modal,
   Platform,
-  Dimensions,
+  ToastAndroid,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-const { width } = Dimensions.get("window");
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const allDiscos = [
@@ -40,13 +39,13 @@ const ElectricityScreen = ({ navigation }) => {
   const [disco, setDisco] = useState("abuja-electric");
   const [meterNo, setMeterNo] = useState("");
   const [amount, setAmount] = useState("");
+  const [phone, setPhone] = useState("");
   const [meterType, setMeterType] = useState("prepaid");
   const [customerName, setCustomerName] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
 
-  // Dynamic Service Fee state
-  const [fee, setFee] = useState(0);
-  const [loadingFee, setLoadingFee] = useState(false);
+  // Fixed Standard Service Fee
+  const SERVICE_FEE = 50;
 
   // Verification & Purchasing States
   const [verifying, setVerifying] = useState(false);
@@ -61,10 +60,6 @@ const ElectricityScreen = ({ navigation }) => {
   const [purchasedTokenData, setPurchasedTokenData] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  // Admin Controls
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [newFee, setNewFee] = useState("");
-
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
       window.alert(`${title}: ${message}`);
@@ -76,67 +71,20 @@ const ElectricityScreen = ({ navigation }) => {
     }
   };
 
-  // 1. Fetch live global service fee from backend
-  const fetchServiceFee = useCallback(async () => {
-    setLoadingFee(true);
-    try {
-      const res = await axios.get(`${BASE_URL}/vtu/charges?service=electricity`);
-      if (res.data?.success && res.data?.fee !== undefined) {
-        setFee(Number(res.data.fee));
-      } else if (res.data?.data?.charge !== undefined) {
-        setFee(Number(res.data.data.charge));
-      }
-    } catch (e) {
-      // Fallback default fee
-      setFee(100);
-    } finally {
-      setLoadingFee(false);
-    }
-  }, []);
-
   useEffect(() => {
-    const checkRoleAndFee = async () => {
+    const loadPhone = async () => {
       const user = await AsyncStorage.getItem("userData");
       if (user) {
         try {
           const parsed = JSON.parse(user);
-          setIsAdmin(parsed.role === "admin");
+          if (parsed.phone) setPhone(parsed.phone);
         } catch (e) {}
       }
-      fetchServiceFee();
     };
-    checkRoleAndFee();
-  }, [fetchServiceFee]);
+    loadPhone();
+  }, []);
 
-  const handleAdminUpdateFee = async () => {
-    if (!isAdmin) {
-      return showAlert("Unauthorized", "Only administrators can update service fees.");
-    }
-    const parsedFee = Number(newFee);
-    if (!newFee || isNaN(parsedFee) || parsedFee < 0) {
-      return showAlert("Error", "Please enter a valid numeric fee.");
-    }
-
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.post(
-        `${BASE_URL}/admin/update-charge`,
-        { service: "electricity", fee: parsedFee },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (res.data?.success) {
-        setFee(parsedFee);
-        setNewFee("");
-        showAlert("Success", "Global electricity service fee updated.");
-      }
-    } catch (err) {
-      setFee(parsedFee);
-      setNewFee("");
-      showAlert("Notice", "Local service fee adjusted to ₦" + parsedFee);
-    }
-  };
-
-  // 2. Real-time Live Meter Verification
+  // 1. Meter Verification Matching Backend
   const verifyMeter = async () => {
     if (!disco || !meterNo.trim()) {
       return showAlert("Required", "Please select a DISCO and enter Meter Number.");
@@ -155,9 +103,11 @@ const ElectricityScreen = ({ navigation }) => {
       }
 
       const res = await axios.post(
-        `${BASE_URL}/vtu/verify-meter`,
+        `${BASE_URL}/bills/electricity/verify`,
         {
           disco,
+          electricCompany: disco,
+          meterNo: meterNo.trim(),
           meterNumber: meterNo.trim(),
           meterType,
         },
@@ -166,17 +116,17 @@ const ElectricityScreen = ({ navigation }) => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 20000,
+          timeout: 25000,
         }
       );
 
       const result = res.data;
       if (result.success || result.status === "success") {
         const name =
-          result.name ||
           result.customerName ||
-          result.data?.name ||
+          result.name ||
           result.data?.customerName ||
+          result.data?.name ||
           "Verified Consumer";
         const address =
           result.address ||
@@ -207,11 +157,14 @@ const ElectricityScreen = ({ navigation }) => {
     if (!amount || isNaN(numericAmount) || numericAmount < 500) {
       return showAlert("Invalid Amount", "Minimum recharge amount is ₦500.");
     }
+    if (!phone || phone.trim().length < 10) {
+      return showAlert("Phone Required", "Please provide a valid recipient phone number.");
+    }
 
     setPinModalVisible(true);
   };
 
-  // 3. Purchase Electricity Token with Live Receipt
+  // 2. Purchase Electricity Token Matching Backend
   const handlePayment = async () => {
     if (!pin || pin.length < 4) {
       return showAlert("Error", "Please enter your valid 4-digit Transaction PIN.");
@@ -229,23 +182,26 @@ const ElectricityScreen = ({ navigation }) => {
 
       const finalAmount = Number(amount.trim());
       const res = await axios.post(
-        `${BASE_URL}/vtu/electricity`,
+        `${BASE_URL}/bills/electricity/buy`,
         {
           disco,
+          electricCompany: disco,
+          meterNo: meterNo.trim(),
           meterNumber: meterNo.trim(),
-          amount: finalAmount,
-          fee,
-          totalAmount: finalAmount + fee,
           meterType,
-          transactionPin: pin.trim(),
+          amount: finalAmount,
+          phone: phone.trim(),
+          phoneNo: phone.trim(),
+          phoneNumber: phone.trim(),
           pin: pin.trim(),
+          transactionPin: pin.trim(),
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 30000,
+          timeout: 45000,
         }
       );
 
@@ -257,15 +213,15 @@ const ElectricityScreen = ({ navigation }) => {
         const tokenGenerated =
           result.token ||
           result.data?.token ||
-          result.data?.standardTokenValue ||
+          result.data?.meterToken ||
           result.tokenValue ||
-          "0000-0000-0000-0000-0000";
+          "Token Generated (Check SMS)";
 
         const unitsGenerated =
           result.units ||
+          result.unit ||
           result.data?.units ||
-          result.data?.unitsActual ||
-          "Standard Units";
+          "Units credited to meter";
 
         const receiptPayload = {
           token: tokenGenerated,
@@ -274,8 +230,8 @@ const ElectricityScreen = ({ navigation }) => {
           customerName,
           discoName: allDiscos.find((d) => d.value === disco)?.label || disco,
           amount: finalAmount,
-          fee,
-          total: finalAmount + fee,
+          fee: SERVICE_FEE,
+          total: finalAmount + SERVICE_FEE,
           date: new Date().toLocaleString("en-GB"),
           reference: result.reference || result.data?.reference || `ELEC_${Date.now()}`,
         };
@@ -306,7 +262,7 @@ const ElectricityScreen = ({ navigation }) => {
     setTimeout(() => setCopied(false), 3000);
   };
 
-  const totalPayable = (Number(amount) || 0) + fee;
+  const totalPayable = (Number(amount) || 0) + SERVICE_FEE;
 
   return (
     <View style={styles.container}>
@@ -322,26 +278,6 @@ const ElectricityScreen = ({ navigation }) => {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
-        {/* Admin Pane */}
-        {isAdmin && (
-          <View style={styles.adminPane}>
-            <Text style={styles.adminLabel}>👑 Admin Control: Live Service Charge (₦)</Text>
-            <View style={styles.adminRow}>
-              <TextInput
-                style={styles.adminInput}
-                placeholder={fee.toString()}
-                placeholderTextColor="#64748b"
-                keyboardType="numeric"
-                value={newFee}
-                onChangeText={setNewFee}
-              />
-              <TouchableOpacity style={styles.adminUpdate} onPress={handleAdminUpdateFee}>
-                <Text style={styles.adminUpdateText}>UPDATE</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
         {/* Meter Type Selector */}
         <Text style={styles.sectionLabel}>METER CLASSIFICATION</Text>
         <View style={styles.typeRow}>
@@ -434,7 +370,18 @@ const ElectricityScreen = ({ navigation }) => {
           </View>
         ) : null}
 
-        {/* Amount & Automatic Live Fee Breakdown */}
+        {/* Recipient Phone Number */}
+        <Text style={styles.sectionLabel}>RECIPIENT PHONE NUMBER (FOR TOKEN SMS)</Text>
+        <TextInput
+          style={styles.inputField}
+          placeholder="e.g. 08012345678"
+          placeholderTextColor="#64748b"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
+        />
+
+        {/* Amount & Automatic Fee Breakdown */}
         <View style={styles.billingRow}>
           <View style={{ flex: 1.2, marginRight: 10 }}>
             <Text style={styles.sectionLabel}>PURCHASE AMOUNT (₦)</Text>
@@ -451,10 +398,8 @@ const ElectricityScreen = ({ navigation }) => {
           <View style={{ flex: 0.8 }}>
             <Text style={styles.sectionLabel}>SERVICE FEE (₦)</Text>
             <View style={styles.feeFieldBox}>
-              <Text style={styles.feeFieldText}>
-                {loadingFee ? "..." : `₦${fee.toLocaleString()}`}
-              </Text>
-              <Text style={styles.autoTag}>AUTO</Text>
+              <Text style={styles.feeFieldText}>₦{SERVICE_FEE}</Text>
+              <Text style={styles.autoTag}>FLAT</Text>
             </View>
           </View>
         </View>
@@ -467,7 +412,7 @@ const ElectricityScreen = ({ navigation }) => {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Convenience Charge</Text>
-            <Text style={styles.summaryVal}>₦{fee.toLocaleString()}</Text>
+            <Text style={styles.summaryVal}>₦{SERVICE_FEE}</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
@@ -504,7 +449,7 @@ const ElectricityScreen = ({ navigation }) => {
             <Ionicons name="shield-checkmark" size={36} color="#00f0ff" style={{ marginBottom: 10 }} />
             <Text style={styles.modalTitle}>Enter Security PIN</Text>
             <Text style={styles.modalSubtitle}>
-              Authorize token purchase of ₦{totalPayable.toLocaleString()} for {customerName}
+              Authorize token purchase of ₦{totalPayable.toLocaleString()} for {customerName} (Includes ₦{SERVICE_FEE} service fee)
             </Text>
 
             <TextInput
@@ -586,7 +531,15 @@ const ElectricityScreen = ({ navigation }) => {
                 </Text>
               </View>
               <View style={styles.receiptRow}>
-                <Text style={styles.receiptRowLabel}>Total Amount Paid</Text>
+                <Text style={styles.receiptRowLabel}>Token Amount</Text>
+                <Text style={styles.receiptRowVal}>₦{purchasedTokenData?.amount?.toLocaleString()}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptRowLabel}>Service Fee</Text>
+                <Text style={styles.receiptRowVal}>₦{purchasedTokenData?.fee}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptRowLabel}>Total Paid</Text>
                 <Text style={styles.receiptRowVal}>₦{purchasedTokenData?.total?.toLocaleString()}</Text>
               </View>
               <View style={styles.receiptRow}>
@@ -633,34 +586,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 8,
   },
-  adminPane: {
-    backgroundColor: "#0b1120",
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#f59e0b",
-  },
-  adminLabel: { color: "#f59e0b", fontSize: 11, fontWeight: "800", marginBottom: 8 },
-  adminRow: { flexDirection: "row" },
-  adminInput: {
-    flex: 1,
-    backgroundColor: "#050811",
-    color: "#fff",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-    borderWidth: 1,
-    borderColor: "#1e293b",
-  },
-  adminUpdate: {
-    backgroundColor: "#d97706",
-    marginLeft: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    justifyContent: "center",
-  },
-  adminUpdateText: { color: "#fff", fontWeight: "900", fontSize: 12 },
   typeRow: { flexDirection: "row", justifyContent: "space-between" },
   typeBtn: {
     flex: 1,

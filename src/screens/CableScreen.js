@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
@@ -78,10 +78,8 @@ const CableScreen = ({ navigation }) => {
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
 
-  // Surcharges & Admin Controls
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [serviceCharge, setServiceCharge] = useState(50);
-  const [newCharge, setNewCharge] = useState("");
+  // Fixed Service Fee of ₦50
+  const SERVICE_FEE = 50;
 
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
@@ -100,34 +98,10 @@ const CableScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
-    const checkAdmin = async () => {
-      const user = await AsyncStorage.getItem("userData");
-      if (user) {
-        try {
-          const parsed = JSON.parse(user);
-          setIsAdmin(parsed.role === "admin" || parsed.role === "superadmin");
-        } catch (e) {
-          console.log("Error parsing cache");
-        }
-      }
-    };
-    checkAdmin();
     setPackages(cableData[provider] || []);
     setSelectedPackage(null);
     setCustomerName("");
   }, [provider]);
-
-  const updateGlobalCharge = async () => {
-    if (!isAdmin) {
-      return showAlert("Unauthorized", "Only administrators can adjust service fees.");
-    }
-    if (!newCharge || isNaN(parseInt(newCharge))) {
-      return showAlert("Error", "Enter a valid numeric service fee.");
-    }
-    setServiceCharge(parseInt(newCharge));
-    setNewCharge("");
-    showAlert("Success", "Service fee updated successfully.");
-  };
 
   const validateIUC = async () => {
     if (provider === "SHOWMAX") {
@@ -153,11 +127,22 @@ const CableScreen = ({ navigation }) => {
         return;
       }
 
+      // Endpoint na daidaita da sabon bills controller
       const res = await axios.post(
-        `${BASE_URL}/vtu/validate-cable`,
-        { provider, smartCard: smartCard.trim() },
+        `${BASE_URL}/bills/cable/verify`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          provider: provider.toLowerCase(),
+          cableTv: provider.toLowerCase(),
+          service: provider.toLowerCase(),
+          smartCardNo: smartCard.trim(),
+          smartCardNumber: smartCard.trim(),
+          iuc: smartCard.trim(),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
           timeout: 20000,
         }
       );
@@ -209,24 +194,28 @@ const CableScreen = ({ navigation }) => {
         return;
       }
 
-      const totalAmount = selectedPackage.price + serviceCharge;
-
+      // Tura ainihin package.price, backend zai caji +50 service fee
       const res = await axios.post(
-        `${BASE_URL}/vtu/pay-cable`,
+        `${BASE_URL}/bills/cable/buy`,
         {
-          provider,
-          smartCard: smartCard.trim(),
-          packageId: selectedPackage.id,
-          amount: totalAmount,
-          transactionPin: pin.trim(),
+          provider: provider.toLowerCase(),
+          cableTv: provider.toLowerCase(),
+          smartCardNo: smartCard.trim(),
+          smartCardNumber: smartCard.trim(),
+          iuc: smartCard.trim(),
+          packageCode: selectedPackage.id,
+          planCode: selectedPackage.id,
+          planName: selectedPackage.name,
+          amount: selectedPackage.price,
           pin: pin.trim(),
+          transactionPin: pin.trim(),
         },
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 25000,
+          timeout: 35000,
         }
       );
 
@@ -264,31 +253,15 @@ const CableScreen = ({ navigation }) => {
         <Text style={styles.header}>Cable TV & Streaming</Text>
       </View>
 
-      {isAdmin && (
-        <View style={styles.adminSection}>
-          <Text style={styles.adminLabel}>
-            👑 SuperAdmin Control: Adjust Gateway Surcharge (₦)
-          </Text>
-          <View style={styles.adminRow}>
-            <TextInput
-              style={styles.adminInput}
-              placeholder={serviceCharge.toString()}
-              placeholderTextColor="#94a3b8"
-              keyboardType="numeric"
-              value={newCharge}
-              onChangeText={setNewCharge}
-            />
-            <TouchableOpacity
-              style={styles.adminBtn}
-              onPress={updateGlobalCharge}
-            >
-              <Text style={styles.adminBtnText}>SAVE</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
+      {/* SERVICE FEE NOTICE */}
+      <View style={styles.feeNotice}>
+        <Ionicons name="information-circle" size={18} color="#0284c7" />
+        <Text style={styles.feeNoticeText}>
+          Standard transaction processing fee: <Text style={{ fontWeight: "bold" }}>₦{SERVICE_FEE}</Text>
+        </Text>
+      </View>
 
-      {/* PROVIDER SELECTOR (ALL 4 NETWORKS) */}
+      {/* PROVIDER SELECTOR */}
       <Text style={styles.label}>Select Cable / Streaming Provider</Text>
       <View style={styles.providerGrid}>
         {[
@@ -368,11 +341,11 @@ const CableScreen = ({ navigation }) => {
                   {pkg.name}
                 </Text>
                 <Text style={[styles.pkgCaption, isSelected && { color: "#cbd5e1" }]}>
-                  Includes instant renewal (+₦{serviceCharge} gateway fee)
+                  Package: ₦{pkg.price.toLocaleString()} (+₦{SERVICE_FEE} service fee)
                 </Text>
               </View>
               <Text style={[styles.pkgCost, isSelected && styles.whiteText]}>
-                ₦{(pkg.price + serviceCharge).toLocaleString()}
+                ₦{(pkg.price + SERVICE_FEE).toLocaleString()}
               </Text>
             </TouchableOpacity>
           );
@@ -384,7 +357,7 @@ const CableScreen = ({ navigation }) => {
         onPress={handleInitiatePayment}
       >
         <Text style={styles.payBtnText}>
-          ACTIVATE SUBSCRIPTION (₦{selectedPackage ? (selectedPackage.price + serviceCharge).toLocaleString() : "0"})
+          ACTIVATE SUBSCRIPTION (₦{selectedPackage ? (selectedPackage.price + SERVICE_FEE).toLocaleString() : "0"})
         </Text>
       </TouchableOpacity>
 
@@ -397,7 +370,7 @@ const CableScreen = ({ navigation }) => {
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
             <Text style={styles.modalSubtitle}>
-              Please enter your 4-digit PIN to authorize this subscription activation
+              Total Debit: ₦{selectedPackage ? (selectedPackage.price + SERVICE_FEE).toLocaleString() : "0"} (Package + ₦{SERVICE_FEE} Fee)
             </Text>
 
             <TextInput
@@ -445,13 +418,18 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#ffffff", paddingHorizontal: 20 },
   navBar: { flexDirection: "row", alignItems: "center", marginTop: 45, marginBottom: 10 },
   header: { fontSize: 22, fontWeight: "bold", color: "#0a1d37", marginLeft: 15 },
-  adminSection: { backgroundColor: "#fef3c7", padding: 14, borderRadius: 14, marginTop: 10, borderWidth: 1, borderColor: "#f59e0b" },
-  adminLabel: { fontSize: 11, fontWeight: "bold", color: "#b45309", marginBottom: 8 },
-  adminRow: { flexDirection: "row" },
-  adminInput: { flex: 1, backgroundColor: "#fff", paddingHorizontal: 12, height: 38, borderRadius: 8, borderWidth: 1, borderColor: "#cbd5e1", color: "#0f172a", fontSize: 13 },
-  adminBtn: { backgroundColor: "#b45309", paddingHorizontal: 16, marginLeft: 10, borderRadius: 8, justifyContent: "center" },
-  adminBtnText: { color: "#fff", fontWeight: "bold", fontSize: 12 },
-  label: { fontSize: 13, fontWeight: "700", color: "#475569", marginBottom: 8, marginTop: 18 },
+  feeNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f0f9ff",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+    marginVertical: 6,
+  },
+  feeNoticeText: { fontSize: 12, color: "#0369a1", marginLeft: 6 },
+  label: { fontSize: 13, fontWeight: "700", color: "#475569", marginBottom: 8, marginTop: 14 },
   providerGrid: { flexDirection: "row", justifyContent: "space-between" },
   providerCard: {
     width: "23%",
