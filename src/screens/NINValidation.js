@@ -33,6 +33,7 @@ const NINValidation = ({ navigation }) => {
   const [selectedType, setSelectedType] = useState("No Record Found");
   const [loading, setLoading] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isTimeAgreed, setIsTimeAgreed] = useState(false);
   const [formData, setFormData] = useState({ nin: "" });
 
   // Admin Price Control States
@@ -133,7 +134,6 @@ const NINValidation = ({ navigation }) => {
         throw new Error(res.data?.message || "Failed to update price on server.");
       }
     } catch (err) {
-      // Local fallback update
       setValidationTypes((prev) =>
         prev.map((item) =>
           item.id === editingItem.id ? { ...item, cost: numericPrice } : item
@@ -148,15 +148,23 @@ const NINValidation = ({ navigation }) => {
   };
 
   const handleInitiateSubmit = () => {
-    if (!formData.nin.trim() || !isAuthorized) {
-      return showAlert(
-        "Required",
-        "Please enter your 11-digit NIN and accept the authorization consent."
-      );
+    if (!formData.nin.trim()) {
+      return showAlert("Required", "Please enter your 11-digit NIN.");
     }
 
     if (formData.nin.trim().length !== 11) {
       return showAlert("Invalid NIN", "NIN must be exactly 11 digits.");
+    }
+
+    if (!isAuthorized) {
+      return showAlert("Consent Required", "Please accept the authorization consent checkbox.");
+    }
+
+    if (!isTimeAgreed) {
+      return showAlert(
+        "Notice Required",
+        "Please acknowledge and agree to the 48-working-hours processing period before payment."
+      );
     }
 
     setPinModalVisible(true);
@@ -187,6 +195,7 @@ const NINValidation = ({ navigation }) => {
           transactionPin: pin.trim(),
           amount: currentCost,
           timestamp: new Date().toISOString(),
+          processingWindow: "48_WORKING_HOURS",
         },
         {
           headers: {
@@ -203,10 +212,11 @@ const NINValidation = ({ navigation }) => {
         setPin("");
         showAlert(
           "Request Submitted 🎉",
-          "Your NIN validation request has been submitted successfully.",
+          "Your NIN validation request has been queued. Verification will be finalized within 48 working hours.",
           () => {
             setFormData({ nin: "" });
             setIsAuthorized(false);
+            setIsTimeAgreed(false);
           }
         );
       } else {
@@ -223,6 +233,8 @@ const NINValidation = ({ navigation }) => {
     }
   };
 
+  const isFormReady = isAuthorized && isTimeAgreed && formData.nin.trim().length === 11;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
@@ -234,6 +246,17 @@ const NINValidation = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.screenMainTitle}>NIN Validation Portal</Text>
         <View style={{ width: 40 }} />
+      </View>
+
+      {/* CRITICAL 48-HOUR NOTICE BANNER */}
+      <View style={styles.redNoticeCard}>
+        <View style={styles.redNoticeHeader}>
+          <Ionicons name="alert-circle" size={22} color="#dc2626" />
+          <Text style={styles.redNoticeTitle}>MUHIMMI: SANARWAR LOKACI (48 WORKING HOURS)</Text>
+        </View>
+        <Text style={styles.redNoticeText}>
+          Wannan aikin tantancewa (Validation) yana ɗaukar tsawon **awanni 48 na ranakun aiki (48 Working Hours)** kafin ya kammala a uwar garken hukumar NIMC. Ba a aiki ranakun Asabar da Lahadi.
+        </Text>
       </View>
 
       {/* Service Selection Card */}
@@ -298,12 +321,14 @@ const NINValidation = ({ navigation }) => {
         />
       </View>
 
-      {/* Authorization Consent Card */}
+      {/* Authorization & 48-Hour Agreement Card */}
       <View style={styles.card}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
           <MaterialCommunityIcons name="shield-lock" size={20} color="#1e3a8a" />
-          <Text style={styles.authTitle}>Authorization Consent</Text>
+          <Text style={styles.authTitle}>Consent & Terms of Service</Text>
         </View>
+
+        {/* Checkbox 1: Consent */}
         <TouchableOpacity
           style={styles.checkboxRow}
           onPress={() => setIsAuthorized(!isAuthorized)}
@@ -319,10 +344,26 @@ const NINValidation = ({ navigation }) => {
           </Text>
         </TouchableOpacity>
 
+        {/* Checkbox 2: 48 Working Hours Agreement */}
         <TouchableOpacity
-          style={[styles.submitBtn, !isAuthorized && { backgroundColor: "#cbd5e1" }]}
+          style={[styles.checkboxRow, styles.redCheckboxRow]}
+          onPress={() => setIsTimeAgreed(!isTimeAgreed)}
+          activeOpacity={0.9}
+        >
+          <MaterialCommunityIcons
+            name={isTimeAgreed ? "checkbox-marked" : "checkbox-blank-outline"}
+            size={24}
+            color={isTimeAgreed ? "#dc2626" : "#cbd5e1"}
+          />
+          <Text style={styles.redAgreementText}>
+            Na amince kuma na gane cewa wannan aikin yana ɗaukar **awanni 48 na ranakun aiki (48 working hours)** kafin ya kammala kafin in biya kuɗi.
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.submitBtn, !isFormReady && { backgroundColor: "#cbd5e1" }]}
           onPress={handleInitiateSubmit}
-          disabled={!isAuthorized}
+          disabled={!isFormReady}
           activeOpacity={0.85}
         >
           <Text style={styles.submitBtnText}>
@@ -382,6 +423,12 @@ const NINValidation = ({ navigation }) => {
               Authorize ₦{currentCost?.toLocaleString()} fee for {selectedType}
             </Text>
 
+            <View style={styles.modalWarningSmall}>
+              <Text style={styles.modalWarningSmallText}>
+                ⚠️ Processing timeframe: 48 Working Hours
+              </Text>
+            </View>
+
             <TextInput
               style={styles.modalPinInput}
               placeholder="••••"
@@ -434,6 +481,35 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 40, height: 40, justifyContent: "center" },
   screenMainTitle: { fontSize: 16, fontWeight: "900", color: "#1e3a8a" },
+  
+  // Red Alert Styles
+  redNoticeCard: {
+    backgroundColor: "#fef2f2",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: "#ef4444",
+  },
+  redNoticeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  redNoticeTitle: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: "900",
+    marginLeft: 6,
+    letterSpacing: 0.3,
+  },
+  redNoticeText: {
+    color: "#991b1b",
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -499,16 +575,24 @@ const styles = StyleSheet.create({
   authTitle: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
   checkboxRow: {
     flexDirection: "row",
-    marginTop: 12,
+    marginBottom: 12,
     alignItems: "flex-start",
   },
+  redCheckboxRow: {
+    backgroundColor: "#fff5f5",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
   authText: { fontSize: 11.5, color: "#475569", marginLeft: 10, flex: 1, lineHeight: 18 },
+  redAgreementText: { fontSize: 12, color: "#991b1b", marginLeft: 10, flex: 1, lineHeight: 18, fontWeight: "700" },
   submitBtn: {
     backgroundColor: "#1e3a8a",
     paddingVertical: 16,
     borderRadius: 14,
     alignItems: "center",
-    marginTop: 18,
+    marginTop: 10,
     elevation: 2,
   },
   submitBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
@@ -544,7 +628,21 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: "#64748b",
     textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  modalWarningSmall: {
+    backgroundColor: "#fef2f2",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  modalWarningSmallText: {
+    color: "#b91c1c",
+    fontSize: 11,
+    fontWeight: "800",
   },
   adminModalInput: {
     width: "100%",
