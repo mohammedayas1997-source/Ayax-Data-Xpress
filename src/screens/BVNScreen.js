@@ -113,30 +113,31 @@ const BVNScreen = ({ navigation }) => {
         }
       );
 
-      const result = res.data;
+const result = res.data;
 
-      if (result.success || result.status === "success") {
+      // Idan server ta ce success ko kuma sakon ya kunshi nasarar samar da PDF
+      const isOk =
+        result.success === true ||
+        result.status === "success" ||
+        String(result.message || "").toLowerCase().includes("pdf generated");
+
+      if (isOk) {
         setPinModalVisible(false);
         setPin("");
 
-        let resolvedPdfUrl =
+        const pdfUrl =
           result.slipUrl ||
           result.pdfUrl ||
           result.downloadUrl ||
           result.url ||
           result.data?.slipUrl ||
           result.data?.pdfUrl ||
-          result.data?.downloadUrl ||
           null;
-
-        if (resolvedPdfUrl && !String(resolvedPdfUrl).startsWith("http")) {
-          resolvedPdfUrl = `https://abjiktech.com.ng/${String(resolvedPdfUrl).replace(/^\/+/, "")}`;
-        }
 
         setSlipResult({
           bvn: cleanBvn,
           slipType: selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip",
-          url: resolvedPdfUrl,
+          url: pdfUrl,
         });
 
         setView("result");
