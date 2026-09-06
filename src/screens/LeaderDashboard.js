@@ -37,16 +37,15 @@ const LeaderDashboard = ({ navigation }) => {
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
-  // 1. AYYANA CURRENT LGA LIST A SAMA DOMIN KAUCE WA BLANK ERROR
-  const currentLgaList = NIGERIA_STATES_LGAS[managerState] || [
-    "Central",
-    "North",
-    "South",
-    "East",
-    "West",
-  ];
+  const currentLgaList =
+    (NIGERIA_STATES_LGAS && NIGERIA_STATES_LGAS[managerState]) || [
+      "Central",
+      "North",
+      "South",
+      "East",
+      "West",
+    ];
 
-  // State Manager's Target Overview (Daga NSD)
   const [myStateTarget, setMyStateTarget] = useState({
     dataGoal: 0,
     airtimeGoal: 0,
@@ -69,41 +68,32 @@ const LeaderDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Tabs & Search
   const [activeTab, setActiveTab] = useState("supervisors");
   const [selectedLga, setSelectedLga] = useState("All LGAs");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Sidebar Drawer Animation
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarWidth = isLargeScreen ? 320 : Math.min(width * 0.85, 340);
   const sidebarAnim = useRef(new Animated.Value(-sidebarWidth)).current;
 
-  // =========================================================================
-  // SMART AUTO-SPLIT PORTAL & MANUAL EDIT STATES
-  // =========================================================================
   const [targetPortalVisible, setTargetPortalVisible] = useState(false);
-  const [splitMode, setSplitMode] = useState("supervisor"); // 'supervisor' | 'agent'
+  const [splitMode, setSplitMode] = useState("supervisor");
   const [allocatedList, setAllocatedList] = useState([]);
 
-  // Modal 1: Inspection Modal
   const [inspectModalVisible, setInspectModalVisible] = useState(false);
   const [selectedSupervisor, setSelectedSupervisor] = useState(null);
 
-  // Modal 2: Advanced Target Command Modal States (Custom Target)
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetCategory, setTargetCategory] = useState("supervisor"); // 'supervisor' | 'agent' | 'lga'
-  const [targetScope, setTargetScope] = useState("selected"); // 'selected' | 'all' | 'by_lga'
+  const [targetCategory, setTargetCategory] = useState("supervisor");
+  const [targetScope, setTargetScope] = useState("selected");
   const [targetSelectedLgas, setTargetSelectedLgas] = useState([]);
   const [targetSelectedPeopleIds, setTargetSelectedPeopleIds] = useState([]);
-  
-  // Quota Inputs
+
   const [targetDataGoal, setTargetDataGoal] = useState("500");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
   const [targetAgentGoal, setTargetAgentGoal] = useState("10");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Modal 3: Enroll Supervisor
   const [enrollModalVisible, setEnrollModalVisible] = useState(false);
   const [newSupName, setNewSupName] = useState("");
   const [newSupPhone, setNewSupPhone] = useState("");
@@ -111,11 +101,25 @@ const LeaderDashboard = ({ navigation }) => {
   const [newSupLga, setNewSupLga] = useState(currentLgaList[0] || "Central");
   const [newSupPassword, setNewSupPassword] = useState("Password123@");
 
-  // Modal 4: Broadcast Directive
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Transfer Agent Modal states
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [transferMode, setTransferMode] = useState("bulk");
+  const [transferSourceSupId, setTransferSourceSupId] = useState("");
+  const [transferTargetSupId, setTransferTargetSupId] = useState("");
+  const [transferSelectedAgentId, setTransferSelectedAgentId] = useState("");
+
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -130,7 +134,9 @@ const LeaderDashboard = ({ navigation }) => {
         toValue: -sidebarWidth,
         duration: 220,
         useNativeDriver: false,
-      }).start(() => setSidebarOpen(false));
+      }).start(() => {
+        if (isMounted.current) setSidebarOpen(false);
+      });
     }
   };
 
@@ -142,7 +148,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // KARBO DUKKAN BAYANAI DA TARGET DA NSD YA TURA
   const fetchDashboardData = useCallback(
     async (isBackground = false) => {
       try {
@@ -157,15 +162,18 @@ const LeaderDashboard = ({ navigation }) => {
         if (storedUserData) {
           try {
             parsedUser = JSON.parse(storedUserData);
-            if (parsedUser.state && ALL_NIGERIAN_STATES.includes(parsedUser.state)) {
-              setManagerState(parsedUser.state);
+            if (
+              parsedUser.state &&
+              Array.isArray(ALL_NIGERIAN_STATES) &&
+              ALL_NIGERIAN_STATES.includes(parsedUser.state)
+            ) {
+              if (isMounted.current) setManagerState(parsedUser.state);
             }
           } catch (e) {}
         }
 
         const headers = { Authorization: `Bearer ${token}` };
 
-        // Kwaso dukkan bayanan Field, Agents, Audit Stream da sabon Target
         const [dashRes, agentsRes, logsRes, targetRes] = await Promise.all([
           axios.get(`${BASE_URL}/leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
           axios.get(`${BASE_URL}/leader/agents-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { agents: [] } })),
@@ -174,10 +182,18 @@ const LeaderDashboard = ({ navigation }) => {
         ]);
 
         const dashData = dashRes.data?.data || dashRes.data || {};
-        const fetchedSupervisors = dashData.supervisors || [];
-        const fetchedAgents = agentsRes.data?.agents || dashData.agents || [];
-        const fetchedLogs = logsRes.data?.logs || dashData.activityLogs || [];
-        
+        const fetchedSupervisors = Array.isArray(dashData.supervisors) ? dashData.supervisors : [];
+        const fetchedAgents = Array.isArray(agentsRes.data?.agents)
+          ? agentsRes.data.agents
+          : Array.isArray(dashData.agents)
+          ? dashData.agents
+          : [];
+        const fetchedLogs = Array.isArray(logsRes.data?.logs)
+          ? logsRes.data.logs
+          : Array.isArray(dashData.activityLogs)
+          ? dashData.activityLogs
+          : [];
+
         const fetchedMyTarget =
           targetRes.data?.targets ||
           targetRes.data?.data?.assignedTargets ||
@@ -187,20 +203,32 @@ const LeaderDashboard = ({ navigation }) => {
           parsedUser.targets ||
           {};
 
+        if (!isMounted.current) return;
+
         setSupervisors(fetchedSupervisors);
         setAgents(fetchedAgents);
         setActivityLogs(fetchedLogs);
 
-        const uniqueLgas = new Set(fetchedSupervisors.map((s) => s.lga).filter(Boolean)).size;
-        const totalStateData = dashData.networkStats?.overallDataSold || 0;
-        const totalStateAirtime = dashData.networkStats?.overallAirtimeSold || 0;
+        const uniqueLgas = new Set(
+          fetchedSupervisors.map((s) => s.lga).filter(Boolean)
+        ).size;
+        const totalStateData = Number(dashData.networkStats?.overallDataSold || 0);
+        const totalStateAirtime = Number(dashData.networkStats?.overallAirtimeSold || 0);
 
         setMyStateTarget({
           dataGoal: Number(fetchedMyTarget.dataGoal || fetchedMyTarget.dataVolumeQuota || 0),
           airtimeGoal: Number(fetchedMyTarget.airtimeGoal || fetchedMyTarget.airtimeSalesQuota || 0),
           agentGoal: Number(fetchedMyTarget.agentGoal || fetchedMyTarget.agentsQuota || 0),
-          supervisorGoal: Number(fetchedMyTarget.supervisorGoal || fetchedMyTarget.supervisorsQuota || currentLgaList.length),
-          currentMonth: fetchedMyTarget.currentMonth || fetchedMyTarget.month || fetchedMyTarget.targetCycle || "August 2026",
+          supervisorGoal: Number(
+            fetchedMyTarget.supervisorGoal ||
+              fetchedMyTarget.supervisorsQuota ||
+              currentLgaList.length
+          ),
+          currentMonth:
+            fetchedMyTarget.currentMonth ||
+            fetchedMyTarget.month ||
+            fetchedMyTarget.targetCycle ||
+            "August 2026",
           dataSold: totalStateData,
           airtimeSold: totalStateAirtime,
         });
@@ -210,7 +238,9 @@ const LeaderDashboard = ({ navigation }) => {
           totalAgents: fetchedAgents.length,
           overallDataSold: totalStateData,
           overallAirtimeSold: totalStateAirtime,
-          activeQuotas: fetchedSupervisors.filter((s) => s.targetAssigned || s.dataGoal).length,
+          activeQuotas: fetchedSupervisors.filter(
+            (s) => s.targetAssigned || s.dataGoal
+          ).length,
           activeLgasCount: uniqueLgas,
         });
       } catch (error) {
@@ -221,8 +251,10 @@ const LeaderDashboard = ({ navigation }) => {
           console.error("State Operations Sync Error:", error.message);
         }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (isMounted.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [navigation, currentLgaList.length]
@@ -244,7 +276,7 @@ const LeaderDashboard = ({ navigation }) => {
   const handleLogout = async () => {
     const doLogout = async () => {
       await AsyncStorage.clear();
-      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+      navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
     };
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
@@ -259,17 +291,16 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // =========================================================================
-  // SMART AUTO-SPLIT ENGINE: KWAMFUTA TA RABA TARGET DA KANTA
-  // =========================================================================
   const handleOpenSmartTargetPortal = (mode = "supervisor") => {
     setSplitMode(mode);
     const pool = mode === "supervisor" ? supervisors : agents;
 
-    if (pool.length === 0) {
+    if (!pool || pool.length === 0) {
       showAlert(
         "No Staff Registered",
-        `You do not have any registered ${mode === "supervisor" ? "Supervisors" : "Agents"} in ${managerState} State yet to allocate targets to.`
+        `You do not have any registered ${
+          mode === "supervisor" ? "Supervisors" : "Agents"
+        } in ${managerState} State yet to allocate targets to.`
       );
       return;
     }
@@ -277,13 +308,18 @@ const LeaderDashboard = ({ navigation }) => {
     const count = pool.length;
     const autoDataPerPerson = Math.floor((myStateTarget.dataGoal || 0) / count);
     const autoAirtimePerPerson = Math.floor((myStateTarget.airtimeGoal || 0) / count);
-    const autoAgentPerPerson = mode === "supervisor" ? Math.max(1, Math.floor((myStateTarget.agentGoal || 10) / count)) : 0;
+    const autoAgentPerPerson =
+      mode === "supervisor"
+        ? Math.max(1, Math.floor((myStateTarget.agentGoal || 10) / count))
+        : 0;
 
     const initialList = pool.map((item) => {
-      // Nemo adadin Agents na wannan Supervisor
       const childCount = agents.filter(
         (a) =>
-          (a.assignedSupervisor && (a.assignedSupervisor._id === item._id || a.assignedSupervisor === item._id)) ||
+          (a.assignedSupervisor &&
+            (a.assignedSupervisor._id === item._id ||
+              a.assignedSupervisor === item._id ||
+              a.assignedSupervisor === item.id)) ||
           (a.lga && item.lga && a.lga.toLowerCase() === item.lga.toLowerCase())
       ).length;
 
@@ -310,7 +346,6 @@ const LeaderDashboard = ({ navigation }) => {
     );
   };
 
-  // RABA TARGET GA SUPERVISOR DA DUKKAN AGENTS DINSA A TAKE
   const handleDeployAllocatedTargets = async () => {
     setActionLoading(true);
     try {
@@ -341,14 +376,18 @@ const LeaderDashboard = ({ navigation }) => {
 
       showAlert(
         "Targets Deployed Successfully 🎯",
-        `Quotas have been officially dispatched to ${allocatedList.length} ${splitMode === "supervisor" ? "Supervisors (and auto-split to their subordinate agents)" : "Agents"} in ${managerState} State.`
+        `Quotas have been officially dispatched to ${allocatedList.length} ${
+          splitMode === "supervisor"
+            ? "Supervisors (and cascaded down)"
+            : "Agents"
+        } in ${managerState} State.`
       );
       setTargetPortalVisible(false);
       fetchDashboardData();
     } catch (err) {
       showAlert("Deployment Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -385,7 +424,6 @@ const LeaderDashboard = ({ navigation }) => {
     }
   };
 
-  // GYARA KO TURAWA AGENT GUDA DAYA / SUPERVISOR / LGA
   const handleDeployTarget = async () => {
     setActionLoading(true);
     try {
@@ -396,13 +434,17 @@ const LeaderDashboard = ({ navigation }) => {
 
       const payload = {
         mode: isSinglePerson
-          ? (targetCategory === "supervisor" ? "single_supervisor" : "single_agent")
-          : (targetCategory === "lga" ? "lga_split" : "custom_bulk"),
+          ? targetCategory === "supervisor"
+            ? "single_supervisor"
+            : "single_agent"
+          : targetCategory === "lga"
+          ? "lga_split"
+          : "custom_bulk",
         category: targetCategory,
         scope: targetScope,
-        dataGoal: Number(targetDataGoal),
-        airtimeGoal: Number(targetAirtimeGoal),
-        agentGoal: Number(targetAgentGoal),
+        dataGoal: Number(targetDataGoal) || 0,
+        airtimeGoal: Number(targetAirtimeGoal) || 0,
+        agentGoal: Number(targetAgentGoal) || 0,
         month: targetMonth.trim(),
         targetMonth: targetMonth.trim(),
         state: managerState,
@@ -424,7 +466,10 @@ const LeaderDashboard = ({ navigation }) => {
         if (isSinglePerson) {
           payload.supervisorId = targetSelectedPeopleIds[0];
         }
-        payload.supervisorIds = targetScope === "all" ? supervisors.map((s) => s._id || s.id) : targetSelectedPeopleIds;
+        payload.supervisorIds =
+          targetScope === "all"
+            ? supervisors.map((s) => s._id || s.id)
+            : targetSelectedPeopleIds;
       } else if (targetCategory === "agent") {
         if (targetScope === "selected" && targetSelectedPeopleIds.length === 0) {
           showAlert("Validation Error", "Please select at least one Retail Agent.");
@@ -434,7 +479,10 @@ const LeaderDashboard = ({ navigation }) => {
         if (isSinglePerson) {
           payload.agentId = targetSelectedPeopleIds[0];
         }
-        payload.agentIds = targetScope === "all" ? agents.map((a) => a._id || a.id) : targetSelectedPeopleIds;
+        payload.agentIds =
+          targetScope === "all"
+            ? agents.map((a) => a._id || a.id)
+            : targetSelectedPeopleIds;
       }
 
       const res = await axios.post(`${BASE_URL}/leader/assign-target`, payload, { headers });
@@ -442,7 +490,9 @@ const LeaderDashboard = ({ navigation }) => {
       if (res.data?.success || res.status === 200) {
         showAlert(
           "Targets Deployed 🎯",
-          `Successfully allocated target (${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime) across the specified recipients.`
+          `Successfully allocated target (${targetDataGoal}GB Data, ₦${Number(
+            targetAirtimeGoal
+          ).toLocaleString()} Airtime) across the specified recipients.`
         );
         setTargetModalVisible(false);
         setTargetSelectedPeopleIds([]);
@@ -452,7 +502,7 @@ const LeaderDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Deployment Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -567,7 +617,7 @@ const LeaderDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Enrollment Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -599,14 +649,72 @@ const LeaderDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Broadcast Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
+    }
+  };
+
+  const handleExecuteAgentTransfer = async () => {
+    if (!transferTargetSupId) {
+      return showAlert("Validation Error", "New Destination Supervisor is required.");
+    }
+    if (transferMode === "bulk" && !transferSourceSupId) {
+      return showAlert("Validation Error", "Source Supervisor (whose agents are moving) is required.");
+    }
+    if (transferMode === "single" && !transferSelectedAgentId) {
+      return showAlert("Validation Error", "Agent to transfer is required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const endpoint =
+        transferMode === "bulk"
+          ? `${BASE_URL}/supervisors/transfer-all-agents`
+          : `${BASE_URL}/supervisors/transfer-single-agent`;
+
+      const payload =
+        transferMode === "bulk"
+          ? {
+              oldSupervisorId: transferSourceSupId.trim(),
+              newSupervisorId: transferTargetSupId.trim(),
+            }
+          : {
+              agentId: transferSelectedAgentId.trim(),
+              newSupervisorId: transferTargetSupId.trim(),
+            };
+
+      const res = await axios.post(endpoint, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (res.data?.success) {
+        showAlert("Transfer Complete", res.data.message || "Operation successful.");
+        setTransferModalVisible(false);
+        setTransferSourceSupId("");
+        setTransferTargetSupId("");
+        setTransferSelectedAgentId("");
+        fetchDashboardData();
+      } else {
+        showAlert("Transfer Failed", res.data?.message || "Transfer could not be processed.");
+      }
+    } catch (err) {
+      showAlert("Transfer Error", err.response?.data?.message || err.message);
+    } finally {
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
   const filteredSupervisors = supervisors.filter((sup) => {
-    const matchLga = selectedLga === "All LGAs" || (sup.lga && sup.lga.toLowerCase() === selectedLga.toLowerCase());
+    const matchLga =
+      selectedLga === "All LGAs" ||
+      (sup.lga && sup.lga.toLowerCase() === selectedLga.toLowerCase());
     const matchSearch =
-      (sup.name || `${sup.firstName || ""} ${sup.surname || ""}`).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (sup.name || `${sup.firstName || ""} ${sup.surname || ""}`)
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       (sup.phone || "").includes(searchQuery) ||
       (sup.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (sup.lga || "").toLowerCase().includes(searchQuery.toLowerCase());
@@ -614,9 +722,13 @@ const LeaderDashboard = ({ navigation }) => {
   });
 
   const filteredAgents = agents.filter((ag) => {
-    const matchLga = selectedLga === "All LGAs" || (ag.lga && ag.lga.toLowerCase() === selectedLga.toLowerCase());
+    const matchLga =
+      selectedLga === "All LGAs" ||
+      (ag.lga && ag.lga.toLowerCase() === selectedLga.toLowerCase());
     const matchSearch =
-      (ag.name || `${ag.firstName || ""} ${ag.surname || ""}`).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (ag.name || `${ag.firstName || ""} ${ag.surname || ""}`)
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()) ||
       (ag.phone || "").includes(searchQuery) ||
       (ag.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (ag.assignedSupervisorName || "").toLowerCase().includes(searchQuery.toLowerCase());
@@ -626,18 +738,28 @@ const LeaderDashboard = ({ navigation }) => {
   const supervisorChildAgents = selectedSupervisor
     ? agents.filter(
         (a) =>
-          (a.assignedSupervisor && (a.assignedSupervisor._id === selectedSupervisor._id || a.assignedSupervisor === selectedSupervisor._id)) ||
-          (a.lga && selectedSupervisor.lga && a.lga.toLowerCase() === selectedSupervisor.lga.toLowerCase())
+          (a.assignedSupervisor &&
+            (a.assignedSupervisor._id === selectedSupervisor._id ||
+              a.assignedSupervisor === selectedSupervisor._id ||
+              a.assignedSupervisor === selectedSupervisor.id)) ||
+          (a.lga &&
+            selectedSupervisor.lga &&
+            a.lga.toLowerCase() === selectedSupervisor.lga.toLowerCase())
       )
     : [];
 
-  const dataProgress = myStateTarget.dataGoal > 0 
-    ? Math.min(Math.round(((myStateTarget.dataSold || 0) / myStateTarget.dataGoal) * 100), 100)
-    : 0;
+  const dataProgress =
+    myStateTarget.dataGoal > 0
+      ? Math.min(Math.round(((myStateTarget.dataSold || 0) / myStateTarget.dataGoal) * 100), 100)
+      : 0;
 
-  const airtimeProgress = myStateTarget.airtimeGoal > 0 
-    ? Math.min(Math.round(((myStateTarget.airtimeSold || 0) / myStateTarget.airtimeGoal) * 100), 100)
-    : 0;
+  const airtimeProgress =
+    myStateTarget.airtimeGoal > 0
+      ? Math.min(
+          Math.round(((myStateTarget.airtimeSold || 0) / myStateTarget.airtimeGoal) * 100),
+          100
+        )
+      : 0;
 
   if (loading) {
     return (
@@ -656,26 +778,39 @@ const LeaderDashboard = ({ navigation }) => {
 
       {/* TOP COMMAND BAR */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.menuIconBtn} onPress={() => toggleSidebar(true)} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.menuIconBtn}
+          onPress={() => toggleSidebar(true)}
+          activeOpacity={0.7}
+        >
           <Feather name="menu" size={24} color="#ffffff" />
         </TouchableOpacity>
 
         <View style={styles.topBrandGroup}>
           <View style={styles.stateBadge}>
             <View style={styles.livePulseDot} />
-            <Text style={styles.stateBadgeText}>{managerState.toUpperCase()} STATE MANAGER (SM)</Text>
+            <Text style={styles.stateBadgeText}>
+              {managerState.toUpperCase()} STATE MANAGER (SM)
+            </Text>
           </View>
           <Text style={styles.topBrandTitle}>{currentLgaList.length} LGAS COMMAND DESK</Text>
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
-          {/* TARGET PORTAL QUICK ACCESS ICON */}
           <TouchableOpacity
             style={[styles.avatarBtn, styles.targetQuickIconBtn, { marginRight: 8 }]}
             onPress={() => handleOpenSmartTargetPortal("supervisor")}
             activeOpacity={0.7}
           >
             <FontAwesome5 name="bullseye" size={16} color="#fbbf24" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.avatarBtn, { marginRight: 8 }]}
+            onPress={() => setTransferModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="account-switch" size={18} color="#38bdf8" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -694,7 +829,11 @@ const LeaderDashboard = ({ navigation }) => {
             <Ionicons name="megaphone-outline" size={16} color="#38bdf8" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.avatarBtn, styles.logoutIconBtn]} onPress={handleLogout} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={[styles.avatarBtn, styles.logoutIconBtn]}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
             <Feather name="log-out" size={16} color="#ef4444" />
           </TouchableOpacity>
         </View>
@@ -711,7 +850,12 @@ const LeaderDashboard = ({ navigation }) => {
             size={13}
             color={activeTab === "supervisors" ? "#1e40af" : "#64748b"}
           />
-          <Text style={[styles.mainNavTabText, activeTab === "supervisors" && styles.mainNavTabTextActive]}>
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeTab === "supervisors" && styles.mainNavTabTextActive,
+            ]}
+          >
             Supervisors ({filteredSupervisors.length})
           </Text>
         </TouchableOpacity>
@@ -725,7 +869,12 @@ const LeaderDashboard = ({ navigation }) => {
             size={16}
             color={activeTab === "agents" ? "#1e40af" : "#64748b"}
           />
-          <Text style={[styles.mainNavTabText, activeTab === "agents" && styles.mainNavTabTextActive]}>
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeTab === "agents" && styles.mainNavTabTextActive,
+            ]}
+          >
             Agents ({filteredAgents.length})
           </Text>
         </TouchableOpacity>
@@ -739,7 +888,9 @@ const LeaderDashboard = ({ navigation }) => {
             size={16}
             color={activeTab === "lgas" ? "#1e40af" : "#64748b"}
           />
-          <Text style={[styles.mainNavTabText, activeTab === "lgas" && styles.mainNavTabTextActive]}>
+          <Text
+            style={[styles.mainNavTabText, activeTab === "lgas" && styles.mainNavTabTextActive]}
+          >
             LGAs ({currentLgaList.length})
           </Text>
         </TouchableOpacity>
@@ -753,7 +904,12 @@ const LeaderDashboard = ({ navigation }) => {
             size={14}
             color={activeTab === "history" ? "#1e40af" : "#64748b"}
           />
-          <Text style={[styles.mainNavTabText, activeTab === "history" && styles.mainNavTabTextActive]}>
+          <Text
+            style={[
+              styles.mainNavTabText,
+              activeTab === "history" && styles.mainNavTabTextActive,
+            ]}
+          >
             Logs
           </Text>
         </TouchableOpacity>
@@ -769,13 +925,14 @@ const LeaderDashboard = ({ navigation }) => {
         }
       >
         <View style={styles.contentCenterWrapper}>
-          
-          {/* SECTION 1: STATE MANAGER'S TARGET OVERVIEW */}
+          {/* SECTION 1: STATE TARGET OVERVIEW */}
           <View style={styles.executiveTargetCardDark}>
             <View style={styles.execHeaderRowDark}>
               <View>
                 <Text style={styles.execBadgeTextDark}>OFFICIAL NSD STATE QUOTA ALLOCATION</Text>
-                <Text style={styles.execTitleTextDark}>{myStateTarget.currentMonth.toUpperCase()} TARGET MATRIX</Text>
+                <Text style={styles.execTitleTextDark}>
+                  {myStateTarget.currentMonth.toUpperCase()} TARGET MATRIX
+                </Text>
               </View>
               <TouchableOpacity
                 style={styles.autoSplitBadgeBtn}
@@ -788,31 +945,39 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.execMetricsGrid}>
-              {/* Data Target */}
               <View style={styles.execMetricBoxDark}>
                 <Text style={[styles.execMetricLabelDark, { color: "#38bdf8" }]}>DATA QUOTA (GB)</Text>
                 <Text style={styles.execMetricValueDark}>
                   {myStateTarget.dataSold} / {myStateTarget.dataGoal} GB
                 </Text>
                 <View style={styles.execProgressBarBgDark}>
-                  <View style={[styles.execProgressBarFill, { width: `${dataProgress}%`, backgroundColor: "#38bdf8" }]} />
+                  <View
+                    style={[
+                      styles.execProgressBarFill,
+                      { width: `${dataProgress}%`, backgroundColor: "#38bdf8" },
+                    ]}
+                  />
                 </View>
                 <Text style={styles.execPercentSubDark}>{dataProgress}% Completed</Text>
               </View>
 
-              {/* Airtime Target */}
               <View style={styles.execMetricBoxDark}>
                 <Text style={[styles.execMetricLabelDark, { color: "#fbbf24" }]}>AIRTIME SALES (₦)</Text>
                 <Text style={styles.execMetricValueDark}>
-                  ₦{Number(myStateTarget.airtimeSold).toLocaleString()} / ₦{Number(myStateTarget.airtimeGoal).toLocaleString()}
+                  ₦{Number(myStateTarget.airtimeSold).toLocaleString()} / ₦
+                  {Number(myStateTarget.airtimeGoal).toLocaleString()}
                 </Text>
                 <View style={styles.execProgressBarBgDark}>
-                  <View style={[styles.execProgressBarFill, { width: `${airtimeProgress}%`, backgroundColor: "#fbbf24" }]} />
+                  <View
+                    style={[
+                      styles.execProgressBarFill,
+                      { width: `${airtimeProgress}%`, backgroundColor: "#fbbf24" },
+                    ]}
+                  />
                 </View>
                 <Text style={styles.execPercentSubDark}>{airtimeProgress}% Completed</Text>
               </View>
 
-              {/* New Agents Goal */}
               <View style={styles.execMetricBoxDark}>
                 <Text style={[styles.execMetricLabelDark, { color: "#34d399" }]}>NEW AGENTS TARGET</Text>
                 <Text style={styles.execMetricValueDark}>
@@ -821,7 +986,6 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={styles.execPercentSubDark}>Registered Retail Outlets</Text>
               </View>
 
-              {/* New Supervisors Goal */}
               <View style={styles.execMetricBoxDark}>
                 <Text style={[styles.execMetricLabelDark, { color: "#2dd4bf" }]}>SUPERVISORS TARGET</Text>
                 <Text style={styles.execMetricValueDark}>
@@ -832,7 +996,7 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* SECTION 2: DIRECT TARGET COMMAND BANNER */}
+          {/* SECTION 2: TARGET COMMAND BANNER */}
           <View style={styles.targetCommandBanner}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={styles.targetBannerIconWrap}>
@@ -840,7 +1004,9 @@ const LeaderDashboard = ({ navigation }) => {
               </View>
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={styles.targetBannerTitle}>State Quota Command Desk</Text>
-                <Text style={styles.targetBannerSub}>System calculates & splits quota automatically to Supervisors and their child Agents</Text>
+                <Text style={styles.targetBannerSub}>
+                  System calculates & splits quota automatically to Supervisors and child Agents
+                </Text>
               </View>
             </View>
 
@@ -942,21 +1108,42 @@ const LeaderDashboard = ({ navigation }) => {
           {activeTab === "supervisors" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>FIELD SUPERVISORS DIRECTORY ({filteredSupervisors.length})</Text>
-                <TouchableOpacity style={styles.actionPillBtn} onPress={() => setEnrollModalVisible(true)}>
-                  <Ionicons name="person-add" size={13} color="#ffffff" />
-                  <Text style={styles.actionPillBtnText}>ENROLL FS</Text>
-                </TouchableOpacity>
+                <Text style={styles.sectionHeaderLabel}>
+                  FIELD SUPERVISORS DIRECTORY ({filteredSupervisors.length})
+                </Text>
+                <View style={{ flexDirection: "row" }}>
+                  <TouchableOpacity
+                    style={[styles.actionPillBtn, { marginRight: 6, backgroundColor: "#0284c7" }]}
+                    onPress={() => setTransferModalVisible(true)}
+                  >
+                    <MaterialCommunityIcons name="account-switch" size={13} color="#ffffff" />
+                    <Text style={styles.actionPillBtnText}>TRANSFER</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionPillBtn}
+                    onPress={() => setEnrollModalVisible(true)}
+                  >
+                    <Ionicons name="person-add" size={13} color="#ffffff" />
+                    <Text style={styles.actionPillBtnText}>ENROLL FS</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {filteredSupervisors.length > 0 ? (
                 filteredSupervisors.map((item) => {
                   const supId = item._id || item.id;
-                  const supName = item.name || `${item.firstName || ""} ${item.surname || ""}` || "Field Supervisor";
+                  const supName =
+                    item.name ||
+                    `${item.firstName || ""} ${item.surname || ""}`.trim() ||
+                    "Field Supervisor";
                   const supLga = item.lga || "Unassigned LGA";
                   const supPhone = item.phone || "No Phone";
                   const supEmail = item.email || `${supPhone}@ayaxdata.online`;
-                  const supRefCode = item.referralCode || item.referralId || `AYX-${supLga.toUpperCase()}-${supPhone.slice(-4)}`;
+                  const supRefCode =
+                    item.referralCode ||
+                    item.referralId ||
+                    `AYX-${supLga.toUpperCase()}-${supPhone.slice(-4)}`;
 
                   return (
                     <View key={supId} style={styles.supCard}>
@@ -971,16 +1158,19 @@ const LeaderDashboard = ({ navigation }) => {
                               📍 {supLga} LGA • 📞 {supPhone}
                             </Text>
                             <Text style={styles.supIdTagText}>
-                              🆔 Supervisor ID / Ref: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{supRefCode}</Text>
+                              🆔 Supervisor ID / Ref:{" "}
+                              <Text style={{ color: "#1e40af", fontWeight: "bold" }}>
+                                {supRefCode}
+                              </Text>
                             </Text>
-                            <Text style={styles.emailTagText}>
-                              ✉️ {supEmail}
-                            </Text>
+                            <Text style={styles.emailTagText}>✉️ {supEmail}</Text>
                           </View>
                         </View>
 
                         <TouchableOpacity
-                          onPress={() => handleToggleSupervisorStatus(supId, item.isSuspended, supName)}
+                          onPress={() =>
+                            handleToggleSupervisorStatus(supId, item.isSuspended, supName)
+                          }
                         >
                           <MaterialIcons
                             name={item.isSuspended ? "play-circle-filled" : "pause-circle-filled"}
@@ -1000,7 +1190,10 @@ const LeaderDashboard = ({ navigation }) => {
                         <View style={styles.summaryBox}>
                           <Text style={styles.summaryBoxLabel}>Airtime Target</Text>
                           <Text style={[styles.summaryBoxValue, { color: "#d97706" }]}>
-                            ₦{Number(item.targets?.airtimeGoal || item.airtimeGoal || 0).toLocaleString()}
+                            ₦
+                            {Number(
+                              item.targets?.airtimeGoal || item.airtimeGoal || 0
+                            ).toLocaleString()}
                           </Text>
                         </View>
                         <View style={styles.summaryBox}>
@@ -1018,21 +1211,47 @@ const LeaderDashboard = ({ navigation }) => {
                       </View>
 
                       <View style={styles.supActionRow}>
-                        {/* EDIT SUPERVISOR TARGET BUTTON */}
                         <TouchableOpacity
                           style={[styles.supActionBtn, styles.editTargetPillBtn]}
                           onPress={() => {
                             setTargetCategory("supervisor");
                             setTargetScope("selected");
                             setTargetSelectedPeopleIds([supId]);
-                            setTargetDataGoal(String(item.targets?.dataGoal || item.dataGoal || 500));
-                            setTargetAirtimeGoal(String(item.targets?.airtimeGoal || item.airtimeGoal || 50000));
-                            setTargetAgentGoal(String(item.targets?.agentGoal || item.agentGoal || 10));
+                            setTargetDataGoal(
+                              String(item.targets?.dataGoal || item.dataGoal || 500)
+                            );
+                            setTargetAirtimeGoal(
+                              String(item.targets?.airtimeGoal || item.airtimeGoal || 50000)
+                            );
+                            setTargetAgentGoal(
+                              String(item.targets?.agentGoal || item.agentGoal || 10)
+                            );
                             setTargetModalVisible(true);
                           }}
                         >
                           <FontAwesome5 name="edit" size={12} color="#1e40af" />
-                          <Text style={[styles.supActionBtnText, { color: "#1e40af", fontWeight: "800" }]}>Edit Target</Text>
+                          <Text
+                            style={[
+                              styles.supActionBtnText,
+                              { color: "#1e40af", fontWeight: "800" },
+                            ]}
+                          >
+                            Edit Target
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.supActionBtn}
+                          onPress={() => {
+                            setTransferSourceSupId(supId);
+                            setTransferMode("bulk");
+                            setTransferModalVisible(true);
+                          }}
+                        >
+                          <MaterialCommunityIcons name="account-switch" size={14} color="#0284c7" />
+                          <Text style={[styles.supActionBtnText, { color: "#0284c7" }]}>
+                            Transfer Team
+                          </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1051,7 +1270,12 @@ const LeaderDashboard = ({ navigation }) => {
                           }}
                         >
                           <Feather name="users" size={12} color="#1e40af" />
-                          <Text style={[styles.supActionBtnText, { color: "#1e40af", fontWeight: "900" }]}>
+                          <Text
+                            style={[
+                              styles.supActionBtnText,
+                              { color: "#1e40af", fontWeight: "900" },
+                            ]}
+                          >
                             Inspect ({item.teamSize || item.agentsCount || 0})
                           </Text>
                         </TouchableOpacity>
@@ -1068,11 +1292,13 @@ const LeaderDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: AGENTS LIST (KOWANE AGENT DA CIKAKKEN BAYANIN SUPERVISOR DINSA DA ID DA NUMBER WAYA) */}
+          {/* TAB 2: AGENTS LIST */}
           {activeTab === "agents" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>GRASSROOT RETAIL AGENTS ({filteredAgents.length})</Text>
+                <Text style={styles.sectionHeaderLabel}>
+                  GRASSROOT RETAIL AGENTS ({filteredAgents.length})
+                </Text>
               </View>
 
               {filteredAgents.length > 0 ? (
@@ -1081,41 +1307,60 @@ const LeaderDashboard = ({ navigation }) => {
                   const agDataTarget = Number(ag.targets?.dataGoal || ag.dataGoal || 0);
                   const agAirTarget = Number(ag.targets?.airtimeGoal || ag.airtimeGoal || 0);
 
-                  // GANO CIKAKKEN SUPERVISOR DIN AGENT DIN DAGA ARRAY NA SUPERVISORS KO DAGA AGENT OBJECT
                   const matchedSup = supervisors.find(
                     (s) =>
-                      (s._id && (s._id === ag.assignedSupervisor || s._id === ag.assignedSupervisor?._id)) ||
-                      (s.id && (s.id === ag.assignedSupervisor || s.id === ag.assignedSupervisor?.id)) ||
-                      (s.referralCode && (s.referralCode === ag.referredBy || s.referralCode === ag.supervisorId)) ||
+                      (s._id &&
+                        (s._id === ag.assignedSupervisor ||
+                          s._id === ag.assignedSupervisor?._id)) ||
+                      (s.id &&
+                        (s.id === ag.assignedSupervisor ||
+                          s.id === ag.assignedSupervisor?.id)) ||
+                      (s.referralCode &&
+                        (s.referralCode === ag.referredBy ||
+                          s.referralCode === ag.supervisorId)) ||
                       (s.lga && ag.lga && s.lga.toLowerCase() === ag.lga.toLowerCase())
                   );
 
                   const supName =
                     ag.assignedSupervisorName ||
-                    (typeof ag.assignedSupervisor === "object" ? ag.assignedSupervisor?.name : null) ||
+                    (typeof ag.assignedSupervisor === "object"
+                      ? ag.assignedSupervisor?.name
+                      : null) ||
                     matchedSup?.name ||
-                    (matchedSup ? `${matchedSup.firstName || ""} ${matchedSup.surname || ""}`.trim() : null) ||
+                    (matchedSup
+                      ? `${matchedSup.firstName || ""} ${matchedSup.surname || ""}`.trim()
+                      : null) ||
                     "Assigned to LGA Lead";
 
                   const supPhone =
-                    (typeof ag.assignedSupervisor === "object" ? ag.assignedSupervisor?.phone : null) ||
+                    (typeof ag.assignedSupervisor === "object"
+                      ? ag.assignedSupervisor?.phone
+                      : null) ||
                     matchedSup?.phone ||
                     "N/A";
 
                   const supIdDisplay =
                     matchedSup?.referralCode ||
                     matchedSup?.referralId ||
-                    (typeof ag.assignedSupervisor === "object" ? ag.assignedSupervisor?._id : ag.assignedSupervisor) ||
+                    (typeof ag.assignedSupervisor === "object"
+                      ? ag.assignedSupervisor?._id
+                      : ag.assignedSupervisor) ||
                     ag.supervisorId ||
                     ag.referredBy ||
-                    (matchedSup ? `AYX-${String(matchedSup.lga || "LGA").toUpperCase()}-${String(supPhone).slice(-4)}` : "N/A");
+                    (matchedSup
+                      ? `AYX-${String(matchedSup.lga || "LGA").toUpperCase()}-${String(
+                          supPhone
+                        ).slice(-4)}`
+                      : "N/A");
 
                   return (
                     <View key={agId} style={styles.agentCard}>
                       <View style={styles.agentCardTop}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.agentNameText}>{ag.name || "Retail Agent"}</Text>
-                          <Text style={styles.agentLocationTag}>📍 {ag.lga || "LGA"} • 📞 {ag.phone || "No phone"}</Text>
+                          <Text style={styles.agentLocationTag}>
+                            📍 {ag.lga || "LGA"} • 📞 {ag.phone || "No phone"}
+                          </Text>
                           {ag.email ? (
                             <Text style={styles.emailTagText}>✉️ {ag.email}</Text>
                           ) : null}
@@ -1129,21 +1374,31 @@ const LeaderDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* CIKAKKEN BAYANIN SUPERVISOR NA KOWANE AGENT (SUNA, ID, DA NUMBER WAYA) */}
                       <View style={styles.agentSupervisorBanner}>
                         <View style={styles.agentSupBannerTop}>
                           <FontAwesome5 name="user-tie" size={12} color="#1e40af" />
                           <Text style={styles.agentSupLeadTitle}>FIELD SUPERVISOR DETAILS</Text>
                         </View>
                         <Text style={styles.agentSupDetailText}>
-                          👤 Name: <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supName}</Text>
+                          👤 Name:{" "}
+                          <Text style={{ color: "#0f172a", fontWeight: "700" }}>{supName}</Text>
                         </Text>
                         <Text style={styles.agentSupDetailText}>
-                          🆔 Supervisor ID / Ref: <Text style={{ color: "#1e40af", fontWeight: "700" }}>{supIdDisplay}</Text>
+                          🆔 Supervisor ID / Ref:{" "}
+                          <Text style={{ color: "#1e40af", fontWeight: "700" }}>
+                            {supIdDisplay}
+                          </Text>
                         </Text>
-                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
                           <Text style={styles.agentSupDetailText}>
-                            📞 Phone: <Text style={{ color: "#059669", fontWeight: "700" }}>{supPhone}</Text>
+                            📞 Phone:{" "}
+                            <Text style={{ color: "#059669", fontWeight: "700" }}>{supPhone}</Text>
                           </Text>
                           {supPhone !== "N/A" && (
                             <TouchableOpacity
@@ -1157,18 +1412,22 @@ const LeaderDashboard = ({ navigation }) => {
                         </View>
                       </View>
 
-                      {/* INDA SM KE GANIN TARGET DIN AGENT */}
                       <View style={styles.agentQuotaRow}>
                         <Text style={styles.agentQuotaText}>
-                          Data Target: <Text style={{ color: "#1e40af", fontWeight: "bold" }}>{agDataTarget} GB</Text>
+                          Data Target:{" "}
+                          <Text style={{ color: "#1e40af", fontWeight: "bold" }}>
+                            {agDataTarget} GB
+                          </Text>
                         </Text>
                         <Text style={styles.agentQuotaText}>
-                          Airtime Target: <Text style={{ color: "#d97706", fontWeight: "bold" }}>₦{agAirTarget.toLocaleString()}</Text>
+                          Airtime Target:{" "}
+                          <Text style={{ color: "#d97706", fontWeight: "bold" }}>
+                            ₦{agAirTarget.toLocaleString()}
+                          </Text>
                         </Text>
                       </View>
 
                       <View style={styles.agentCardBottom}>
-                        {/* BUTTON NA GYARA TARGET DIN AGENT GUDA DAYA A TAKE */}
                         <TouchableOpacity
                           style={[styles.agentActionMiniBtn, styles.editTargetPillBtn]}
                           onPress={() => {
@@ -1181,7 +1440,28 @@ const LeaderDashboard = ({ navigation }) => {
                           }}
                         >
                           <FontAwesome5 name="edit" size={11} color="#1e40af" />
-                          <Text style={[styles.agentActionMiniText, { color: "#1e40af", fontWeight: "800" }]}>Edit Target</Text>
+                          <Text
+                            style={[
+                              styles.agentActionMiniText,
+                              { color: "#1e40af", fontWeight: "800" },
+                            ]}
+                          >
+                            Edit Target
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={styles.agentActionMiniBtn}
+                          onPress={() => {
+                            setTransferSelectedAgentId(agId);
+                            setTransferMode("single");
+                            setTransferModalVisible(true);
+                          }}
+                        >
+                          <MaterialCommunityIcons name="account-switch" size={12} color="#0284c7" />
+                          <Text style={[styles.agentActionMiniText, { color: "#0284c7" }]}>
+                            Transfer
+                          </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1189,7 +1469,9 @@ const LeaderDashboard = ({ navigation }) => {
                           onPress={() => handleClearTarget(agId, "agent")}
                         >
                           <Feather name="trash-2" size={12} color="#dc2626" />
-                          <Text style={[styles.agentActionMiniText, { color: "#dc2626" }]}>Clear</Text>
+                          <Text style={[styles.agentActionMiniText, { color: "#dc2626" }]}>
+                            Clear
+                          </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -1215,8 +1497,13 @@ const LeaderDashboard = ({ navigation }) => {
           {activeTab === "lgas" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>LOCAL GOVERNMENTS DEPLOYMENT MATRIX</Text>
-                <TouchableOpacity style={styles.actionPillBtn} onPress={() => setEnrollModalVisible(true)}>
+                <Text style={styles.sectionHeaderLabel}>
+                  LOCAL GOVERNMENTS DEPLOYMENT MATRIX
+                </Text>
+                <TouchableOpacity
+                  style={styles.actionPillBtn}
+                  onPress={() => setEnrollModalVisible(true)}
+                >
                   <Ionicons name="person-add" size={13} color="#ffffff" />
                   <Text style={styles.actionPillBtnText}>ENROLL FS</Text>
                 </TouchableOpacity>
@@ -1230,7 +1517,11 @@ const LeaderDashboard = ({ navigation }) => {
                   const agentsInLga = agents.filter(
                     (a) => a.lga && a.lga.toLowerCase() === lgaName.toLowerCase()
                   );
-                  const totalLgaData = supsInLga.reduce((acc, curr) => acc + Number(curr.teamPerformance || curr.dataSold || 0), 0);
+                  const totalLgaData = supsInLga.reduce(
+                    (acc, curr) =>
+                      acc + Number(curr.teamPerformance || curr.dataSold || 0),
+                    0
+                  );
 
                   return (
                     <View key={lgaName} style={styles.lgaCard}>
@@ -1239,13 +1530,18 @@ const LeaderDashboard = ({ navigation }) => {
                         <View
                           style={[
                             styles.lgaStatusBadge,
-                            { backgroundColor: supsInLga.length > 0 ? "#ecfdf5" : "#fef2f2" },
+                            {
+                              backgroundColor:
+                                supsInLga.length > 0 ? "#ecfdf5" : "#fef2f2",
+                            },
                           ]}
                         >
                           <Text
                             style={[
                               styles.lgaStatusBadgeText,
-                              { color: supsInLga.length > 0 ? "#059669" : "#dc2626" },
+                              {
+                                color: supsInLga.length > 0 ? "#059669" : "#dc2626",
+                              },
                             ]}
                           >
                             {supsInLga.length} FS
@@ -1276,13 +1572,24 @@ const LeaderDashboard = ({ navigation }) => {
                             </TouchableOpacity>
 
                             <TouchableOpacity
-                              style={[styles.lgaAppointBtn, { flex: 1, marginLeft: 4, backgroundColor: "#f1f5f9" }]}
+                              style={[
+                                styles.lgaAppointBtn,
+                                {
+                                  flex: 1,
+                                  marginLeft: 4,
+                                  backgroundColor: "#f1f5f9",
+                                },
+                              ]}
                               onPress={() => {
                                 setNewSupLga(lgaName);
                                 setEnrollModalVisible(true);
                               }}
                             >
-                              <Text style={[styles.lgaAppointBtnText, { color: "#475569" }]}>+ Add FS</Text>
+                              <Text
+                                style={[styles.lgaAppointBtnText, { color: "#475569" }]}
+                              >
+                                + Add FS
+                              </Text>
                             </TouchableOpacity>
                           </View>
                         </>
@@ -1312,7 +1619,9 @@ const LeaderDashboard = ({ navigation }) => {
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>REAL-TIME FIELD OPERATIONS LOG</Text>
-                <Text style={{ color: "#059669", fontSize: 11, fontWeight: "bold" }}>LIVE STREAM</Text>
+                <Text style={{ color: "#059669", fontSize: 11, fontWeight: "bold" }}>
+                  LIVE STREAM
+                </Text>
               </View>
 
               {activityLogs.length > 0 ? (
@@ -1320,14 +1629,20 @@ const LeaderDashboard = ({ navigation }) => {
                   <View key={log._id || Math.random().toString()} style={styles.logCard}>
                     <View style={styles.logCardTop}>
                       <View style={styles.logCategoryBadge}>
-                        <Text style={styles.logCategoryText}>{log.category || "FIELD_ACTION"}</Text>
+                        <Text style={styles.logCategoryText}>
+                          {log.category || "FIELD_ACTION"}
+                        </Text>
                       </View>
                       <Text style={styles.logTimestamp}>
                         {log.createdAt ? new Date(log.createdAt).toLocaleTimeString() : "Live"}
                       </Text>
                     </View>
-                    <Text style={styles.logDetailsText}>{log.details || log.action || "Field operation recorded."}</Text>
-                    <Text style={styles.logActorText}>Actor: {log.user?.phone || log.actorRole || "State Desk"}</Text>
+                    <Text style={styles.logDetailsText}>
+                      {log.details || log.action || "Field operation recorded."}
+                    </Text>
+                    <Text style={styles.logActorText}>
+                      Actor: {log.user?.phone || log.actorRole || "State Desk"}
+                    </Text>
                   </View>
                 ))
               ) : (
@@ -1348,24 +1663,31 @@ const LeaderDashboard = ({ navigation }) => {
             }}
           >
             <MaterialIcons name="file-download" size={20} color="#ffffff" />
-            <Text style={styles.downloadReportBtnText}>GENERATE {managerState.toUpperCase()} AUDIT REPORT (CSV)</Text>
+            <Text style={styles.downloadReportBtnText}>
+              GENERATE {managerState.toUpperCase()} AUDIT REPORT (CSV)
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* =========================================================================
-          SMART TARGET PORTAL: AUTO-SPLIT DA MANUAL CUSTOMIZATION TABLE
-         ========================================================================= */}
+      {/* SMART TARGET PORTAL MODAL */}
       <Modal visible={targetPortalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { width: isLargeScreen ? "75%" : "96%", maxHeight: "92%" }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { width: isLargeScreen ? "75%" : "96%", maxHeight: "92%" },
+            ]}
+          >
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>
                   Auto-Split & Quota Adjustment ({splitMode.toUpperCase()}S)
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
-                  NSD State Pool: {myStateTarget.dataGoal} GB Data & ₦{Number(myStateTarget.airtimeGoal).toLocaleString()} Airtime ({allocatedList.length} staff)
+                  NSD State Pool: {myStateTarget.dataGoal} GB Data & ₦
+                  {Number(myStateTarget.airtimeGoal).toLocaleString()} Airtime (
+                  {allocatedList.length} staff)
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setTargetPortalVisible(false)}>
@@ -1383,7 +1705,6 @@ const LeaderDashboard = ({ navigation }) => {
                 </Text>
               </View>
 
-              {/* TABLE LIST OF RECIPIENTS */}
               {allocatedList.map((item, index) => (
                 <View key={item.id} style={styles.editableQuotaCard}>
                   <View style={styles.editableQuotaHeader}>
@@ -1392,7 +1713,10 @@ const LeaderDashboard = ({ navigation }) => {
                         {index + 1}. {item.name}
                       </Text>
                       <Text style={styles.editableQuotaLga}>
-                        📍 {item.lga} LGA • 📞 {item.phone} • ✉️ {item.email} {splitMode === "supervisor" ? `• (${item.childCount} Agents)` : ""}
+                        📍 {item.lga} LGA • 📞 {item.phone} • ✉️ {item.email}{" "}
+                        {splitMode === "supervisor"
+                          ? `• (${item.childCount} Agents)`
+                          : ""}
                       </Text>
                     </View>
                   </View>
@@ -1404,7 +1728,9 @@ const LeaderDashboard = ({ navigation }) => {
                         style={styles.tableInputBox}
                         keyboardType="numeric"
                         value={item.dataGoal}
-                        onChangeText={(val) => handleUpdateItemTarget(item.id, "dataGoal", val)}
+                        onChangeText={(val) =>
+                          handleUpdateItemTarget(item.id, "dataGoal", val)
+                        }
                       />
                     </View>
 
@@ -1414,7 +1740,9 @@ const LeaderDashboard = ({ navigation }) => {
                         style={styles.tableInputBox}
                         keyboardType="numeric"
                         value={item.airtimeGoal}
-                        onChangeText={(val) => handleUpdateItemTarget(item.id, "airtimeGoal", val)}
+                        onChangeText={(val) =>
+                          handleUpdateItemTarget(item.id, "airtimeGoal", val)
+                        }
                       />
                     </View>
 
@@ -1425,7 +1753,9 @@ const LeaderDashboard = ({ navigation }) => {
                           style={styles.tableInputBox}
                           keyboardType="numeric"
                           value={item.agentGoal}
-                          onChangeText={(val) => handleUpdateItemTarget(item.id, "agentGoal", val)}
+                          onChangeText={(val) =>
+                            handleUpdateItemTarget(item.id, "agentGoal", val)
+                          }
                         />
                       </View>
                     )}
@@ -1459,7 +1789,10 @@ const LeaderDashboard = ({ navigation }) => {
           onPress={() => toggleSidebar(false)}
         >
           <Animated.View
-            style={[styles.sidebarContainer, { width: sidebarWidth, transform: [{ translateX: sidebarAnim }] }]}
+            style={[
+              styles.sidebarContainer,
+              { width: sidebarWidth, transform: [{ translateX: sidebarAnim }] },
+            ]}
             onStartShouldSetResponder={() => true}
           >
             <View style={styles.sidebarHeader}>
@@ -1488,7 +1821,12 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
                   <FontAwesome5 name="user-tie" size={14} color="#1e40af" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "supervisors" && { color: "#1e40af", fontWeight: "900" }]}>
+                <Text
+                  style={[
+                    styles.navItemText,
+                    activeTab === "supervisors" && { color: "#1e40af", fontWeight: "900" },
+                  ]}
+                >
                   Field Supervisors (FS)
                 </Text>
               </TouchableOpacity>
@@ -1503,7 +1841,12 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "#ecfdf5" }]}>
                   <Ionicons name="people" size={16} color="#059669" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "agents" && { color: "#059669", fontWeight: "900" }]}>
+                <Text
+                  style={[
+                    styles.navItemText,
+                    activeTab === "agents" && { color: "#059669", fontWeight: "900" },
+                  ]}
+                >
                   Grassroot Agents
                 </Text>
               </TouchableOpacity>
@@ -1518,7 +1861,12 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
                   <MaterialCommunityIcons name="map-marker-radius" size={16} color="#1e40af" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "lgas" && { color: "#1e40af", fontWeight: "900" }]}>
+                <Text
+                  style={[
+                    styles.navItemText,
+                    activeTab === "lgas" && { color: "#1e40af", fontWeight: "900" },
+                  ]}
+                >
                   LGAs Matrix
                 </Text>
               </TouchableOpacity>
@@ -1533,12 +1881,30 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={[styles.navIconBox, { backgroundColor: "#fef3c7" }]}>
                   <Feather name="activity" size={15} color="#d97706" />
                 </View>
-                <Text style={[styles.navItemText, activeTab === "history" && { color: "#d97706", fontWeight: "900" }]}>
+                <Text
+                  style={[
+                    styles.navItemText,
+                    activeTab === "history" && { color: "#d97706", fontWeight: "900" },
+                  ]}
+                >
                   Audit Live Stream
                 </Text>
               </TouchableOpacity>
 
               <Text style={styles.sidebarCategory}>COMMAND ACTIONS</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setTransferModalVisible(true);
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "#e0f2fe" }]}>
+                  <MaterialCommunityIcons name="account-switch" size={16} color="#0284c7" />
+                </View>
+                <Text style={styles.navItemText}>Reassign Agents (Transfer)</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -1604,14 +1970,20 @@ const LeaderDashboard = ({ navigation }) => {
       {/* MODAL 1: INSPECTION MODAL */}
       <Modal visible={inspectModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { maxHeight: "88%", width: isLargeScreen ? "60%" : "95%" }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { maxHeight: "88%", width: isLargeScreen ? "60%" : "95%" },
+            ]}
+          >
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>
                   {selectedSupervisor?.name?.toUpperCase()} ({selectedSupervisor?.lga} LGA)
                 </Text>
                 <Text style={styles.modalCardSubtitle}>
-                  Supervisor Contact: {selectedSupervisor?.phone} • ✉️ {selectedSupervisor?.email || "N/A"}
+                  Supervisor Contact: {selectedSupervisor?.phone} • ✉️{" "}
+                  {selectedSupervisor?.email || "N/A"}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setInspectModalVisible(false)}>
@@ -1629,7 +2001,10 @@ const LeaderDashboard = ({ navigation }) => {
                 <View style={styles.inspectBannerBox}>
                   <Text style={styles.inspectBannerLabel}>Data Delivered</Text>
                   <Text style={[styles.inspectBannerValue, { color: "#059669" }]}>
-                    {selectedSupervisor?.teamPerformance || selectedSupervisor?.dataSold || 0} GB
+                    {selectedSupervisor?.teamPerformance ||
+                      selectedSupervisor?.dataSold ||
+                      0}{" "}
+                    GB
                   </Text>
                 </View>
                 <View style={styles.inspectBannerDivider} />
@@ -1650,9 +2025,12 @@ const LeaderDashboard = ({ navigation }) => {
                   <View key={ag._id || ag.id} style={styles.inspectAgentCard}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.inspectAgentName}>{ag.name}</Text>
-                      <Text style={styles.inspectAgentPhone}>📞 {ag.phone || "N/A"} • ✉️ {ag.email || "N/A"}</Text>
+                      <Text style={styles.inspectAgentPhone}>
+                        📞 {ag.phone || "N/A"} • ✉️ {ag.email || "N/A"}
+                      </Text>
                       <Text style={styles.inspectAgentSales}>
-                        ₦{Number(ag.walletBalance || ag.balance || 0).toLocaleString()} Float • {ag.dataVolumeSold || 0} GB Sold
+                        ₦{Number(ag.walletBalance || ag.balance || 0).toLocaleString()} Float •{" "}
+                        {ag.dataVolumeSold || 0} GB Sold
                       </Text>
                     </View>
                     <TouchableOpacity
@@ -1677,7 +2055,12 @@ const LeaderDashboard = ({ navigation }) => {
       {/* MODAL 2: ADVANCED TARGET DEPLOYMENT */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
+          <View
+            style={[
+              styles.modalCard,
+              { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" },
+            ]}
+          >
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Deploy Custom Targets</Text>
@@ -1694,40 +2077,76 @@ const LeaderDashboard = ({ navigation }) => {
               <Text style={styles.formFieldLabel}>1. SELECT TARGET CATEGORY</Text>
               <View style={styles.toggleSegmentRow}>
                 <TouchableOpacity
-                  style={[styles.toggleSegmentBtn, targetCategory === "supervisor" && styles.toggleSegmentBtnActive]}
+                  style={[
+                    styles.toggleSegmentBtn,
+                    targetCategory === "supervisor" && styles.toggleSegmentBtnActive,
+                  ]}
                   onPress={() => {
                     setTargetCategory("supervisor");
                     setTargetSelectedPeopleIds([]);
                   }}
                 >
-                  <FontAwesome5 name="user-tie" size={12} color={targetCategory === "supervisor" ? "#ffffff" : "#64748b"} />
-                  <Text style={[styles.toggleSegmentText, targetCategory === "supervisor" && styles.toggleSegmentTextActive]}>
+                  <FontAwesome5
+                    name="user-tie"
+                    size={12}
+                    color={targetCategory === "supervisor" ? "#ffffff" : "#64748b"}
+                  />
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      targetCategory === "supervisor" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
                     Supervisors ({supervisors.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.toggleSegmentBtn, targetCategory === "agent" && styles.toggleSegmentBtnActive]}
+                  style={[
+                    styles.toggleSegmentBtn,
+                    targetCategory === "agent" && styles.toggleSegmentBtnActive,
+                  ]}
                   onPress={() => {
                     setTargetCategory("agent");
                     setTargetSelectedPeopleIds([]);
                   }}
                 >
-                  <Ionicons name="people" size={14} color={targetCategory === "agent" ? "#ffffff" : "#64748b"} />
-                  <Text style={[styles.toggleSegmentText, targetCategory === "agent" && styles.toggleSegmentTextActive]}>
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={targetCategory === "agent" ? "#ffffff" : "#64748b"}
+                  />
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      targetCategory === "agent" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
                     Agents ({agents.length})
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.toggleSegmentBtn, targetCategory === "lga" && styles.toggleSegmentBtnActive]}
+                  style={[
+                    styles.toggleSegmentBtn,
+                    targetCategory === "lga" && styles.toggleSegmentBtnActive,
+                  ]}
                   onPress={() => {
                     setTargetCategory("lga");
                     setTargetSelectedLgas([]);
                   }}
                 >
-                  <MaterialCommunityIcons name="map-marker-radius" size={14} color={targetCategory === "lga" ? "#ffffff" : "#64748b"} />
-                  <Text style={[styles.toggleSegmentText, targetCategory === "lga" && styles.toggleSegmentTextActive]}>
+                  <MaterialCommunityIcons
+                    name="map-marker-radius"
+                    size={14}
+                    color={targetCategory === "lga" ? "#ffffff" : "#64748b"}
+                  />
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      targetCategory === "lga" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
                     LGAs ({currentLgaList.length})
                   </Text>
                 </TouchableOpacity>
@@ -1736,39 +2155,59 @@ const LeaderDashboard = ({ navigation }) => {
               <Text style={styles.formFieldLabel}>2. SELECT SCOPE (RECIPIENTS)</Text>
               <View style={styles.toggleSegmentRow}>
                 <TouchableOpacity
-                  style={[styles.toggleSegmentBtn, targetScope === "selected" && styles.toggleSegmentBtnActive]}
+                  style={[
+                    styles.toggleSegmentBtn,
+                    targetScope === "selected" && styles.toggleSegmentBtnActive,
+                  ]}
                   onPress={() => setTargetScope("selected")}
                 >
-                  <Text style={[styles.toggleSegmentText, targetScope === "selected" && styles.toggleSegmentTextActive]}>
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      targetScope === "selected" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
                     Select Specific Recipients
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.toggleSegmentBtn, targetScope === "all" && styles.toggleSegmentBtnActive]}
+                  style={[
+                    styles.toggleSegmentBtn,
+                    targetScope === "all" && styles.toggleSegmentBtnActive,
+                  ]}
                   onPress={() => {
                     setTargetScope("all");
-                    if (targetCategory === "supervisor") setTargetSelectedPeopleIds(supervisors.map((s) => s._id || s.id));
-                    if (targetCategory === "agent") setTargetSelectedPeopleIds(agents.map((a) => a._id || a.id));
-                    if (targetCategory === "lga") setTargetSelectedLgas([...currentLgaList]);
+                    if (targetCategory === "supervisor")
+                      setTargetSelectedPeopleIds(supervisors.map((s) => s._id || s.id));
+                    if (targetCategory === "agent")
+                      setTargetSelectedPeopleIds(agents.map((a) => a._id || a.id));
+                    if (targetCategory === "lga")
+                      setTargetSelectedLgas([...currentLgaList]);
                   }}
                 >
-                  <Text style={[styles.toggleSegmentText, targetScope === "all" && styles.toggleSegmentTextActive]}>
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      targetScope === "all" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
                     Select All in State
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              {/* CHECKBOX LIST FOR SUPERVISORS OR AGENTS MULTI-SELECT */}
               {targetScope === "selected" && targetCategory !== "lga" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
                     <Text style={styles.selectionListHeaderTitle}>
-                      {targetCategory === "supervisor" ? "Select Supervisors" : "Select Agents"} ({targetSelectedPeopleIds.length} chosen)
+                      {targetCategory === "supervisor" ? "Select Supervisors" : "Select Agents"} (
+                      {targetSelectedPeopleIds.length} chosen)
                     </Text>
                     <TouchableOpacity onPress={handleSelectAllModalPeople}>
                       <Text style={styles.selectionListSelectAllText}>
-                        {targetSelectedPeopleIds.length === (targetCategory === "supervisor" ? supervisors.length : agents.length)
+                        {targetSelectedPeopleIds.length ===
+                        (targetCategory === "supervisor" ? supervisors.length : agents.length)
                           ? "Deselect All"
                           : "Select All"}
                       </Text>
@@ -1778,13 +2217,17 @@ const LeaderDashboard = ({ navigation }) => {
                   <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                     {(targetCategory === "supervisor" ? supervisors : agents).map((item) => {
                       const id = item._id || item.id;
-                      const name = item.name || `${item.firstName || ""} ${item.surname || ""}` || "User";
+                      const name =
+                        item.name || `${item.firstName || ""} ${item.surname || ""}` || "User";
                       const isChecked = targetSelectedPeopleIds.includes(id);
 
                       return (
                         <TouchableOpacity
                           key={id}
-                          style={[styles.personCheckItem, isChecked && styles.personCheckItemActive]}
+                          style={[
+                            styles.personCheckItem,
+                            isChecked && styles.personCheckItemActive,
+                          ]}
                           onPress={() => handleToggleModalPerson(id)}
                         >
                           <MaterialIcons
@@ -1795,7 +2238,11 @@ const LeaderDashboard = ({ navigation }) => {
                           <View style={{ marginLeft: 8, flex: 1 }}>
                             <Text style={styles.personCheckName}>{name}</Text>
                             <Text style={styles.personCheckSub}>
-                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"} • ✉️ {item.email || "N/A"} {targetCategory === "agent" && item.assignedSupervisorName ? `• FS: ${item.assignedSupervisorName}` : ""}
+                              📍 {item.lga || "LGA"} • 📞 {item.phone || "No phone"} • ✉️{" "}
+                              {item.email || "N/A"}{" "}
+                              {targetCategory === "agent" && item.assignedSupervisorName
+                                ? `• FS: ${item.assignedSupervisorName}`
+                                : ""}
                             </Text>
                           </View>
                         </TouchableOpacity>
@@ -1805,7 +2252,6 @@ const LeaderDashboard = ({ navigation }) => {
                 </View>
               )}
 
-              {/* CHECKBOX LIST FOR SPECIFIC LGAS */}
               {targetCategory === "lga" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
@@ -1814,19 +2260,30 @@ const LeaderDashboard = ({ navigation }) => {
                     </Text>
                     <TouchableOpacity onPress={handleSelectAllModalLgas}>
                       <Text style={styles.selectionListSelectAllText}>
-                        {targetSelectedLgas.length === currentLgaList.length ? "Deselect All" : "Select All LGAs"}
+                        {targetSelectedLgas.length === currentLgaList.length
+                          ? "Deselect All"
+                          : "Select All LGAs"}
                       </Text>
                     </TouchableOpacity>
                   </View>
 
                   <ScrollView style={{ maxHeight: 160 }} nestedScrollEnabled>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        justifyContent: "space-between",
+                      }}
+                    >
                       {currentLgaList.map((lga) => {
                         const isChecked = targetSelectedLgas.includes(lga);
                         return (
                           <TouchableOpacity
                             key={lga}
-                            style={[styles.lgaCheckItem, isChecked && styles.lgaCheckItemActive]}
+                            style={[
+                              styles.lgaCheckItem,
+                              isChecked && styles.lgaCheckItemActive,
+                            ]}
                             onPress={() => handleToggleModalLga(lga)}
                           >
                             <MaterialIcons
@@ -1834,7 +2291,12 @@ const LeaderDashboard = ({ navigation }) => {
                               size={18}
                               color={isChecked ? "#1e40af" : "#94a3b8"}
                             />
-                            <Text style={[styles.lgaCheckText, isChecked && { color: "#1e40af", fontWeight: "bold" }]}>
+                            <Text
+                              style={[
+                                styles.lgaCheckText,
+                                isChecked && { color: "#1e40af", fontWeight: "bold" },
+                              ]}
+                            >
                               {lga}
                             </Text>
                           </TouchableOpacity>
@@ -1845,11 +2307,14 @@ const LeaderDashboard = ({ navigation }) => {
                 </View>
               )}
 
-              {/* STEP 3: QUOTA VALUES INPUTS */}
               <Text style={styles.formFieldLabel}>3. TARGET QUOTA GOALS</Text>
-              
+
               <Text style={styles.formFieldSubLabel}>TARGET MONTH / CYCLE</Text>
-              <TextInput style={styles.textInputStyle} value={targetMonth} onChangeText={setTargetMonth} />
+              <TextInput
+                style={styles.textInputStyle}
+                value={targetMonth}
+                onChangeText={setTargetMonth}
+              />
 
               <Text style={styles.formFieldSubLabel}>DATA VOLUME GOAL (GB)</Text>
               <TextInput
@@ -1873,7 +2338,9 @@ const LeaderDashboard = ({ navigation }) => {
 
               {targetCategory === "supervisor" && (
                 <>
-                  <Text style={styles.formFieldSubLabel}>NEW AGENTS RECRUITMENT GOAL (HEADCOUNT)</Text>
+                  <Text style={styles.formFieldSubLabel}>
+                    NEW AGENTS RECRUITMENT GOAL (HEADCOUNT)
+                  </Text>
                   <TextInput
                     style={styles.textInputStyle}
                     keyboardType="numeric"
@@ -1910,7 +2377,9 @@ const LeaderDashboard = ({ navigation }) => {
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Appoint Field Supervisor (FS)</Text>
-                <Text style={styles.modalCardSubtitle}>Create user profile & deploy LGA field coordinator</Text>
+                <Text style={styles.modalCardSubtitle}>
+                  Create user profile & deploy LGA field coordinator
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setEnrollModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748b" />
@@ -1919,14 +2388,23 @@ const LeaderDashboard = ({ navigation }) => {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.formFieldLabel}>SELECT LOCAL GOVERNMENT AREA (LGA)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginBottom: 10 }}
+              >
                 {currentLgaList.map((lga) => (
                   <TouchableOpacity
                     key={lga}
                     style={[styles.lgaTab, newSupLga === lga && styles.lgaTabActive]}
                     onPress={() => setNewSupLga(lga)}
                   >
-                    <Text style={[styles.lgaTabText, newSupLga === lga && styles.lgaTabTextActive]}>
+                    <Text
+                      style={[
+                        styles.lgaTabText,
+                        newSupLga === lga && styles.lgaTabTextActive,
+                      ]}
+                    >
                       {lga}
                     </Text>
                   </TouchableOpacity>
@@ -1952,7 +2430,9 @@ const LeaderDashboard = ({ navigation }) => {
                 onChangeText={setNewSupPhone}
               />
 
-              <Text style={styles.formFieldLabel}>EMAIL ADDRESS (FOR LOGIN & NOTIFICATIONS)</Text>
+              <Text style={styles.formFieldLabel}>
+                EMAIL ADDRESS (FOR LOGIN & NOTIFICATIONS)
+              </Text>
               <TextInput
                 style={styles.textInputStyle}
                 placeholder="e.g. supervisor@ayaxdata.online"
@@ -1980,7 +2460,9 @@ const LeaderDashboard = ({ navigation }) => {
                 {actionLoading ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <Text style={styles.primaryActionBtnText}>AUTHORIZE APPOINTMENT & CREATE ACCOUNT</Text>
+                  <Text style={styles.primaryActionBtnText}>
+                    AUTHORIZE APPOINTMENT & CREATE ACCOUNT
+                  </Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -1995,7 +2477,9 @@ const LeaderDashboard = ({ navigation }) => {
             <View style={styles.modalHeaderRow}>
               <View>
                 <Text style={styles.modalCardTitle}>Broadcast State Directive</Text>
-                <Text style={styles.modalCardSubtitle}>Push real-time alert across {managerState}</Text>
+                <Text style={styles.modalCardSubtitle}>
+                  Push real-time alert across {managerState}
+                </Text>
               </View>
               <TouchableOpacity onPress={() => setNotifModalVisible(false)}>
                 <Ionicons name="close" size={24} color="#64748b" />
@@ -2032,6 +2516,120 @@ const LeaderDashboard = ({ navigation }) => {
                 <Text style={styles.primaryActionBtnText}>DISPATCH DIRECTIVE</Text>
               )}
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 5: INTEGRATED AGENT REASSIGNMENT (TRANSFER) */}
+      <Modal visible={transferModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Reassign Agent Network</Text>
+                <Text style={styles.modalCardSubtitle}>
+                  Transfer agents to a new active supervisor in {managerState}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setTransferModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.toggleSegmentRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSegmentBtn,
+                    transferMode === "bulk" && styles.toggleSegmentBtnActive,
+                  ]}
+                  onPress={() => setTransferMode("bulk")}
+                >
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      transferMode === "bulk" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
+                    Transfer Entire Team (Bulk)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toggleSegmentBtn,
+                    transferMode === "single" && styles.toggleSegmentBtnActive,
+                  ]}
+                  onPress={() => setTransferMode("single")}
+                >
+                  <Text
+                    style={[
+                      styles.toggleSegmentText,
+                      transferMode === "single" && styles.toggleSegmentTextActive,
+                    ]}
+                  >
+                    Single Agent
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {transferMode === "bulk" ? (
+                <>
+                  <Text style={styles.formFieldLabel}>SOURCE SUPERVISOR (CURRENT)</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="Enter current/suspended supervisor ID"
+                    placeholderTextColor="#94a3b8"
+                    value={transferSourceSupId}
+                    onChangeText={setTransferSourceSupId}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.formFieldLabel}>SELECT AGENT ID</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="Enter agent ID to reassign"
+                    placeholderTextColor="#94a3b8"
+                    value={transferSelectedAgentId}
+                    onChangeText={setTransferSelectedAgentId}
+                  />
+                </>
+              )}
+
+              <Text style={styles.formFieldLabel}>DESTINATION SUPERVISOR (NEW LEAD)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="Enter new supervisor ID"
+                placeholderTextColor="#94a3b8"
+                value={transferTargetSupId}
+                onChangeText={setTransferTargetSupId}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleExecuteAgentTransfer}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialCommunityIcons
+                      name="account-switch"
+                      size={18}
+                      color="#ffffff"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.primaryActionBtnText}>
+                      {transferMode === "bulk"
+                        ? "REASSIGN ENTIRE TEAM NOW"
+                        : "REASSIGN SINGLE AGENT NOW"}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -2356,7 +2954,6 @@ const styles = StyleSheet.create({
   agentSalesText: { color: "#059669", fontSize: 14, fontWeight: "900" },
   agentSalesSub: { color: "#94a3b8", fontSize: 9.5 },
 
-  // CIKAKKEN SUPERVISOR BANNER A CIKIN KATIN AGENT
   agentSupervisorBanner: {
     backgroundColor: "#eff6ff",
     borderRadius: 8,
@@ -2493,7 +3090,6 @@ const styles = StyleSheet.create({
   },
   emptyFeedText: { color: "#94a3b8", fontSize: 12, marginTop: 10, textAlign: "center" },
 
-  // Auto Split Table Styles
   splitInstructionBanner: {
     flexDirection: "row",
     alignItems: "center",

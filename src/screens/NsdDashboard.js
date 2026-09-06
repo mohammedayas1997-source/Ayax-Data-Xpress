@@ -42,15 +42,19 @@ const NsdDashboard = ({ navigation }) => {
     nationalAirtimeSold: 0,
   });
   const [activityLogs, setActivityLogs] = useState([]);
+  const [failedRefundableList, setFailedRefundableList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Tabs & Search
-  const [activeTab, setActiveTab] = useState("states");
+  const [activeTab, setActiveTab] = useState("states"); // 'states' | 'managers' | 'refunds' | 'history'
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Selective State Selection Array (Dukkan Jihohi 36)
+  // Selective State Selection Array (36 States + FCT)
   const [selectedStateNames, setSelectedStateNames] = useState([]);
+
+  // Batch Refund Selection IDs
+  const [selectedRefundIds, setSelectedRefundIds] = useState([]);
 
   // Sidebar Drawer
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -63,9 +67,9 @@ const NsdDashboard = ({ navigation }) => {
   const [inspectedSupervisors, setInspectedSupervisors] = useState([]);
   const [inspectLoading, setInspectLoading] = useState(false);
 
-  // Modal 2: Target Deployment Modal (Single, Selected Few, or All 36 States)
+  // Modal 2: Target Deployment Modal
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [targetMode, setTargetMode] = useState("single"); // 'single' | 'selected' | 'all'
+  const [targetMode, setTargetMode] = useState("single");
   const [targetStateItem, setTargetStateItem] = useState(null);
   const [targetDataGoal, setTargetDataGoal] = useState("10000");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("500000");
@@ -73,7 +77,7 @@ const NsdDashboard = ({ navigation }) => {
   const [targetNewSupervisorGoal, setTargetNewSupervisorGoal] = useState("10");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  // Modal 3: Appoint State Manager (With Email & Credentials)
+  // Modal 3: Appoint State Manager
   const [appointModalVisible, setAppointModalVisible] = useState(false);
   const [newSmName, setNewSmName] = useState("");
   const [newSmPhone, setNewSmPhone] = useState("");
@@ -86,6 +90,21 @@ const NsdDashboard = ({ navigation }) => {
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Modal 5: Reassign / Agent Team Transfer
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [transferMode, setTransferMode] = useState("bulk"); // 'bulk' | 'single'
+  const [oldSupervisorId, setOldSupervisorId] = useState("");
+  const [newSupervisorId, setNewSupervisorId] = useState("");
+  const [transferAgentId, setTransferAgentId] = useState("");
+
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -100,7 +119,9 @@ const NsdDashboard = ({ navigation }) => {
         toValue: -sidebarWidth,
         duration: 220,
         useNativeDriver: false,
-      }).start(() => setSidebarOpen(false));
+      }).start(() => {
+        if (isMounted.current) setSidebarOpen(false);
+      });
     }
   };
 
@@ -112,49 +133,75 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  const fetchNationalTelemetry = useCallback(async (isBackground = false) => {
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      if (!token) {
-        if (!isBackground) navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
-        return;
+  const fetchNationalTelemetry = useCallback(
+    async (isBackground = false) => {
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        if (!token) {
+          if (!isBackground) navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+          return;
+        }
+
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const [dashRes, logsRes, refundsRes] = await Promise.all([
+          axios
+            .get(`${BASE_URL}/super-leader/dashboard`, { headers, timeout: 15000 })
+            .catch(() => ({ data: {} })),
+          axios
+            .get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 })
+            .catch(() => ({ data: { logs: [] } })),
+          axios
+            .get(`${BASE_URL}/super-leader/pending-refunds`, { headers, timeout: 15000 })
+            .catch(() => ({ data: { refunds: [] } })),
+        ]);
+
+        const dashData = dashRes.data?.data || dashRes.data || {};
+        const fetchedStates = Array.isArray(dashData.statesMatrix) ? dashData.statesMatrix : [];
+        const fetchedStats = dashData.nationalStats || {};
+        const fetchedLogs = Array.isArray(logsRes.data?.logs) ? logsRes.data.logs : [];
+        const fetchedRefunds = Array.isArray(refundsRes.data?.refunds)
+          ? refundsRes.data.refunds
+          : Array.isArray(dashData.pendingRefunds)
+          ? dashData.pendingRefunds
+          : [];
+
+        if (!isMounted.current) return;
+
+        setStatesData(fetchedStates);
+        setActivityLogs(fetchedLogs);
+        setFailedRefundableList(fetchedRefunds);
+
+        const calculatedTotalAgents = fetchedStates.reduce(
+          (acc, curr) => acc + (Number(curr.agentsCount) || 0),
+          0
+        );
+        const calculatedTotalSupervisors = fetchedStates.reduce(
+          (acc, curr) => acc + (Number(curr.supervisorsCount) || 0),
+          0
+        );
+
+        setNationalStats({
+          totalStates: ALL_NIGERIAN_STATES.length,
+          activeManagers: fetchedStates.filter((s) => s.hasLeader || s.leaderId).length,
+          totalSupervisors: fetchedStats.totalSupervisors || calculatedTotalSupervisors || 0,
+          totalAgents: fetchedStats.totalAgents || calculatedTotalAgents || 0,
+          nationalVolumeSold: fetchedStats.nationalVolumeSold || 0,
+          nationalAirtimeSold: fetchedStats.nationalAirtimeSold || 0,
+        });
+      } catch (error) {
+        if (!isBackground) {
+          console.error("NSD Telemetry Sync Error:", error.message);
+        }
+      } finally {
+        if (isMounted.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
-
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [dashRes, logsRes] = await Promise.all([
-        axios.get(`${BASE_URL}/super-leader/dashboard`, { headers, timeout: 15000 }).catch(() => ({ data: {} })),
-        axios.get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 }).catch(() => ({ data: { logs: [] } })),
-      ]);
-
-      const dashData = dashRes.data?.data || dashRes.data || {};
-      const fetchedStates = dashData.statesMatrix || [];
-      const fetchedStats = dashData.nationalStats || {};
-      const fetchedLogs = logsRes.data?.logs || [];
-
-      setStatesData(fetchedStates);
-      setActivityLogs(fetchedLogs);
-
-      const calculatedTotalAgents = fetchedStates.reduce((acc, curr) => acc + (Number(curr.agentsCount) || 0), 0);
-      const calculatedTotalSupervisors = fetchedStates.reduce((acc, curr) => acc + (Number(curr.supervisorsCount) || 0), 0);
-
-      setNationalStats({
-        totalStates: ALL_NIGERIAN_STATES.length,
-        activeManagers: fetchedStates.filter((s) => s.hasLeader || s.leaderId).length,
-        totalSupervisors: fetchedStats.totalSupervisors || calculatedTotalSupervisors || 0,
-        totalAgents: fetchedStats.totalAgents || calculatedTotalAgents || 0,
-        nationalVolumeSold: fetchedStats.nationalVolumeSold || 0,
-        nationalAirtimeSold: fetchedStats.nationalAirtimeSold || 0,
-      });
-    } catch (error) {
-      if (!isBackground) {
-        console.error("NSD Telemetry Sync Error:", error.message);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [navigation]);
+    },
+    [navigation]
+  );
 
   useEffect(() => {
     fetchNationalTelemetry();
@@ -187,7 +234,7 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // Select / Deselect Dukkan Jihohi 36
+  // State Selection Handlers
   const handleSelectAllStates = () => {
     if (selectedStateNames.length === ALL_NIGERIAN_STATES.length) {
       setSelectedStateNames([]);
@@ -196,12 +243,125 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // Toggle Selection don Jiha guda daya
   const handleToggleStateSelect = (stateName) => {
     if (selectedStateNames.includes(stateName)) {
       setSelectedStateNames(selectedStateNames.filter((s) => s !== stateName));
     } else {
       setSelectedStateNames([...selectedStateNames, stateName]);
+    }
+  };
+
+  // Refund Selection Handlers (SELECT ALL)
+  const handleSelectAllRefunds = () => {
+    if (selectedRefundIds.length === failedRefundableList.length && failedRefundableList.length > 0) {
+      setSelectedRefundIds([]);
+    } else {
+      setSelectedRefundIds(failedRefundableList.map((item) => item._id || item.id));
+    }
+  };
+
+  const handleToggleRefundSelect = (id) => {
+    if (selectedRefundIds.includes(id)) {
+      setSelectedRefundIds(selectedRefundIds.filter((item) => item !== id));
+    } else {
+      setSelectedRefundIds([...selectedRefundIds, id]);
+    }
+  };
+
+  // Execute Batch Refunds
+  const handleExecuteBatchRefund = async () => {
+    if (selectedRefundIds.length === 0) {
+      showAlert("Validation Notice", "Please select at least one item to refund.");
+      return;
+    }
+
+    const confirmAction = async () => {
+      setActionLoading(true);
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+        const res = await axios.post(
+          `${BASE_URL}/super-leader/process-batch-refund`,
+          { transactionIds: selectedRefundIds },
+          { headers }
+        );
+
+        if (res.data?.success) {
+          showAlert(
+            "Refund Successful",
+            res.data.message || `Processed refund for ${selectedRefundIds.length} transactions.`
+          );
+          setSelectedRefundIds([]);
+          fetchNationalTelemetry();
+        } else {
+          showAlert("Notice", res.data?.message || "Refunds completed with notices.");
+        }
+      } catch (err) {
+        showAlert("Error", err.response?.data?.message || err.message || "Could not process batch refund.");
+      } finally {
+        if (isMounted.current) setActionLoading(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Authorize refund for ${selectedRefundIds.length} selected accounts?`)) {
+        confirmAction();
+      }
+    } else {
+      Alert.alert(
+        "Confirm Batch Refund",
+        `Authorize immediate refund for ${selectedRefundIds.length} selected accounts?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Proceed", style: "destructive", onPress: confirmAction },
+        ]
+      );
+    }
+  };
+
+  // Agent Team Reassignment (Transfer)
+  const handleExecuteTransfer = async () => {
+    if (!newSupervisorId.trim()) {
+      return showAlert("Validation Error", "Destination Supervisor ID is required.");
+    }
+    if (transferMode === "bulk" && !oldSupervisorId.trim()) {
+      return showAlert("Validation Error", "Current/Suspended Supervisor ID is required.");
+    }
+    if (transferMode === "single" && !transferAgentId.trim()) {
+      return showAlert("Validation Error", "Agent ID is required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const endpoint =
+        transferMode === "bulk"
+          ? `${BASE_URL}/supervisors/transfer-all-agents`
+          : `${BASE_URL}/supervisors/transfer-single-agent`;
+
+      const payload =
+        transferMode === "bulk"
+          ? { oldSupervisorId: oldSupervisorId.trim(), newSupervisorId: newSupervisorId.trim() }
+          : { agentId: transferAgentId.trim(), newSupervisorId: newSupervisorId.trim() };
+
+      const res = await axios.post(endpoint, payload, { headers });
+
+      if (res.data?.success) {
+        showAlert("Transfer Successful", res.data.message || "Agent reassignment successful.");
+        setTransferModalVisible(false);
+        setOldSupervisorId("");
+        setNewSupervisorId("");
+        setTransferAgentId("");
+        fetchNationalTelemetry();
+      } else {
+        showAlert("Failed", res.data?.message || "Could not reassign team.");
+      }
+    } catch (err) {
+      showAlert("Transfer Error", err.response?.data?.message || err.message);
+    } finally {
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -220,11 +380,11 @@ const NsdDashboard = ({ navigation }) => {
       );
 
       const stateSupervisors = res.data?.data?.supervisors || res.data?.supervisors || [];
-      setInspectedSupervisors(stateSupervisors);
+      if (isMounted.current) setInspectedSupervisors(stateSupervisors);
     } catch (err) {
-      setInspectedSupervisors([]);
+      if (isMounted.current) setInspectedSupervisors([]);
     } finally {
-      setInspectLoading(false);
+      if (isMounted.current) setInspectLoading(false);
     }
   };
 
@@ -268,7 +428,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // Deploy Target (Single State, Selected States, or All 36 States)
   const handleDeployNationalTarget = async () => {
     setActionLoading(true);
     try {
@@ -308,14 +467,18 @@ const NsdDashboard = ({ navigation }) => {
       const res = await axios.post(`${BASE_URL}/super-leader/assign-target`, payload, { headers });
 
       if (res.data?.success || res.status === 200) {
-        const targetDesc = `${targetDataGoal}GB Data, ₦${Number(targetAirtimeGoal).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors`;
-        
+        const targetDesc = `${targetDataGoal}GB Data, ₦${Number(
+          targetAirtimeGoal
+        ).toLocaleString()} Airtime, ${targetNewAgentGoal} New Agents, & ${targetNewSupervisorGoal} New Supervisors`;
+
         showAlert(
           "Targets Deployed 🎯",
           targetMode === "single"
             ? `Allocated target (${targetDesc}) to ${targetStateItem?.state} State Manager.`
             : targetMode === "selected"
-            ? `Allocated custom target (${targetDesc}) to ${selectedStateNames.length} selected States (${selectedStateNames.join(", ")}).`
+            ? `Allocated custom target (${targetDesc}) to ${selectedStateNames.length} selected States (${selectedStateNames.join(
+                ", "
+              )}).`
             : `Allocated target (${targetDesc}) across all 36 States & FCT.`
         );
 
@@ -327,7 +490,7 @@ const NsdDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Deployment Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -360,7 +523,8 @@ const NsdDashboard = ({ navigation }) => {
     };
 
     if (Platform.OS === "web") {
-      if (window.confirm(`Are you sure you want to clear target quotas for ${stateName} State?`)) confirmClear();
+      if (window.confirm(`Are you sure you want to clear target quotas for ${stateName} State?`))
+        confirmClear();
     } else {
       Alert.alert("Reset State Target", `Reset all target quotas for ${stateName} State to 0?`, [
         { text: "Cancel", style: "cancel" },
@@ -369,7 +533,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // APPOINT STATE MANAGER (SAVE EMAIL, PHONE, PASSWORD TO DATABASE)
   const handleAppointStateManager = async () => {
     if (!newSmName.trim() || !newSmPhone.trim() || !newSmState) {
       showAlert("Validation Error", "Full Name, Phone Number, and State are required.");
@@ -393,7 +556,10 @@ const NsdDashboard = ({ navigation }) => {
       );
 
       if (res.data?.success || res.status === 200) {
-        showAlert("Appointed 🎉", `${newSmName} has been created and appointed as State Manager for ${newSmState}. They can now log in using their credentials.`);
+        showAlert(
+          "Appointed 🎉",
+          `${newSmName} has been created and appointed as State Manager for ${newSmState}.`
+        );
         setAppointModalVisible(false);
         setNewSmName("");
         setNewSmPhone("");
@@ -404,7 +570,7 @@ const NsdDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -436,7 +602,7 @@ const NsdDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -479,6 +645,14 @@ const NsdDashboard = ({ navigation }) => {
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity
+            style={[styles.avatarBtn, { marginRight: 8 }]}
+            onPress={() => setTransferModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="account-switch" size={18} color="#38bdf8" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.avatarBtn, { marginRight: 8 }]}
             onPress={() => setAppointModalVisible(true)}
@@ -527,7 +701,21 @@ const NsdDashboard = ({ navigation }) => {
             color={activeTab === "managers" ? "#1e40af" : "#64748b"}
           />
           <Text style={[styles.mainNavTabText, activeTab === "managers" && styles.mainNavTabTextActive]}>
-            State Managers ({nationalStats.activeManagers})
+            Managers ({nationalStats.activeManagers})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainNavTab, activeTab === "refunds" && styles.mainNavTabActive]}
+          onPress={() => setActiveTab("refunds")}
+        >
+          <MaterialIcons
+            name="replay"
+            size={16}
+            color={activeTab === "refunds" ? "#1e40af" : "#64748b"}
+          />
+          <Text style={[styles.mainNavTabText, activeTab === "refunds" && styles.mainNavTabTextActive]}>
+            Batch Refunds ({failedRefundableList.length})
           </Text>
         </TouchableOpacity>
 
@@ -571,7 +759,6 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.targetBannerActionRow}>
-              {/* Deploy Targets to All 36 States */}
               <TouchableOpacity
                 style={styles.targetBannerBtnPrimary}
                 onPress={() => {
@@ -583,7 +770,6 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.targetBannerBtnTextPrimary}>DEPLOY TO ALL 36 STATES</Text>
               </TouchableOpacity>
 
-              {/* Deploy Targets to Selected States */}
               <TouchableOpacity
                 style={[
                   styles.targetBannerBtnSecondary,
@@ -613,9 +799,7 @@ const NsdDashboard = ({ navigation }) => {
             </View>
           </View>
 
-          {/* =========================================================================
-              NIGERIA EXECUTIVE TELEMETRY (DARK BLUE CARDS BACKGROUND)
-             ========================================================================= */}
+          {/* TELEMETRY SECTION */}
           <View style={styles.telemetrySection}>
             <View style={styles.sectionHeaderRow}>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -629,7 +813,6 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <View style={styles.metricGrid}>
-              {/* CARD 1: STATE MANAGERS */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>State Managers (SM)</Text>
@@ -643,7 +826,6 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>36 States & FCT Coverage</Text>
               </View>
 
-              {/* CARD 2: FIELD SUPERVISORS */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>Field Supervisors (FS)</Text>
@@ -655,7 +837,6 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>LGA Network Coordinators</Text>
               </View>
 
-              {/* CARD 3: TOTAL RETAIL AGENTS */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>Total Retail Agents</Text>
@@ -669,7 +850,6 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>Active Field Resellers</Text>
               </View>
 
-              {/* CARD 4: NATIONAL DATA VOLUME */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>National Data Sold</Text>
@@ -683,7 +863,6 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>Delivered Telecom Bundles</Text>
               </View>
 
-              {/* CARD 5: NATIONAL AIRTIME */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>National Airtime Sold</Text>
@@ -697,7 +876,6 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.metricSubDark}>Gross Recharge VTU Value</Text>
               </View>
 
-              {/* CARD 6: COVERAGE */}
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.metricLabelDark}>State Coverage Rate</Text>
@@ -733,7 +911,6 @@ const NsdDashboard = ({ navigation }) => {
           {/* TAB 1: 36 STATES GRID */}
           {activeTab === "states" && (
             <View style={styles.tabContentWrapper}>
-              {/* SELECTIVE ACTION RIBBON */}
               <View style={styles.bulkActionRibbon}>
                 <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllStates}>
                   <MaterialIcons
@@ -794,12 +971,8 @@ const NsdDashboard = ({ navigation }) => {
                   const isSelected = selectedStateNames.includes(st.state);
 
                   return (
-                    <View
-                      key={st.state}
-                      style={[styles.stateCard, isSelected && styles.cardSelected]}
-                    >
+                    <View key={st.state} style={[styles.stateCard, isSelected && styles.cardSelected]}>
                       <View style={styles.stateCardHeader}>
-                        {/* Checkbox for State Selection */}
                         <TouchableOpacity
                           style={{ marginRight: 6 }}
                           onPress={() => handleToggleStateSelect(st.state)}
@@ -829,10 +1002,10 @@ const NsdDashboard = ({ navigation }) => {
                               styles.stateStatusBadgeText,
                               {
                                 color: st.hasLeader
-                                ? st.isSuspended
-                                  ? "#dc2626"
-                                  : "#059669"
-                                : "#64748b",
+                                  ? st.isSuspended
+                                    ? "#dc2626"
+                                    : "#059669"
+                                  : "#64748b",
                               },
                             ]}
                           >
@@ -968,10 +1141,7 @@ const NsdDashboard = ({ navigation }) => {
                 const isSelected = selectedStateNames.includes(sm.state);
 
                 return (
-                  <View
-                    key={sm.state}
-                    style={[styles.managerCard, isSelected && styles.cardSelected]}
-                  >
+                  <View key={sm.state} style={[styles.managerCard, isSelected && styles.cardSelected]}>
                     <View style={styles.managerCardHeader}>
                       <TouchableOpacity
                         style={{ marginRight: 10 }}
@@ -1082,7 +1252,98 @@ const NsdDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 3: AUDIT STREAM */}
+          {/* TAB 3: BATCH REFUNDS MANAGEMENT */}
+          {activeTab === "refunds" && (
+            <View style={styles.tabContentWrapper}>
+              <View style={styles.bulkActionRibbon}>
+                <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllRefunds}>
+                  <MaterialIcons
+                    name={
+                      selectedRefundIds.length === failedRefundableList.length &&
+                      failedRefundableList.length > 0
+                        ? "check-box"
+                        : "check-box-outline-blank"
+                    }
+                    size={22}
+                    color="#1e40af"
+                  />
+                  <Text style={styles.bulkSelectBtnText}>
+                    {selectedRefundIds.length === failedRefundableList.length &&
+                    failedRefundableList.length > 0
+                      ? "Deselect All Transactions"
+                      : `Select All (${selectedRefundIds.length}/${failedRefundableList.length})`}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.bulkTargetBtn,
+                    { backgroundColor: selectedRefundIds.length > 0 ? "#dc2626" : "#cbd5e1" },
+                  ]}
+                  disabled={selectedRefundIds.length === 0 || actionLoading}
+                  onPress={handleExecuteBatchRefund}
+                >
+                  {actionLoading ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="replay" size={14} color="#ffffff" />
+                      <Text style={styles.bulkTargetBtnText}>
+                        Refund Selected ({selectedRefundIds.length})
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeaderLabel}>
+                  FAILED QUEUED TRANSACTIONS FOR REFUND ({failedRefundableList.length})
+                </Text>
+              </View>
+
+              {failedRefundableList.length > 0 ? (
+                failedRefundableList.map((item) => {
+                  const id = item._id || item.id;
+                  const isChecked = selectedRefundIds.includes(id);
+
+                  return (
+                    <TouchableOpacity
+                      key={id}
+                      style={[styles.refundCard, isChecked && styles.refundCardActive]}
+                      onPress={() => handleToggleRefundSelect(id)}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialIcons
+                        name={isChecked ? "check-box" : "check-box-outline-blank"}
+                        size={22}
+                        color={isChecked ? "#1e40af" : "#94a3b8"}
+                        style={{ marginRight: 10 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.refundUserText}>
+                          {item.user?.name || item.userName || "Customer Account"} • {item.user?.phone || item.phone || "No Phone"}
+                        </Text>
+                        <Text style={styles.refundServiceText}>
+                          {item.service || "Service Failure"}: ₦{Number(item.amount || 0).toLocaleString()}
+                        </Text>
+                        <Text style={styles.refundReasonText}>
+                          Reason: {item.reason || item.errorMessage || "Gateway timed out/failed."}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <View style={styles.emptyFeed}>
+                  <Ionicons name="checkmark-circle-outline" size={38} color="#059669" />
+                  <Text style={styles.emptyFeedText}>No failed transactions pending refund.</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* TAB 4: AUDIT STREAM */}
           {activeTab === "history" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -1130,11 +1391,7 @@ const NsdDashboard = ({ navigation }) => {
 
       {/* SIDEBAR DRAWER */}
       {sidebarOpen && (
-        <TouchableOpacity
-          style={styles.sidebarBackdrop}
-          activeOpacity={1}
-          onPress={() => toggleSidebar(false)}
-        >
+        <TouchableOpacity style={styles.sidebarBackdrop} activeOpacity={1} onPress={() => toggleSidebar(false)}>
           <Animated.View
             style={[styles.sidebarContainer, { width: sidebarWidth, transform: [{ translateX: sidebarAnim }] }]}
             onStartShouldSetResponder={() => true}
@@ -1186,6 +1443,21 @@ const NsdDashboard = ({ navigation }) => {
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={[styles.navItem, activeTab === "refunds" && styles.navItemActive]}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setActiveTab("refunds");
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "#fef2f2" }]}>
+                  <MaterialIcons name="replay" size={16} color="#dc2626" />
+                </View>
+                <Text style={[styles.navItemText, activeTab === "refunds" && { color: "#dc2626", fontWeight: "900" }]}>
+                  Batch Refunds Desk
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.navItem, activeTab === "history" && styles.navItemActive]}
                 onPress={() => {
                   toggleSidebar(false);
@@ -1201,6 +1473,19 @@ const NsdDashboard = ({ navigation }) => {
               </TouchableOpacity>
 
               <Text style={styles.sidebarCategory}>EXECUTIVE ACTIONS</Text>
+
+              <TouchableOpacity
+                style={styles.navItem}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setTransferModalVisible(true);
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "#eff6ff" }]}>
+                  <MaterialCommunityIcons name="account-switch" size={16} color="#1e40af" />
+                </View>
+                <Text style={styles.navItemText}>Reassign Agent Network</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.navItem}
@@ -1257,9 +1542,7 @@ const NsdDashboard = ({ navigation }) => {
           <View style={[styles.modalCard, { maxHeight: "90%", width: isLargeScreen ? "65%" : "95%" }]}>
             <View style={styles.modalHeaderRow}>
               <View>
-                <Text style={styles.modalCardTitle}>
-                  {inspectedState?.state?.toUpperCase()} FIELD HIERARCHY
-                </Text>
+                <Text style={styles.modalCardTitle}>{inspectedState?.state?.toUpperCase()} FIELD HIERARCHY</Text>
                 <Text style={styles.modalCardSubtitle}>
                   State Manager: {inspectedState?.leaderName} ({inspectedState?.leaderPhone})
                 </Text>
@@ -1337,9 +1620,7 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL 2: ADVANCED TARGET DEPLOYMENT (36 STATES SELECTION GUARANTEED)
-         ========================================================================= */}
+      {/* MODAL 2: TARGET DEPLOYMENT */}
       <Modal visible={targetModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, { width: isLargeScreen ? "65%" : "95%", maxHeight: "90%" }]}>
@@ -1368,7 +1649,6 @@ const NsdDashboard = ({ navigation }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* TARGET MODE SELECTOR */}
               <Text style={styles.formFieldLabel}>1. SELECT SCOPE (TARGET RECIPIENTS)</Text>
               <View style={styles.toggleSegmentRow}>
                 <TouchableOpacity
@@ -1405,7 +1685,6 @@ const NsdDashboard = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
 
-              {/* DUKKAN SUNAYEN JIHOHI 36 DA CHECKBOXES (ALL NIGERIAN STATES LIST) */}
               {targetMode === "selected" && (
                 <View style={styles.selectionListBox}>
                   <View style={styles.selectionListHeader}>
@@ -1452,7 +1731,6 @@ const NsdDashboard = ({ navigation }) => {
                 </View>
               )}
 
-              {/* TARGET QUOTA INPUTS */}
               <Text style={styles.formFieldLabel}>2. TARGET QUOTA ALLOCATION</Text>
 
               <Text style={styles.formFieldSubLabel}>TARGET CYCLE / MONTH</Text>
@@ -1520,9 +1798,7 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* =========================================================================
-          MODAL 3: APPOINT STATE MANAGER (WITH DIRECT EMAIL & LOGIN DATABASE SAVE)
-         ========================================================================= */}
+      {/* MODAL 3: APPOINT STATE MANAGER */}
       <Modal visible={appointModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1571,7 +1847,6 @@ const NsdDashboard = ({ navigation }) => {
                 onChangeText={setNewSmPhone}
               />
 
-              {/* EMAIL FIELD FOR DATABASE REGISTRATION */}
               <Text style={styles.formFieldLabel}>EMAIL ADDRESS (FOR LOGIN & NOTIFICATIONS)</Text>
               <TextInput
                 style={styles.textInputStyle}
@@ -1608,7 +1883,7 @@ const NsdDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* MODAL 4: BROADCAST NATIONAL DIRECTIVE */}
+      {/* MODAL 4: BROADCAST DIRECTIVE */}
       <Modal visible={broadcastModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -1652,6 +1927,97 @@ const NsdDashboard = ({ navigation }) => {
                 <Text style={styles.primaryActionBtnText}>DISPATCH DIRECTIVE</Text>
               )}
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 5: REASSIGN AGENT NETWORK (TRANSFER) */}
+      <Modal visible={transferModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: isLargeScreen ? "60%" : "95%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Reassign Agent Network</Text>
+                <Text style={styles.modalCardSubtitle}>
+                  Move agents from suspended/terminated supervisor to a new supervisor
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setTransferModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.toggleSegmentRow}>
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, transferMode === "bulk" && styles.toggleSegmentBtnActive]}
+                  onPress={() => setTransferMode("bulk")}
+                >
+                  <Text style={[styles.toggleSegmentText, transferMode === "bulk" && styles.toggleSegmentTextActive]}>
+                    Entire Team (Bulk)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toggleSegmentBtn, transferMode === "single" && styles.toggleSegmentBtnActive]}
+                  onPress={() => setTransferMode("single")}
+                >
+                  <Text style={[styles.toggleSegmentText, transferMode === "single" && styles.toggleSegmentTextActive]}>
+                    Single Agent
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {transferMode === "bulk" ? (
+                <>
+                  <Text style={styles.formFieldLabel}>CURRENT/SUSPENDED SUPERVISOR ID</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="Enter current supervisor ID"
+                    placeholderTextColor="#94a3b8"
+                    value={oldSupervisorId}
+                    onChangeText={setOldSupervisorId}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.formFieldLabel}>AGENT ID TO TRANSFER</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="Enter agent ID"
+                    placeholderTextColor="#94a3b8"
+                    value={transferAgentId}
+                    onChangeText={setTransferAgentId}
+                  />
+                </>
+              )}
+
+              <Text style={styles.formFieldLabel}>DESTINATION SUPERVISOR ID (NEW LEAD)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="Enter new supervisor ID"
+                placeholderTextColor="#94a3b8"
+                value={newSupervisorId}
+                onChangeText={setNewSupervisorId}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleExecuteTransfer}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialCommunityIcons name="account-switch" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.primaryActionBtnText}>
+                      {transferMode === "bulk" ? "AUTHORIZE TEAM REASSIGNMENT" : "REASSIGN AGENT"}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1725,7 +2091,6 @@ const styles = StyleSheet.create({
   scrollContentContainer: { flexGrow: 1, alignItems: "center", paddingBottom: 120 },
   contentCenterWrapper: { width: "100%", maxWidth: 1100 },
 
-  // Target Command Dispatch Banner
   targetDispatchBanner: {
     backgroundColor: "#ffffff",
     marginHorizontal: isLargeScreen ? 24 : 16,
@@ -1783,7 +2148,6 @@ const styles = StyleSheet.create({
   },
   targetBannerBtnTextSecondary: { color: "#1e40af", fontSize: 11, fontWeight: "800", marginLeft: 4 },
 
-  // Telemetry Section
   telemetrySection: { padding: isLargeScreen ? 24 : 16 },
   telemetryBadgeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#1e40af", marginRight: 8 },
   sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
@@ -1801,7 +2165,6 @@ const styles = StyleSheet.create({
   geoIndicatorText: { color: "#38bdf8", fontSize: 10, fontWeight: "800", marginLeft: 4 },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   
-  // DARK BLUE CARDS
   metricCard: {
     width: isLargeScreen ? "31.5%" : "48.5%",
     borderRadius: 14,
@@ -1810,9 +2173,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 4.5,
     elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
   },
   cardDarkBlueBg: {
     backgroundColor: "#0f172a",
@@ -1891,9 +2251,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
   },
   cardSelected: { borderColor: "#1e40af", backgroundColor: "#eff6ff" },
   stateCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -1972,9 +2329,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e2e8f0",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
   },
   managerCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   managerMainInfo: { flexDirection: "row", alignItems: "center", flex: 1 },
@@ -2038,6 +2392,22 @@ const styles = StyleSheet.create({
   inspectSupName: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
   inspectSupLga: { color: "#1e40af", fontSize: 11, marginTop: 2, fontWeight: "600" },
   supCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+
+  refundCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  refundCardActive: { borderColor: "#1e40af", backgroundColor: "#eff6ff" },
+  refundUserText: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
+  refundServiceText: { color: "#1e40af", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  refundReasonText: { color: "#dc2626", fontSize: 11, marginTop: 2 },
+
   logCard: {
     backgroundColor: "#ffffff",
     borderRadius: 10,
@@ -2177,7 +2547,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Toggle Segment
   toggleSegmentRow: {
     flexDirection: "row",
     backgroundColor: "#f1f5f9",
@@ -2208,7 +2577,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
-  // Specific Selection List Box
   selectionListBox: {
     backgroundColor: "#f8fafc",
     borderRadius: 10,

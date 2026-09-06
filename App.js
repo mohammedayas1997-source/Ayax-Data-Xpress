@@ -14,7 +14,7 @@ import { ThemeProvider, ThemeContext } from "./src/context/ThemeContext";
 // --- COMPONENTS ---
 import CustomDrawerContent from "./src/components/CustomDrawerContent";
 import NotificationsScreen from "./src/screens/NotificationsScreen";
-
+import AgentTransferScreen from "./screens/AgentTransferScreen";
 // --- SCREENS ---
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import LoginScreen from "./src/screens/LoginScreen";
@@ -148,6 +148,12 @@ function AppContent() {
         <Stack.Screen
           name="SupportDashboard"
           component={SupportDashboard}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen 
+          name="AgentTransfer" 
+          component={AgentTransferScreen} 
           options={{ headerShown: false }}
         />
 
