@@ -18,9 +18,9 @@ const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const AgentTransferScreen = ({ navigation }) => {
   const [transferType, setTransferType] = useState("bulk");
-  const [oldSupervisorId, setOldSupervisorId] = useState("");
-  const [newSupervisorId, setNewSupervisorId] = useState("");
-  const [agentId, setAgentId] = useState("");
+  const [oldSupervisorRef, setOldSupervisorRef] = useState("");
+  const [newSupervisorRef, setNewSupervisorRef] = useState("");
+  const [agentIdentifier, setAgentIdentifier] = useState("");
   const [loading, setLoading] = useState(false);
 
   const notify = (title, message) => {
@@ -32,16 +32,20 @@ const AgentTransferScreen = ({ navigation }) => {
   };
 
   const handleTransfer = async () => {
-    if (!newSupervisorId) {
-      return notify("Validation Error", "New Supervisor ID is required.");
+    const cleanNewRef = newSupervisorRef.trim().toUpperCase();
+    const cleanOldRef = oldSupervisorRef.trim().toUpperCase();
+    const cleanAgentIdent = agentIdentifier.trim();
+
+    if (!cleanNewRef) {
+      return notify("Validation Error", "Destination Supervisor Ref code is required.");
     }
 
-    if (transferType === "bulk" && !oldSupervisorId) {
-      return notify("Validation Error", "Old Supervisor ID is required.");
+    if (transferType === "bulk" && !cleanOldRef) {
+      return notify("Validation Error", "Source Supervisor Ref code is required.");
     }
 
-    if (transferType === "single" && !agentId) {
-      return notify("Validation Error", "Agent ID is required.");
+    if (transferType === "single" && !cleanAgentIdent) {
+      return notify("Validation Error", "Agent Ref code or Phone number is required.");
     }
 
     setLoading(true);
@@ -54,8 +58,18 @@ const AgentTransferScreen = ({ navigation }) => {
 
       const payload =
         transferType === "bulk"
-          ? { oldSupervisorId: oldSupervisorId.trim(), newSupervisorId: newSupervisorId.trim() }
-          : { agentId: agentId.trim(), newSupervisorId: newSupervisorId.trim() };
+          ? {
+              oldSupervisorRef: cleanOldRef,
+              oldSupervisorId: cleanOldRef,
+              newSupervisorRef: cleanNewRef,
+              newSupervisorId: cleanNewRef,
+            }
+          : {
+              agentRef: cleanAgentIdent,
+              agentId: cleanAgentIdent,
+              newSupervisorRef: cleanNewRef,
+              newSupervisorId: cleanNewRef,
+            };
 
       const res = await axios.post(endpoint, payload, {
         headers: {
@@ -65,12 +79,12 @@ const AgentTransferScreen = ({ navigation }) => {
       });
 
       if (res.data?.success) {
-        notify("Success", res.data.message);
-        setOldSupervisorId("");
-        setNewSupervisorId("");
-        setAgentId("");
+        notify("Transfer Complete", res.data.message || "Agent reassignment successful.");
+        setOldSupervisorRef("");
+        setNewSupervisorRef("");
+        setAgentIdentifier("");
       } else {
-        notify("Error", res.data?.message || "Failed to process transfer.");
+        notify("Transfer Failed", res.data?.message || "Failed to process transfer.");
       }
     } catch (err) {
       notify(
@@ -115,41 +129,47 @@ const AgentTransferScreen = ({ navigation }) => {
       <View style={styles.card}>
         <Text style={styles.descText}>
           {transferType === "bulk"
-            ? "Reassign all agents from a terminated or suspended supervisor to a newly designated supervisor."
-            : "Select an individual agent to reassign to a new supervisor."}
+            ? "Reassign all retail agents from a terminated/suspended supervisor to a new supervisor using their Ref Codes."
+            : "Select an individual agent to reassign to a new supervisor using their Ref Code or registered phone number."}
         </Text>
 
         {transferType === "bulk" ? (
           <>
-            <Text style={styles.label}>Source Supervisor ID (Previous/Suspended)</Text>
+            <Text style={styles.label}>Source Supervisor Ref Code (e.g. AYX-AJINGI-7764)</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter current supervisor ID"
+              placeholder="e.g. AYX-AJINGI-7764"
               placeholderTextColor="#64748b"
-              value={oldSupervisorId}
-              onChangeText={setOldSupervisorId}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              value={oldSupervisorRef}
+              onChangeText={setOldSupervisorRef}
             />
           </>
         ) : (
           <>
-            <Text style={styles.label}>Agent ID</Text>
+            <Text style={styles.label}>Agent Ref Code or Phone Number</Text>
             <TextInput
               style={styles.input}
-              placeholder="Enter agent ID"
+              placeholder="e.g. AYX-AJINGI-1024 or 08012345678"
               placeholderTextColor="#64748b"
-              value={agentId}
-              onChangeText={setAgentId}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              value={agentIdentifier}
+              onChangeText={setAgentIdentifier}
             />
           </>
         )}
 
-        <Text style={styles.label}>Destination Supervisor ID (New Supervisor)</Text>
+        <Text style={styles.label}>Destination Supervisor Ref Code (New Lead)</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter new supervisor ID"
+          placeholder="e.g. AYX-KANO-9921"
           placeholderTextColor="#64748b"
-          value={newSupervisorId}
-          onChangeText={setNewSupervisorId}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          value={newSupervisorRef}
+          onChangeText={setNewSupervisorRef}
         />
 
         <TouchableOpacity
@@ -215,6 +235,9 @@ const styles = StyleSheet.create({
     height: 48,
     color: "#fff",
     marginBottom: 16,
+    fontSize: 14,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
   },
   submitBtn: {
     backgroundColor: "#dc2626",
