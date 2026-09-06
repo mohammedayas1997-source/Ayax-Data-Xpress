@@ -144,6 +144,7 @@ const BVNScreen = ({ navigation }) => {
           bvn: cleanBvn,
           slipType: selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip",
           url: resolvedPdfUrl,
+          base64: result.pdfBase64 || null,
         });
 
         setView("result");
@@ -160,36 +161,60 @@ const BVNScreen = ({ navigation }) => {
     }
   };
 
-  const downloadSlipFile = async () => {
-    const targetUrl = slipResult?.url;
-    if (!targetUrl) {
-      return showAlert("Notice", "Document link is not available.");
-    }
-
+  const downloadSlipFile = () => {
     setDownloading(true);
     try {
-      if (Platform.OS === "web") {
-        // Direct Blob Download - yana sauke fayil din a device ba tare da redirect ba
-        const response = await fetch(targetUrl);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
+      const fileName = `BVN_Slip_${slipResult?.bvn || "DOCUMENT"}.pdf`;
 
-        const link = document.createElement("a");
-        link.href = blobUrl;
-        link.download = `BVN_${slipResult?.bvn || "SLIP"}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
+      // HANYAR FARKO: Idan akwai Base64 (Yana sauke PDF din ba tare da bude shafi ba)
+      if (slipResult?.base64) {
+        if (Platform.OS === "web") {
+          const byteCharacters = atob(slipResult.base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: "application/pdf" });
+          const blobUrl = window.URL.createObjectURL(blob);
+
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          return;
+        }
+      }
+
+      // HANYAR BIYU: Idan babu Base64, sauke shi a matsayin Blob
+      if (slipResult?.url) {
+        if (Platform.OS === "web") {
+          fetch(slipResult.url)
+            .then((res) => res.blob())
+            .then((blob) => {
+              const blobUrl = window.URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = blobUrl;
+              link.download = fileName;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(blobUrl);
+            })
+            .catch(() => {
+              showAlert("Notice", "Could not complete direct download.");
+            });
+        } else {
+          Linking.openURL(slipResult.url);
+        }
       } else {
-        await Linking.openURL(targetUrl);
+        showAlert("Notice", "Document file is not available.");
       }
     } catch (err) {
-      if (Platform.OS === "web") {
-        window.open(targetUrl, "_blank");
-      } else {
-        showAlert("Download Notice", "Could not download file: " + err.message);
-      }
+      showAlert("Download Notice", "Could not process PDF: " + err.message);
     } finally {
       setDownloading(false);
     }
@@ -372,7 +397,7 @@ const BVNScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* DIRECT PDF DOWNLOAD BUTTON */}
+          {/* MABALLIN DOWNLOAD NA KAI TSAYE (BABU BUDE SHAFI) */}
           <TouchableOpacity
             style={[styles.downloadBigBtn, downloading && { opacity: 0.7 }]}
             onPress={downloadSlipFile}
