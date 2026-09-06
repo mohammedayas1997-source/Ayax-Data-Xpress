@@ -122,29 +122,17 @@ const BVNScreen = ({ navigation }) => {
         String(result.message || "").toLowerCase().includes("pdf generated") ||
         String(result.message || "").toLowerCase().includes("successful");
 
-      if (isOk) {
+      const base64Content = result.pdf_base64 || result.pdfBase64 || result.data?.pdf_base64;
+
+      if (isOk && base64Content) {
         setPinModalVisible(false);
         setPin("");
-
-        let resolvedPdfUrl =
-          result.slipUrl ||
-          result.pdfUrl ||
-          result.downloadUrl ||
-          result.url ||
-          result.data?.slipUrl ||
-          result.data?.pdfUrl ||
-          result.data?.downloadUrl ||
-          null;
-
-        if (resolvedPdfUrl && !String(resolvedPdfUrl).startsWith("http")) {
-          resolvedPdfUrl = `https://abjiktech.com.ng/${String(resolvedPdfUrl).replace(/^\/+/, "")}`;
-        }
 
         setSlipResult({
           bvn: cleanBvn,
           slipType: selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip",
-          url: resolvedPdfUrl,
-          base64: result.pdfBase64 || null,
+          base64: base64Content,
+          userData: result.userData || null,
         });
 
         setView("result");
@@ -162,9 +150,8 @@ const BVNScreen = ({ navigation }) => {
   };
 
   const downloadSlipFile = () => {
-    const targetUrl = slipResult?.url;
-    if (!targetUrl) {
-      return showAlert("Notice", "Document link is not available.");
+    if (!slipResult?.base64) {
+      return showAlert("Notice", "Document data is missing.");
     }
 
     setDownloading(true);
@@ -172,47 +159,20 @@ const BVNScreen = ({ navigation }) => {
       const fileName = `BVN_Slip_${slipResult?.bvn || "DOCUMENT"}.pdf`;
 
       if (Platform.OS === "web") {
-        // Hanyar amfani da XHR wacce take kaucewa dukkan matsalolin CORS ta tilasta download
-        const xhr = new XMLHttpRequest();
-        xhr.open("GET", targetUrl, true);
-        xhr.responseType = "blob";
-
-        xhr.onload = function () {
-          if (this.status === 200) {
-            const blob = this.response;
-            const blobUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.style.display = "none";
-            a.href = blobUrl;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(blobUrl);
-            }, 100);
-          } else {
-            // Fallback idan browser ta toshe
-            window.open(targetUrl, "_blank");
-          }
-        };
-
-        xhr.onerror = function () {
-          // Idan browser ta ki ba da izinin blob, bude shi a sabon tab don ya yi print kai tsaye
-          window.open(targetUrl, "_blank");
-        };
-
-        xhr.send();
+        const linkSource = `data:application/pdf;base64,${slipResult.base64}`;
+        const downloadLink = document.createElement("a");
+        downloadLink.href = linkSource;
+        downloadLink.download = fileName;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
       } else {
-        Linking.openURL(targetUrl);
+        showAlert("Notice", "Document ready on your device.");
       }
     } catch (err) {
-      showAlert("Notice", "Opening document link: " + err.message);
-      if (Platform.OS === "web") {
-        window.open(targetUrl, "_blank");
-      }
+      showAlert("Download Notice", "Could not trigger download: " + err.message);
     } finally {
-      setTimeout(() => setDownloading(false), 1500);
+      setTimeout(() => setDownloading(false), 1000);
     }
   };
 
