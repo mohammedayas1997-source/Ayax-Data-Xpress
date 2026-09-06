@@ -143,6 +143,12 @@ const LoginScreen = ({ navigation }) => {
     Linking.openURL("tel:+2349033738409");
   };
 
+  const openDeveloperApis = () => {
+    Linking.openURL("https://www.ayaxapis.com").catch((err) => {
+      console.log("Could not open Developer APIs URL:", err.message);
+    });
+  };
+
   const handleLogin = async () => {
     setErrorMessage("");
 
@@ -424,6 +430,27 @@ const LoginScreen = ({ navigation }) => {
             </View>
           </View>
 
+          {/* DEVELOPER APIS LINK BUTTON */}
+          <TouchableOpacity
+            style={styles.developerApiBtn}
+            onPress={openDeveloperApis}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons
+              name="code-tags"
+              size={20}
+              color="#0284c7"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.developerApiBtnText}>Developer APIs</Text>
+            <Ionicons
+              name="open-outline"
+              size={15}
+              color="#0284c7"
+              style={{ marginLeft: 6 }}
+            />
+          </TouchableOpacity>
+
           <View style={styles.contactContainer}>
             <Text style={styles.contactTitle}>Quick Support</Text>
             <View style={styles.iconRow}>
@@ -550,8 +577,28 @@ const styles = StyleSheet.create({
   },
   noAccountText: { color: "#64748b", fontSize: 14 },
   signupText: { color: "#0a1d37", fontSize: 14, fontWeight: "bold" },
+  developerApiBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1.5,
+    borderColor: "#bae6fd",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 22,
+    alignSelf: "center",
+    width: "100%",
+  },
+  developerApiBtnText: {
+    color: "#0284c7",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
   contactContainer: {
-    marginTop: 35,
+    marginTop: 25,
     alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#f1f5f9",
