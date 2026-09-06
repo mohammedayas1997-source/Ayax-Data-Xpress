@@ -231,7 +231,7 @@ const BVNScreen = ({ navigation }) => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 50000,
+          timeout: 55000,
         }
       );
 
@@ -239,7 +239,51 @@ const BVNScreen = ({ navigation }) => {
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        setBvnData(result.data || result);
+
+        // Ciro dukkan bayanan ciki ko da sun nesa a JSON
+        const rawPayload = result.data || result;
+        const deepData =
+          rawPayload.details?.data ||
+          rawPayload.details ||
+          rawPayload.bvnDetails ||
+          rawPayload.user_data ||
+          rawPayload;
+
+        const resolvedSlipUrl =
+          rawPayload.slipUrl ||
+          rawPayload.pdfUrl ||
+          result.slipUrl ||
+          result.pdfUrl ||
+          deepData.slipUrl ||
+          deepData.pdfUrl ||
+          deepData.slip_url ||
+          deepData.pdf_url ||
+          null;
+
+        const combinedData = {
+          ...deepData,
+          ...rawPayload,
+          slipUrl: resolvedSlipUrl,
+          pdfUrl: resolvedSlipUrl,
+        };
+
+        setBvnData(combinedData);
+
+        // Idan uwar garke ta bayar da direct PDF link na hukuma, sanar da mai amfani ya bude
+        if (resolvedSlipUrl) {
+          showAlert(
+            "BVN Slip Ready 🎉",
+            "Official BVN Verification Slip has been generated. Tap OK to open and download.",
+            () => {
+              if (Platform.OS === "web") {
+                window.open(resolvedSlipUrl, "_blank");
+              } else {
+                Linking.openURL(resolvedSlipUrl);
+              }
+            }
+          );
+        }
+
         setView("result");
       } else {
         throw new Error(result.message || "BVN verification failed. Check your input.");
@@ -257,12 +301,17 @@ const BVNScreen = ({ navigation }) => {
 
   // 5. Download Printable BVN Slip (PDF / Print Generator)
   const handleDownloadPDF = async () => {
-    if (bvnData?.pdfUrl || bvnData?.slipUrl) {
-      const url = bvnData.pdfUrl || bvnData.slipUrl;
+    const directUrl =
+      bvnData?.slipUrl ||
+      bvnData?.pdfUrl ||
+      bvnData?.downloadUrl ||
+      bvnData?.url;
+
+    if (directUrl && typeof directUrl === "string" && directUrl.startsWith("http")) {
       if (Platform.OS === "web") {
-        window.open(url, "_blank");
+        window.open(directUrl, "_blank");
       } else {
-        await Linking.openURL(url);
+        await Linking.openURL(directUrl);
       }
       return;
     }
@@ -285,23 +334,23 @@ const BVNScreen = ({ navigation }) => {
       `${firstName} ${middleName} ${surname}`
     ).replace(/\s+/g, " ").trim() || "VERIFIED CITIZEN";
 
-    const bvn = String(
+    const rawBvn = String(
       bvnData?.bvn || bvnData?.bvnNumber || bvnData?.bvn_number || searchValue || "N/A"
     ).replace(/\D/g, "");
-    const formattedBvn = bvn.length === 11 ? `${bvn.slice(0, 4)}  ${bvn.slice(4, 7)}  ${bvn.slice(7)}` : bvn;
+    const formattedBvn = rawBvn.length === 11 ? `${rawBvn.slice(0, 4)} ${rawBvn.slice(4, 7)} ${rawBvn.slice(7)}` : rawBvn;
 
     const phone = String(
-      bvnData?.phoneNumber || bvnData?.phone || bvnData?.phone_number1 || "N/A"
+      bvnData?.phoneNumber || bvnData?.phone || bvnData?.phone_number1 || bvnData?.telephoneno || "N/A"
     );
 
     const dob = String(
-      bvnData?.dateOfBirth || bvnData?.dob || bvnData?.date_of_birth || "N/A"
+      bvnData?.dateOfBirth || bvnData?.dob || bvnData?.date_of_birth || bvnData?.birthdate || "N/A"
     );
 
     const gender = String(bvnData?.gender || "N/A").toUpperCase();
     const nin = String(bvnData?.nin || bvnData?.ninNumber || "N/A");
     const address = String(
-      bvnData?.residentialAddress || bvnData?.residential_address || bvnData?.address || "N/A"
+      bvnData?.residentialAddress || bvnData?.residential_address || bvnData?.address || bvnData?.residence_address || "N/A"
     ).toUpperCase();
 
     const bank = String(
@@ -312,17 +361,17 @@ const BVNScreen = ({ navigation }) => {
       bvnData?.enrollmentBranch || bvnData?.enrollment_branch || bvnData?.branch || "HEAD OFFICE"
     ).toUpperCase();
 
-    const userPhoto = bvnData?.photo || bvnData?.image || bvnData?.passport
-      ? (String(bvnData.photo || bvnData.image || bvnData.passport).startsWith("data:image")
-          ? (bvnData.photo || bvnData.image || bvnData.passport)
-          : `data:image/jpeg;base64,${bvnData.photo || bvnData.image || bvnData.passport}`)
+    const userPhoto = bvnData?.photo || bvnData?.image || bvnData?.passport || bvnData?.base64Image
+      ? (String(bvnData.photo || bvnData.image || bvnData.passport || bvnData.base64Image).startsWith("data:image")
+          ? (bvnData.photo || bvnData.image || bvnData.passport || bvnData.base64Image)
+          : `data:image/jpeg;base64,${bvnData.photo || bvnData.image || bvnData.passport || bvnData.base64Image}`)
       : "https://via.placeholder.com/150";
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-      `BVN:${bvn}|NAME:${fullName}|PHONE:${phone}|DOB:${dob}|BANK:${bank}`
+      `BVN:${rawBvn}|NAME:${fullName}|PHONE:${phone}|DOB:${dob}|BANK:${bank}`
     )}`;
 
-    const bvnWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'><text x='5' y='30' fill='%230284c7' opacity='0.12' font-size='10' font-family='monospace' font-weight='bold' transform='rotate(-22 70 35)'>${bvn}</text></svg>`;
+    const bvnWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'><text x='5' y='30' fill='%230284c7' opacity='0.12' font-size='10' font-family='monospace' font-weight='bold' transform='rotate(-22 70 35)'>${rawBvn}</text></svg>`;
 
     const selectedType = selectedService?.id || "bvn_standard";
     let slipHtmlContent = "";
@@ -461,7 +510,7 @@ const BVNScreen = ({ navigation }) => {
           <!DOCTYPE html>
           <html>
             <head>
-              <title>BVN Official Slip - ${bvn}</title>
+              <title>BVN Official Slip - ${rawBvn}</title>
               <style>
                 @media print {
                   body { margin: 0; padding: 0; background: #fff; }
@@ -733,9 +782,11 @@ const BVNScreen = ({ navigation }) => {
       "N/A";
 
     const resolvedBvn = bvnData?.bvn || bvnData?.bvnNumber || bvnData?.bvn_number || "N/A";
-    const resolvedPhone = bvnData?.phoneNumber || bvnData?.phone || bvnData?.phone_number1 || "N/A";
-    const resolvedDob = bvnData?.dateOfBirth || bvnData?.dob || bvnData?.date_of_birth || "N/A";
-    const resolvedAddress = bvnData?.residentialAddress || bvnData?.residential_address || bvnData?.address || "N/A";
+    const resolvedPhone = bvnData?.phoneNumber || bvnData?.phone || bvnData?.phone_number1 || bvnData?.telephoneno || "N/A";
+    const resolvedDob = bvnData?.dateOfBirth || bvnData?.dob || bvnData?.date_of_birth || bvnData?.birthdate || "N/A";
+    const resolvedAddress = bvnData?.residentialAddress || bvnData?.residential_address || bvnData?.address || bvnData?.residence_address || "N/A";
+    const resolvedBank = bvnData?.enrollmentBank || bvnData?.bank || bvnData?.enrollment_bank || "N/A";
+    const resolvedBranch = bvnData?.enrollmentBranch || bvnData?.branch || bvnData?.enrollment_branch || "N/A";
 
     return (
       <View style={styles.container}>
@@ -758,12 +809,12 @@ const BVNScreen = ({ navigation }) => {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
           <View style={styles.resultCard}>
             <View style={styles.photoContainer}>
-              {bvnData?.photo || bvnData?.image || bvnData?.passport ? (
+              {bvnData?.photo || bvnData?.image || bvnData?.passport || bvnData?.base64Image ? (
                 <Image
                   source={{
-                    uri: String(bvnData.photo || bvnData.image || bvnData.passport).startsWith("data:image")
-                      ? (bvnData.photo || bvnData.image || bvnData.passport)
-                      : `data:image/jpeg;base64,${bvnData.photo || bvnData.image || bvnData.passport}`,
+                    uri: String(bvnData.photo || bvnData.image || bvnData.passport || bvnData.base64Image).startsWith("data:image")
+                      ? (bvnData.photo || bvnData.image || bvnData.passport || bvnData.base64Image)
+                      : `data:image/jpeg;base64,${bvnData.photo || bvnData.image || bvnData.passport || bvnData.base64Image}`,
                   }}
                   style={styles.userPhoto}
                 />
@@ -790,7 +841,8 @@ const BVNScreen = ({ navigation }) => {
               <BVNResultRow label="Date of Birth" value={resolvedDob} />
               <BVNResultRow label="Gender" value={(bvnData?.gender || "N/A").toUpperCase()} />
               <BVNResultRow label="Linked NIN" value={bvnData?.nin || bvnData?.ninNumber || "N/A"} />
-              <BVNResultRow label="Enrollment Bank" value={bvnData?.enrollmentBank || bvnData?.bank || "N/A"} />
+              <BVNResultRow label="Enrollment Bank" value={resolvedBank} />
+              <BVNResultRow label="Enrollment Branch" value={resolvedBranch} />
               <BVNResultRow label="Residential Address" value={resolvedAddress} />
             </View>
 
