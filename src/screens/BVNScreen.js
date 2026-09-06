@@ -50,7 +50,7 @@ const bvnServiceOptions = [
     name: "BVN Phone Search",
     placeholder: "Enter Linked Phone Number (e.g. 08012345678)",
     icon: "phone-alt",
-    length: 11,
+    length: 14,
     desc: "Retrieve verified BVN details linked to mobile line",
   },
   {
@@ -143,8 +143,8 @@ const BVNScreen = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       const res = await axios.post(
-        `${BASE_URL}/admin/bvn/update-price`,
-        { serviceId: editingService.id, price: numericPrice },
+        `${BASE_URL}/bvn/admin/set-price`,
+        { serviceType: editingService.id, amount: numericPrice, name: editingService.name },
         { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 }
       );
 
@@ -172,7 +172,7 @@ const BVNScreen = ({ navigation }) => {
     if (!sanitized || sanitized.length < 10) {
       return showAlert(
         "Invalid Input",
-        `Please enter a valid 11-digit ${selectedService?.name || "BVN / Phone Number"}.`
+        `Please enter a valid ${selectedService?.name || "BVN / Phone Number"}.`
       );
     }
     setPinModalVisible(true);
@@ -194,25 +194,44 @@ const BVNScreen = ({ navigation }) => {
         });
       }
 
-      const sanitizedNumber = searchValue.replace(/\D/g, "").trim();
+      let sanitizedNumber = searchValue.replace(/\D/g, "").trim();
+      const serviceId = selectedService?.id || "bvn_standard";
+      const isPhoneLookup = serviceId === "bvn_phone";
+
+      let payload = {
+        serviceType: serviceId,
+        serviceId: serviceId,
+        amount: prices[serviceId] || 150,
+        pin: pin.trim(),
+        transactionPin: pin.trim(),
+        format: "pdf",
+        generatePdf: true,
+      };
+
+      if (isPhoneLookup) {
+        if (sanitizedNumber.startsWith("234") && sanitizedNumber.length >= 13) {
+          sanitizedNumber = "0" + sanitizedNumber.slice(3);
+        } else if (sanitizedNumber.length === 10 && !sanitizedNumber.startsWith("0")) {
+          sanitizedNumber = "0" + sanitizedNumber;
+        }
+        payload.phone = sanitizedNumber;
+        payload.phoneNumber = sanitizedNumber;
+        payload.searchValue = sanitizedNumber;
+      } else {
+        payload.bvn = sanitizedNumber;
+        payload.bvnNumber = sanitizedNumber;
+        payload.searchValue = sanitizedNumber;
+      }
 
       const res = await axios.post(
         `${BASE_URL}/bvn/verify-and-generate`,
-        {
-          bvn: sanitizedNumber,
-          bvnNumber: sanitizedNumber,
-          searchValue: sanitizedNumber,
-          serviceType: selectedService?.id,
-          amount: prices[selectedService?.id] || 150,
-          pin: pin.trim(),
-          transactionPin: pin.trim(),
-        },
+        payload,
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 45000,
+          timeout: 50000,
         }
       );
 
@@ -238,7 +257,6 @@ const BVNScreen = ({ navigation }) => {
 
   // 5. Download Printable BVN Slip (PDF / Print Generator)
   const handleDownloadPDF = async () => {
-    // 1. Idan uwar garke ta bayar da direct link, buɗe shi
     if (bvnData?.pdfUrl || bvnData?.slipUrl) {
       const url = bvnData.pdfUrl || bvnData.slipUrl;
       if (Platform.OS === "web") {
@@ -249,159 +267,193 @@ const BVNScreen = ({ navigation }) => {
       return;
     }
 
-    // 2. Ciro dukkan bayanan mutum
-    const fullName =
+    const firstName = String(
+      bvnData?.firstName || bvnData?.firstname || bvnData?.first_name || ""
+    ).toUpperCase();
+
+    const middleName = String(
+      bvnData?.middleName || bvnData?.middlename || bvnData?.middle_name || ""
+    ).toUpperCase();
+
+    const surname = String(
+      bvnData?.surname || bvnData?.lastName || bvnData?.lastname || bvnData?.last_name || ""
+    ).toUpperCase();
+
+    const fullName = (
       bvnData?.fullName ||
       bvnData?.name ||
-      `${bvnData?.firstName || bvnData?.firstname || ""} ${bvnData?.middleName || bvnData?.middlename || ""} ${bvnData?.lastName || bvnData?.surname || ""}`.trim() ||
-      "N/A";
+      `${firstName} ${middleName} ${surname}`
+    ).replace(/\s+/g, " ").trim() || "VERIFIED CITIZEN";
 
-    const bvn = bvnData?.bvn || bvnData?.bvnNumber || "N/A";
-    const formattedBvn =
-      bvn.length === 11 ? `${bvn.slice(0, 4)} ${bvn.slice(4, 7)} ${bvn.slice(7)}` : bvn;
+    const bvn = String(
+      bvnData?.bvn || bvnData?.bvnNumber || bvnData?.bvn_number || searchValue || "N/A"
+    ).replace(/\D/g, "");
+    const formattedBvn = bvn.length === 11 ? `${bvn.slice(0, 4)}  ${bvn.slice(4, 7)}  ${bvn.slice(7)}` : bvn;
 
-    const phone = bvnData?.phoneNumber || bvnData?.phone || "N/A";
-    const dob = bvnData?.dateOfBirth || bvnData?.dob || "N/A";
-    const gender = (bvnData?.gender || "N/A").toUpperCase();
-    const nin = bvnData?.nin || bvnData?.ninNumber || "N/A";
-    const bank = bvnData?.enrollmentBank || bvnData?.bank || "COMMERCIAL BANK";
-    const branch = bvnData?.enrollmentBranch || "N/A";
+    const phone = String(
+      bvnData?.phoneNumber || bvnData?.phone || bvnData?.phone_number1 || "N/A"
+    );
 
-    const userPhoto = bvnData?.photo || bvnData?.image
-      ? (String(bvnData.photo || bvnData.image).startsWith("data:image")
-          ? (bvnData.photo || bvnData.image)
-          : `data:image/jpeg;base64,${bvnData.photo || bvnData.image}`)
+    const dob = String(
+      bvnData?.dateOfBirth || bvnData?.dob || bvnData?.date_of_birth || "N/A"
+    );
+
+    const gender = String(bvnData?.gender || "N/A").toUpperCase();
+    const nin = String(bvnData?.nin || bvnData?.ninNumber || "N/A");
+    const address = String(
+      bvnData?.residentialAddress || bvnData?.residential_address || bvnData?.address || "N/A"
+    ).toUpperCase();
+
+    const bank = String(
+      bvnData?.enrollmentBank || bvnData?.enrollment_bank || bvnData?.bank || "COMMERCIAL BANK"
+    ).toUpperCase();
+
+    const branch = String(
+      bvnData?.enrollmentBranch || bvnData?.enrollment_branch || bvnData?.branch || "HEAD OFFICE"
+    ).toUpperCase();
+
+    const userPhoto = bvnData?.photo || bvnData?.image || bvnData?.passport
+      ? (String(bvnData.photo || bvnData.image || bvnData.passport).startsWith("data:image")
+          ? (bvnData.photo || bvnData.image || bvnData.passport)
+          : `data:image/jpeg;base64,${bvnData.photo || bvnData.image || bvnData.passport}`)
       : "https://via.placeholder.com/150";
 
     const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-      `BVN:${bvn}|Name:${fullName}|DOB:${dob}|Bank:${bank}`
+      `BVN:${bvn}|NAME:${fullName}|PHONE:${phone}|DOB:${dob}|BANK:${bank}`
     )}`;
+
+    const bvnWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'><text x='5' y='30' fill='%230284c7' opacity='0.12' font-size='10' font-family='monospace' font-weight='bold' transform='rotate(-22 70 35)'>${bvn}</text></svg>`;
 
     const selectedType = selectedService?.id || "bvn_standard";
     let slipHtmlContent = "";
 
     if (selectedType === "bvn_premium") {
-      // TSARI NA 1: PREMIUM WALLET BVN CARD (PLASTIC FORMAT)
       slipHtmlContent = `
         <div style="display: flex; gap: 20px; justify-content: center; margin-top: 50px; font-family: Arial, sans-serif;">
-          <!-- Front Side -->
-          <div style="width: 360px; height: 225px; border-radius: 12px; border: 1px solid #93c5fd; padding: 14px; position: relative; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); box-shadow: 0 4px 10px rgba(0,0,0,0.15); overflow: hidden;">
+          <!-- Front Card -->
+          <div style="width: 360px; height: 225px; border-radius: 10px; border: 1.5px solid #0284c7; padding: 12px; position: relative; background-color: #f0f9ff; background-image: url('${bvnWatermarkBg}'); box-shadow: 0 4px 10px rgba(0,0,0,0.12); overflow: hidden;">
             <div style="display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <div style="font-size: 11px; font-weight: 900; color: #0369a1; letter-spacing: 0.5px;">CENTRAL BANK OF NIGERIA</div>
-                <div style="font-size: 8px; color: #0284c7; font-weight: bold;">BANK VERIFICATION NUMBER IDENTIFICATION CARD</div>
+                <div style="font-size: 8px; color: #0284c7; font-weight: bold;">BVN IDENTIFICATION CARD</div>
               </div>
-              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 30px;" />
+              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 28px;" />
             </div>
 
-            <div style="display: flex; margin-top: 10px;">
-              <img src="${userPhoto}" style="width: 85px; height: 100px; border-radius: 6px; object-fit: cover; border: 2px solid #0284c7;" />
-              <div style="margin-left: 12px; font-size: 11px; flex: 1;">
-                <span style="color: #64748b; font-size: 8px;">FULL NAME</span>
-                <div style="font-weight: 900; font-size: 11.5px; color: #0f172a; line-height: 14px;">${fullName}</div>
+            <div style="display: flex; margin-top: 8px;">
+              <img src="${userPhoto}" style="width: 82px; height: 98px; border-radius: 4px; object-fit: cover; border: 1.5px solid #0284c7;" />
+              <div style="margin-left: 10px; font-size: 10px; flex: 1;">
+                <span style="color: #64748b; font-size: 7.5px; font-weight: bold;">FULL NAME</span>
+                <div style="font-weight: 900; font-size: 11px; color: #0f172a; line-height: 14px;">${fullName}</div>
 
-                <div style="display: flex; gap: 10px; margin-top: 4px;">
-                  <div><span style="color: #64748b; font-size: 8px;">DATE OF BIRTH</span><div style="font-weight: bold; font-size: 10px;">${dob}</div></div>
-                  <div><span style="color: #64748b; font-size: 8px;">GENDER</span><div style="font-weight: bold; font-size: 10px;">${gender}</div></div>
+                <div style="display: flex; gap: 10px; margin-top: 3px;">
+                  <div>
+                    <span style="color: #64748b; font-size: 7.5px; font-weight: bold;">DOB</span>
+                    <div style="font-weight: bold; font-size: 9.5px;">${dob}</div>
+                  </div>
+                  <div>
+                    <span style="color: #64748b; font-size: 7.5px; font-weight: bold;">GENDER</span>
+                    <div style="font-weight: bold; font-size: 9.5px;">${gender}</div>
+                  </div>
                 </div>
 
-                <div style="margin-top: 4px;">
-                  <span style="color: #64748b; font-size: 8px;">PHONE</span>
-                  <div style="font-weight: bold; font-size: 10px;">${phone}</div>
+                <div style="margin-top: 3px;">
+                  <span style="color: #64748b; font-size: 7.5px; font-weight: bold;">PHONE</span>
+                  <div style="font-weight: bold; font-size: 9.5px;">${phone}</div>
                 </div>
               </div>
-              <img src="${qrCodeUrl}" style="width: 65px; height: 65px; margin-top: 5px;" />
+              <img src="${qrCodeUrl}" style="width: 62px; height: 62px; border: 1px solid #bae6fd; padding: 1px; background: #fff;" />
             </div>
 
-            <div style="position: absolute; bottom: 8px; left: 14px; right: 14px; text-align: center; border-top: 1px dashed #38bdf8; padding-top: 4px;">
-              <div style="font-size: 8px; color: #0369a1; font-weight: bold;">BANK VERIFICATION NUMBER (BVN)</div>
-              <div style="font-size: 18px; font-weight: 900; letter-spacing: 2px; color: #0c4a6e;">${formattedBvn}</div>
+            <div style="position: absolute; bottom: 6px; left: 12px; right: 12px; text-align: center; border-top: 1px dashed #38bdf8; padding-top: 3px;">
+              <div style="font-size: 7.5px; color: #0369a1; font-weight: bold;">BANK VERIFICATION NUMBER (BVN)</div>
+              <div style="font-size: 19px; font-weight: 900; letter-spacing: 2.5px; color: #0c4a6e; font-family: monospace;">${formattedBvn}</div>
             </div>
           </div>
 
-          <!-- Back Side -->
-          <div style="width: 360px; height: 225px; border-radius: 12px; border: 1px solid #cbd5e1; padding: 18px; position: relative; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.15); text-align: center;">
-            <h3 style="margin: 0; font-size: 13px; color: #0f172a;">TERMS & CONDITIONS</h3>
-            <p style="font-size: 8px; color: #64748b; margin: 4px 0 8px;">Property of Central Bank of Nigeria / NIBSS</p>
-            <p style="font-size: 8px; line-height: 12px; color: #334155; text-align: justify;">
-              This digital identity document is issued for biometric identification and financial security verification. It remains the property of the Central Bank of Nigeria. If found, please return to any commercial bank branch nationwide or nearest police station.
+          <!-- Back Card -->
+          <div style="width: 360px; height: 225px; border-radius: 10px; border: 1.5px solid #cbd5e1; padding: 14px; position: relative; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.12); text-align: center; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="margin: 0; font-size: 12.5px; color: #0f172a; font-weight: 900;">TERMS & CONDITIONS</h3>
+            <p style="font-size: 7.5px; color: #64748b; margin: 3px 0 6px;">Property of Central Bank of Nigeria / NIBSS</p>
+            <p style="font-size: 7.5px; line-height: 11px; color: #334155; text-align: justify;">
+              This digital identity document is issued for biometric identification and financial security verification under the regulatory framework of the Central Bank of Nigeria.
             </p>
-            <div style="margin-top: 12px; padding: 6px; background: #f8fafc; border-radius: 6px; font-size: 9px; text-align: left;">
+            <div style="margin-top: 8px; padding: 6px 8px; background: #f8fafc; border-radius: 4px; font-size: 8px; text-align: left; line-height: 12px; border: 1px solid #e2e8f0;">
               <div><strong>Primary Bank:</strong> ${bank}</div>
               <div><strong>Linked NIN:</strong> ${nin}</div>
+              <div><strong>Branch:</strong> ${branch}</div>
             </div>
           </div>
         </div>
       `;
     } else {
-      // TSARI NA 2: STANDARD / BASIC OFFICIAL BVN SLIP (A4 PAPER FORMAT)
       slipHtmlContent = `
-        <div style="width: 750px; margin: 30px auto; border: 2px solid #0284c7; border-radius: 8px; font-family: Arial, sans-serif; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); overflow: hidden;">
-          <!-- Header -->
-          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: #0369a1; color: #fff;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 55px; filter: brightness(0) invert(1);" />
+        <div style="width: 780px; margin: 25px auto; border: 2px solid #0369a1; border-radius: 6px; font-family: Arial, sans-serif; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); overflow: hidden;">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; background: #0369a1; color: #fff;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 50px; filter: brightness(0) invert(1);" />
             <div style="text-align: center;">
               <h2 style="margin: 0; font-size: 18px; letter-spacing: 0.5px;">CENTRAL BANK OF NIGERIA</h2>
-              <h4 style="margin: 3px 0; font-size: 13px; font-weight: normal;">NIGERIA INTER-BANK SETTLEMENT SYSTEM (NIBSS)</h4>
-              <div style="font-size: 11px; background: #0284c7; display: inline-block; padding: 2px 10px; border-radius: 10px; margin-top: 4px; font-weight: bold;">
+              <h4 style="margin: 2px 0; font-size: 12px; font-weight: normal;">NIGERIA INTER-BANK SETTLEMENT SYSTEM (NIBSS)</h4>
+              <div style="font-size: 10px; background: #0284c7; display: inline-block; padding: 2px 8px; border-radius: 4px; margin-top: 3px; font-weight: bold;">
                 OFFICIAL BVN VERIFICATION SLIP
               </div>
             </div>
-            <img src="${qrCodeUrl}" style="height: 55px; width: 55px; background: #fff; padding: 2px; border-radius: 4px;" />
+            <img src="${qrCodeUrl}" style="height: 52px; width: 52px; background: #fff; padding: 2px; border-radius: 4px;" />
           </div>
 
-          <!-- Main Details -->
-          <div style="padding: 20px 24px;">
-            <div style="display: flex; gap: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 18px;">
-              <img src="${userPhoto}" style="width: 120px; height: 135px; border-radius: 8px; border: 2px solid #0284c7; object-fit: cover;" />
+          <div style="padding: 18px 20px;">
+            <div style="display: flex; gap: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 14px;">
+              <img src="${userPhoto}" style="width: 105px; height: 125px; border-radius: 4px; border: 2px solid #0284c7; object-fit: cover;" />
               <div style="flex: 1;">
-                <div style="font-size: 10px; color: #64748b; font-weight: bold;">REGISTERED FULL NAME</div>
-                <div style="font-size: 18px; font-weight: 900; color: #0f172a; margin-bottom: 12px;">${fullName}</div>
+                <div style="font-size: 8.5px; color: #64748b; font-weight: bold;">REGISTERED FULL NAME</div>
+                <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 8px;">${fullName}</div>
 
-                <div style="background: #f0f9ff; border: 1px dashed #38bdf8; padding: 8px 12px; border-radius: 8px; display: inline-block;">
-                  <span style="font-size: 9px; color: #0284c7; font-weight: bold;">BANK VERIFICATION NUMBER</span>
-                  <div style="font-size: 22px; font-weight: 900; letter-spacing: 2px; color: #0369a1;">${formattedBvn}</div>
+                <div style="background: #f0f9ff; border: 1.5px dashed #38bdf8; padding: 6px 12px; border-radius: 6px; display: inline-block;">
+                  <span style="font-size: 8px; color: #0369a1; font-weight: bold;">BANK VERIFICATION NUMBER (BVN)</span>
+                  <div style="font-size: 21px; font-weight: 900; letter-spacing: 2px; color: #0c4a6e; font-family: monospace;">${formattedBvn}</div>
                 </div>
               </div>
             </div>
 
-            <!-- Table of particulars -->
-            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px;">
+            <table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 11px;">
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 8px 0; color: #64748b; width: 30%;"><strong>Phone Number:</strong></td>
-                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${phone}</td>
+                <td style="padding: 6px 0; color: #64748b; width: 25%;"><strong>First Name:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; width: 25%; color: #0f172a;">${firstName || "N/A"}</td>
+                <td style="padding: 6px 0; color: #64748b; width: 25%;"><strong>Phone Number:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; width: 25%; color: #0f172a;">${phone}</td>
               </tr>
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 8px 0; color: #64748b;"><strong>Date of Birth:</strong></td>
-                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${dob}</td>
+                <td style="padding: 6px 0; color: #64748b;"><strong>Middle Name:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${middleName || "-"}</td>
+                <td style="padding: 6px 0; color: #64748b;"><strong>Date of Birth:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${dob}</td>
               </tr>
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 8px 0; color: #64748b;"><strong>Gender:</strong></td>
-                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${gender}</td>
+                <td style="padding: 6px 0; color: #64748b;"><strong>Surname:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${surname || "N/A"}</td>
+                <td style="padding: 6px 0; color: #64748b;"><strong>Gender:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${gender}</td>
               </tr>
               <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 8px 0; color: #64748b;"><strong>Linked NIN:</strong></td>
-                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${nin}</td>
-              </tr>
-              <tr style="border-bottom: 1px solid #f1f5f9;">
-                <td style="padding: 8px 0; color: #64748b;"><strong>Enrollment Bank:</strong></td>
-                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${bank}</td>
+                <td style="padding: 6px 0; color: #64748b;"><strong>Linked NIN:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${nin}</td>
+                <td style="padding: 6px 0; color: #64748b;"><strong>Enrollment Bank:</strong></td>
+                <td style="padding: 6px 0; font-weight: bold; color: #0f172a;">${bank}</td>
               </tr>
               <tr>
-                <td style="padding: 8px 0; color: #64748b;"><strong>Enrollment Branch:</strong></td>
-                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${branch}</td>
+                <td style="padding: 6px 0; color: #64748b; vertical-align: top;"><strong>Residential Address:</strong></td>
+                <td colspan="3" style="padding: 6px 0; font-weight: bold; line-height: 15px; color: #0f172a;">${address}</td>
               </tr>
             </table>
 
-            <div style="margin-top: 20px; padding: 10px; background: #f8fafc; border-left: 4px solid #0284c7; font-size: 10px; color: #475569;">
-              <strong>DISCLAIMER:</strong> This slip is an authentic electronic extract of bank verification biometric data managed under the regulatory framework of the Central Bank of Nigeria (CBN).
+            <div style="margin-top: 16px; padding: 8px 10px; background: #f8fafc; border-left: 4px solid #0284c7; font-size: 9px; color: #475569;">
+              <strong>DISCLAIMER:</strong> This slip is an official electronic biometric extract issued under the authority of the Central Bank of Nigeria (CBN).
             </div>
           </div>
         </div>
       `;
     }
 
-    // 4. Buga shafin a matsayin Printable PDF
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const printWindow = window.open("", "_blank");
       if (printWindow) {
@@ -413,7 +465,7 @@ const BVNScreen = ({ navigation }) => {
               <style>
                 @media print {
                   body { margin: 0; padding: 0; background: #fff; }
-                  @page { size: auto; margin: 10mm; }
+                  @page { size: auto; margin: 8mm; }
                 }
               </style>
             </head>
@@ -427,7 +479,7 @@ const BVNScreen = ({ navigation }) => {
         window.print();
       }
     } else {
-      showAlert("BVN Slip Ready", "Official slip template created. Save or capture this document.");
+      showAlert("Notice", "BVN Slip template created. Save or capture document.");
     }
   };
 
@@ -575,7 +627,9 @@ const BVNScreen = ({ navigation }) => {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
           <View style={styles.formCard}>
-            <Text style={styles.inputLabel}>ENTER IDENTIFICATION NUMBER</Text>
+            <Text style={styles.inputLabel}>
+              {selectedService.id === "bvn_phone" ? "ENTER LINKED PHONE NUMBER" : "ENTER 11-DIGIT BVN"}
+            </Text>
             <TextInput
               placeholder={selectedService.placeholder}
               placeholderTextColor="#64748b"
@@ -669,11 +723,19 @@ const BVNScreen = ({ navigation }) => {
 
   // ---------------- VIEW 3: RESULT SLIP PREVIEW ----------------
   if (view === "result") {
+    const firstName = bvnData?.firstName || bvnData?.firstname || bvnData?.first_name || "";
+    const middleName = bvnData?.middleName || bvnData?.middlename || bvnData?.middle_name || "";
+    const surname = bvnData?.surname || bvnData?.lastName || bvnData?.lastname || bvnData?.last_name || "";
     const fullName =
       bvnData?.fullName ||
       bvnData?.name ||
-      `${bvnData?.firstName || ""} ${bvnData?.middleName || ""} ${bvnData?.lastName || bvnData?.surname || ""}`.trim() ||
+      `${firstName} ${middleName} ${surname}`.replace(/\s+/g, " ").trim() ||
       "N/A";
+
+    const resolvedBvn = bvnData?.bvn || bvnData?.bvnNumber || bvnData?.bvn_number || "N/A";
+    const resolvedPhone = bvnData?.phoneNumber || bvnData?.phone || bvnData?.phone_number1 || "N/A";
+    const resolvedDob = bvnData?.dateOfBirth || bvnData?.dob || bvnData?.date_of_birth || "N/A";
+    const resolvedAddress = bvnData?.residentialAddress || bvnData?.residential_address || bvnData?.address || "N/A";
 
     return (
       <View style={styles.container}>
@@ -696,12 +758,12 @@ const BVNScreen = ({ navigation }) => {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
           <View style={styles.resultCard}>
             <View style={styles.photoContainer}>
-              {bvnData?.photo || bvnData?.image ? (
+              {bvnData?.photo || bvnData?.image || bvnData?.passport ? (
                 <Image
                   source={{
-                    uri: (bvnData.photo || bvnData.image).startsWith("data:image")
-                      ? bvnData.photo || bvnData.image
-                      : `data:image/jpeg;base64,${bvnData.photo || bvnData.image}`,
+                    uri: String(bvnData.photo || bvnData.image || bvnData.passport).startsWith("data:image")
+                      ? (bvnData.photo || bvnData.image || bvnData.passport)
+                      : `data:image/jpeg;base64,${bvnData.photo || bvnData.image || bvnData.passport}`,
                   }}
                   style={styles.userPhoto}
                 />
@@ -720,16 +782,16 @@ const BVNScreen = ({ navigation }) => {
               <BVNResultRow label="Full Name" value={fullName} />
               <BVNResultRow
                 label="Bank Verification Number (BVN)"
-                value={bvnData?.bvn || bvnData?.bvnNumber || "N/A"}
+                value={resolvedBvn}
                 copyable
-                onCopy={() => copyToClipboard(bvnData?.bvn || bvnData?.bvnNumber, "BVN")}
+                onCopy={() => copyToClipboard(resolvedBvn, "BVN")}
               />
-              <BVNResultRow label="Phone Number" value={bvnData?.phoneNumber || bvnData?.phone || "N/A"} />
-              <BVNResultRow label="Date of Birth" value={bvnData?.dateOfBirth || bvnData?.dob || "N/A"} />
-              <BVNResultRow label="Gender" value={bvnData?.gender || "N/A"} />
+              <BVNResultRow label="Phone Number" value={resolvedPhone} />
+              <BVNResultRow label="Date of Birth" value={resolvedDob} />
+              <BVNResultRow label="Gender" value={(bvnData?.gender || "N/A").toUpperCase()} />
               <BVNResultRow label="Linked NIN" value={bvnData?.nin || bvnData?.ninNumber || "N/A"} />
               <BVNResultRow label="Enrollment Bank" value={bvnData?.enrollmentBank || bvnData?.bank || "N/A"} />
-              <BVNResultRow label="Enrollment Branch" value={bvnData?.enrollmentBranch || "N/A"} />
+              <BVNResultRow label="Residential Address" value={resolvedAddress} />
             </View>
 
             <TouchableOpacity style={styles.downloadPdfBtn} onPress={handleDownloadPDF} activeOpacity={0.85}>
