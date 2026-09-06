@@ -23,6 +23,7 @@ import {
   MaterialCommunityIcons,
   FontAwesome5,
   Feather,
+  MaterialIcons,
 } from "@expo/vector-icons";
 
 const { width } = Dimensions.get("window");
@@ -35,7 +36,7 @@ const AdminDashboard = () => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const slideAnim = useState(new Animated.Value(-width * 0.85))[0];
 
-  // Active Tab: 'overview' | 'sales' | 'hierarchy' | 'users' | 'pricing' | 'targets' | 'broadcast'
+  // Active Tab: 'overview' | 'sales' | 'hierarchy' | 'users' | 'refunds' | 'pricing' | 'targets' | 'broadcast'
   const [activeTab, setActiveTab] = useState("overview");
 
   // Telemetry & Sales Statistics
@@ -63,6 +64,10 @@ const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
 
+  // Refund Management State
+  const [pendingRefundsList, setPendingRefundsList] = useState([]);
+  const [selectedRefundIds, setSelectedRefundIds] = useState([]);
+
   // Hierarchy Inspection State (SM -> Supervisors -> Agents)
   const [hierarchyLeader, setHierarchyLeader] = useState(null);
   const [subordinatesList, setSubordinatesList] = useState([]);
@@ -71,6 +76,13 @@ const AdminDashboard = () => {
   // User Details Modal
   const [selectedUser, setSelectedUser] = useState(null);
   const [userModalVisible, setUserModalVisible] = useState(false);
+
+  // Agent Transfer Modal State
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [transferType, setTransferType] = useState("bulk"); // 'bulk' | 'single'
+  const [oldSupervisorId, setOldSupervisorId] = useState("");
+  const [newSupervisorId, setNewSupervisorId] = useState("");
+  const [transferAgentId, setTransferAgentId] = useState("");
 
   // Create Universal User Modal
   const [createUserModalVisible, setCreateUserModalVisible] = useState(false);
@@ -88,9 +100,7 @@ const AdminDashboard = () => {
     airtimeGoal: "250000",
   });
 
-  // ==========================================
-  // SUPER ADMIN STYLE TARIFFS & LIVE PRICING
-  // ==========================================
+  // Pricing & Tariffs State
   const [pricingList, setPricingList] = useState([
     {
       id: "mtn_sme_1gb",
@@ -164,7 +174,6 @@ const AdminDashboard = () => {
   const [addPlanModalVisible, setAddPlanModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
 
-  // Edit Plan Tier Price State
   const [editTierPrices, setEditTierPrices] = useState({
     costPrice: "",
     userPrice: "",
@@ -174,7 +183,6 @@ const AdminDashboard = () => {
     status: "active",
   });
 
-  // Create New Plan Form State
   const [newPlanForm, setNewPlanForm] = useState({
     network: "MTN",
     planType: "SME",
@@ -202,8 +210,16 @@ const AdminDashboard = () => {
   const [notifTitle, setNotifTitle] = useState("");
   const [notifMessage, setNotifMessage] = useState("");
   const [sendingNotif, setSendingNotif] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Sidebar Animations
+  const showAlert = (title, message) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   const openSidebar = () => {
     setSidebarVisible(true);
     Animated.timing(slideAnim, {
@@ -221,7 +237,6 @@ const AdminDashboard = () => {
     }).start(() => setSidebarVisible(false));
   };
 
-  // Sync Live Data
   const fetchDashboardData = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -235,10 +250,11 @@ const AdminDashboard = () => {
 
       const config = { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 };
 
-      const [statsRes, usersRes, plansRes] = await Promise.allSettled([
+      const [statsRes, usersRes, plansRes, refundsRes] = await Promise.allSettled([
         axios.get(`${BASE_URL}/admin/dashboard-stats`, config),
         axios.get(`${BASE_URL}/admin/users?limit=150`, config),
         axios.get(`${BASE_URL}/data/plans`, config),
+        axios.get(`${BASE_URL}/admin/transactions?status=pending-refund`, config),
       ]);
 
       if (statsRes.status === "fulfilled" && statsRes.value.data) {
@@ -274,6 +290,15 @@ const AdminDashboard = () => {
         if (Array.isArray(serverPlans) && serverPlans.length > 0) {
           setPricingList(serverPlans);
         }
+      }
+
+      if (refundsRes.status === "fulfilled" && refundsRes.value.data) {
+        const rawRefunds =
+          refundsRes.value.data.data ||
+          refundsRes.value.data.refunds ||
+          refundsRes.value.data.transactions ||
+          [];
+        setPendingRefundsList(Array.isArray(rawRefunds) ? rawRefunds : []);
       }
     } catch (err) {
       if (!isBackground) {
@@ -314,6 +339,132 @@ const AdminDashboard = () => {
     }
   };
 
+  // REFUND SELECTION & EXECUTION HANDLERS
+  const handleToggleSelectAllRefunds = () => {
+    if (selectedRefundIds.length === pendingRefundsList.length && pendingRefundsList.length > 0) {
+      setSelectedRefundIds([]);
+    } else {
+      setSelectedRefundIds(pendingRefundsList.map((item) => item._id || item.transactionId || item.id));
+    }
+  };
+
+  const handleToggleRefundItem = (id) => {
+    if (selectedRefundIds.includes(id)) {
+      setSelectedRefundIds(selectedRefundIds.filter((item) => item !== id));
+    } else {
+      setSelectedRefundIds([...selectedRefundIds, id]);
+    }
+  };
+
+  const handleBatchApproveRefunds = async () => {
+    if (selectedRefundIds.length === 0) {
+      return showAlert("Validation Notice", "Please select at least one transaction to refund.");
+    }
+
+    const confirmAction = async () => {
+      setActionLoading(true);
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+        const res = await axios
+          .post(
+            `${BASE_URL}/admin/refunds/batch-approve`,
+            { transactionIds: selectedRefundIds },
+            { headers }
+          )
+          .catch(async () => {
+            const selectedItems = pendingRefundsList.filter((item) =>
+              selectedRefundIds.includes(item._id || item.transactionId || item.id)
+            );
+            for (const item of selectedItems) {
+              await axios.post(
+                `${BASE_URL}/admin/refunds/approve`,
+                {
+                  transactionId: item._id || item.transactionId,
+                  reference: item.reference || item.transactionReference,
+                  beneficiary: item.user?.phone || item.user?.email || item.phone || item.recipient,
+                  refundAmount: Number(item.amount || item.refundAmount || 0),
+                },
+                { headers }
+              );
+            }
+            return { data: { success: true, message: `Processed ${selectedRefundIds.length} refunds.` } };
+          });
+
+        if (res.data?.success || res.status === 200) {
+          showAlert("Success", res.data.message || `Refunded ${selectedRefundIds.length} transactions.`);
+          setSelectedRefundIds([]);
+          fetchDashboardData();
+        }
+      } catch (err) {
+        showAlert("Refund Error", err.response?.data?.message || err.message);
+      } finally {
+        setActionLoading(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Authorize refund for ${selectedRefundIds.length} selected accounts?`)) {
+        confirmAction();
+      }
+    } else {
+      Alert.alert(
+        "Confirm Batch Refund",
+        `Authorize refund for ${selectedRefundIds.length} selected accounts?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Approve All", style: "destructive", onPress: confirmAction },
+        ]
+      );
+    }
+  };
+
+  // AGENT TEAM TRANSFER HANDLER
+  const handleExecuteAgentTransfer = async () => {
+    if (!newSupervisorId.trim()) {
+      return showAlert("Validation Error", "Destination Supervisor ID is required.");
+    }
+    if (transferType === "bulk" && !oldSupervisorId.trim()) {
+      return showAlert("Validation Error", "Current/Suspended Supervisor ID is required.");
+    }
+    if (transferType === "single" && !transferAgentId.trim()) {
+      return showAlert("Validation Error", "Agent ID is required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const endpoint =
+        transferType === "bulk"
+          ? `${BASE_URL}/supervisors/transfer-all-agents`
+          : `${BASE_URL}/supervisors/transfer-single-agent`;
+
+      const payload =
+        transferType === "bulk"
+          ? { oldSupervisorId: oldSupervisorId.trim(), newSupervisorId: newSupervisorId.trim() }
+          : { agentId: transferAgentId.trim(), newSupervisorId: newSupervisorId.trim() };
+
+      const res = await axios.post(endpoint, payload, { headers });
+
+      if (res.data?.success) {
+        showAlert("Success", res.data.message || "Agent reassignment successful.");
+        setTransferModalVisible(false);
+        setOldSupervisorId("");
+        setNewSupervisorId("");
+        setTransferAgentId("");
+        fetchDashboardData();
+      } else {
+        showAlert("Notice", res.data?.message || "Could not complete reassignment.");
+      }
+    } catch (err) {
+      showAlert("Transfer Error", err.response?.data?.message || err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleInspectHierarchy = (leader) => {
     setHierarchyLeader(leader);
     const leaderId = String(leader._id || leader.id);
@@ -343,7 +494,7 @@ const AdminDashboard = () => {
 
   const handleCreateUser = async () => {
     if (!userFormData.name || !userFormData.phone) {
-      Alert.alert("Required Information", "Full Name and Phone Number are mandatory.");
+      showAlert("Required Information", "Full Name and Phone Number are mandatory.");
       return;
     }
 
@@ -361,11 +512,11 @@ const AdminDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      Alert.alert("Account Created", `Successfully provisioned ${userFormData.name} as ${userFormData.role.toUpperCase()}`);
+      showAlert("Account Created", `Provisioned ${userFormData.name} as ${userFormData.role.toUpperCase()}`);
       setCreateUserModalVisible(false);
       fetchDashboardData(true);
     } catch (e) {
-      Alert.alert("Creation Complete", `Provisioned ${userFormData.name}`);
+      showAlert("Notice", `Provisioned ${userFormData.name}`);
       setCreateUserModalVisible(false);
     }
   };
@@ -378,18 +529,15 @@ const AdminDashboard = () => {
         { status: newStatus, isSuspended: newStatus === "suspended" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Alert.alert("Status Updated", `User status changed to ${newStatus.toUpperCase()}`);
+      showAlert("Status Updated", `User status changed to ${newStatus.toUpperCase()}`);
       setUserModalVisible(false);
       fetchDashboardData(true);
     } catch (e) {
-      Alert.alert("Updated", `Account updated to ${newStatus.toUpperCase()}`);
+      showAlert("Updated", `Account updated to ${newStatus.toUpperCase()}`);
       setUserModalVisible(false);
     }
   };
 
-  // ==========================================
-  // SUPER ADMIN TARIFF & PRICE HANDLERS
-  // ==========================================
   const handleOpenEditPlan = (plan) => {
     setSelectedPlan(plan);
     setEditTierPrices({
@@ -405,7 +553,7 @@ const AdminDashboard = () => {
 
   const handleSaveTierPricing = async () => {
     if (!editTierPrices.userPrice || !editTierPrices.agentPrice) {
-      Alert.alert("Incomplete Pricing", "Please specify at least User and Agent prices.");
+      showAlert("Incomplete Pricing", "Please specify at least User and Agent prices.");
       return;
     }
 
@@ -432,7 +580,7 @@ const AdminDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       ).catch(() => {});
 
-      Alert.alert("Pricing Tier Synced", `${selectedPlan.network} ${selectedPlan.plan} updated successfully.`);
+      showAlert("Pricing Tier Synced", `${selectedPlan.network} ${selectedPlan.plan} updated successfully.`);
       setPricingModalVisible(false);
     } catch (e) {
       setPricingModalVisible(false);
@@ -441,7 +589,7 @@ const AdminDashboard = () => {
 
   const handleAddNewPlanSubmit = async () => {
     if (!newPlanForm.network || !newPlanForm.plan || !newPlanForm.userPrice) {
-      Alert.alert("Missing Fields", "Please complete Network, Plan Size, and User Price.");
+      showAlert("Missing Fields", "Please complete Network, Plan Size, and User Price.");
       return;
     }
 
@@ -472,7 +620,7 @@ const AdminDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       ).catch(() => {});
 
-      Alert.alert("New Plan Deployed", `${newPlanObject.network} ${newPlanObject.plan} is now active on the network.`);
+      showAlert("New Plan Deployed", `${newPlanObject.network} ${newPlanObject.plan} is now active.`);
       setAddPlanModalVisible(false);
     } catch (e) {
       setAddPlanModalVisible(false);
@@ -488,18 +636,18 @@ const AdminDashboard = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       ).catch(() => {});
 
-      Alert.alert(
+      showAlert(
         "Directive Dispatched",
         `Monthly Data goal of ${targetPayload.dataVolumeGoal}GB and ₦${Number(targetPayload.airtimeGoal).toLocaleString()} Airtime assigned to all ${targetPayload.targetRole.toUpperCase()} personnel.`
       );
     } catch (e) {
-      Alert.alert("Directive Active", "Targets deployed to operations network.");
+      showAlert("Directive Active", "Targets deployed to operations network.");
     }
   };
 
   const handleSendNotification = async () => {
     if (!notifTitle || !notifMessage) {
-      Alert.alert("Incomplete", "Please specify notification title and description.");
+      showAlert("Incomplete", "Please specify notification title and description.");
       return;
     }
     setSendingNotif(true);
@@ -515,12 +663,12 @@ const AdminDashboard = () => {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      Alert.alert("Broadcast Delivered", "Instant push notification dispatched successfully.");
+      showAlert("Broadcast Delivered", "Instant push notification dispatched successfully.");
       setNotifTitle("");
       setNotifMessage("");
       setTargetUserEmail("");
     } catch (e) {
-      Alert.alert("Broadcast Delivered", "Instant push notification sent to all matching accounts.");
+      showAlert("Broadcast Delivered", "Instant push notification sent to matching accounts.");
     } finally {
       setSendingNotif(false);
     }
@@ -537,7 +685,6 @@ const AdminDashboard = () => {
     );
   }
 
-  // Filtered Users
   const filteredUsers = usersList.filter((u) => {
     const q = searchQuery.toLowerCase().trim();
     const matchesQuery =
@@ -549,7 +696,6 @@ const AdminDashboard = () => {
     return matchesQuery && matchesRole;
   });
 
-  // Filtered Pricing
   const filteredPricing = pricingList.filter((p) => {
     if (selectedNetworkFilter === "ALL") return true;
     return (p.network || "").toUpperCase() === selectedNetworkFilter;
@@ -574,6 +720,13 @@ const AdminDashboard = () => {
         </View>
 
         <View style={styles.topActions}>
+          <TouchableOpacity
+            style={[styles.actionIconBtn, { backgroundColor: "#e0f2fe", borderColor: "#bae6fd" }]}
+            onPress={() => setTransferModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="account-switch" size={17} color="#0284c7" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.actionIconBtn} onPress={onRefresh} activeOpacity={0.7}>
             <Feather name="rotate-cw" size={17} color="#0284c7" />
           </TouchableOpacity>
@@ -591,7 +744,8 @@ const AdminDashboard = () => {
             { key: "sales", label: "Sales & Bundles", icon: "activity" },
             { key: "hierarchy", label: "Cadre Hierarchy", icon: "git-branch" },
             { key: "users", label: "User Directory", icon: "users" },
-            { key: "pricing", label: "SuperAdmin Tariffs", icon: "tag" },
+            { key: "refunds", label: `Refunds (${pendingRefundsList.length})`, icon: "replay" },
+            { key: "pricing", label: "Tariffs & Margin", icon: "tag" },
             { key: "targets", label: "Directives & Quotas", icon: "target" },
             { key: "broadcast", label: "Push Notification", icon: "bell" },
           ].map((tab) => (
@@ -626,7 +780,6 @@ const AdminDashboard = () => {
               <Text style={styles.sectionHeaderLive}>REAL-TIME LIVE</Text>
             </View>
 
-            {/* DARK TELEMETRY CARDS */}
             <View style={styles.darkTelemetryContainer}>
               <View style={styles.metricGrid}>
                 <View style={[styles.darkMetricCard, { borderTopColor: "#10b981" }]}>
@@ -668,7 +821,7 @@ const AdminDashboard = () => {
                     <Ionicons name="alert-circle-outline" size={16} color="#fb7185" />
                   </View>
                   <Text style={[styles.darkMetricCardValue, { color: "#fb7185" }]}>
-                    {stats.pendingRefunds || 0}
+                    {pendingRefundsList.length || stats.pendingRefunds || 0}
                   </Text>
                   <Text style={styles.darkMetricCardSub}>Failed/Disputed Orders</Text>
                 </View>
@@ -744,7 +897,6 @@ const AdminDashboard = () => {
               </View>
             </View>
 
-            {/* Carrier Breakdown Cards */}
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeaderLabel}>NETWORK OPERATOR BREAKDOWN</Text>
             </View>
@@ -850,7 +1002,6 @@ const AdminDashboard = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Role Filter Badges */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.roleFilterScroll}>
               {[
                 { key: "all", label: "All Directory" },
@@ -906,7 +1057,116 @@ const AdminDashboard = () => {
         )}
 
         {/* ========================================================
-            TAB 5: SUPER ADMIN STYLE TARIFFS & LIVE PRICING
+            TAB 5: BATCH REFUND QUEUE DESK
+        ======================================================== */}
+        {activeTab === "refunds" && (
+          <View style={styles.tabWrapper}>
+            {/* SELECT ALL & BATCH ACTION TOOLBAR */}
+            <View style={styles.bulkRefundToolbar}>
+              <TouchableOpacity
+                style={styles.bulkRefundSelectAllBtn}
+                onPress={handleToggleSelectAllRefunds}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons
+                  name={
+                    selectedRefundIds.length === pendingRefundsList.length && pendingRefundsList.length > 0
+                      ? "check-box"
+                      : "check-box-outline-blank"
+                  }
+                  size={22}
+                  color="#0284c7"
+                />
+                <Text style={styles.bulkRefundSelectAllText}>
+                  {selectedRefundIds.length === pendingRefundsList.length && pendingRefundsList.length > 0
+                    ? "Deselect All"
+                    : `Select All (${selectedRefundIds.length}/${pendingRefundsList.length})`}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.bulkRefundSubmitBtn,
+                  selectedRefundIds.length === 0 && { opacity: 0.5 },
+                ]}
+                onPress={handleBatchApproveRefunds}
+                disabled={selectedRefundIds.length === 0 || actionLoading}
+                activeOpacity={0.85}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="replay" size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.bulkRefundSubmitBtnText}>
+                      Refund Selected ({selectedRefundIds.length})
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeaderLabel}>ACTIONABLE REFUND DISPUTE TICKETS</Text>
+              <Text style={{ color: "#e11d48", fontSize: 11, fontWeight: "900" }}>
+                {pendingRefundsList.length} PENDING
+              </Text>
+            </View>
+
+            {pendingRefundsList.length > 0 ? (
+              pendingRefundsList.map((item, idx) => {
+                const id = item._id || item.transactionId || item.id || String(idx);
+                const isChecked = selectedRefundIds.includes(id);
+                const beneficiary = item.user?.phone || item.user?.email || item.phone || item.recipient || "Subscriber";
+                const amount = Number(item.amount || item.refundAmount || 0);
+                const ref = item.reference || item.transactionReference || id;
+
+                return (
+                  <View
+                    key={id}
+                    style={[
+                      styles.refundQueueCard,
+                      isChecked && { borderColor: "#0284c7", backgroundColor: "#f0f9ff" },
+                    ]}
+                  >
+                    <View style={styles.refundQueueTop}>
+                      <TouchableOpacity
+                        style={{ marginRight: 10, marginTop: 2 }}
+                        onPress={() => handleToggleRefundItem(id)}
+                      >
+                        <MaterialIcons
+                          name={isChecked ? "check-box" : "check-box-outline-blank"}
+                          size={24}
+                          color={isChecked ? "#0284c7" : "#64748b"}
+                        />
+                      </TouchableOpacity>
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.refundQueueBeneficiary}>Account: {beneficiary}</Text>
+                        <Text style={styles.refundQueueRef}>Ref: {ref}</Text>
+                        <Text style={styles.refundQueueReason}>
+                          Reason: <Text style={{ color: "#0f172a" }}>{item.reason || item.refundReason || "Debited without value"}</Text>
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={styles.refundQueueAmount}>₦{amount.toLocaleString()}</Text>
+                        <Text style={styles.refundQueueStatus}>PENDING APPROVAL</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={styles.emptyWrap}>
+                <Ionicons name="checkmark-done-circle-outline" size={44} color="#10b981" />
+                <Text style={styles.emptyTitle}>No pending refund requests. All accounts balanced.</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ========================================================
+            TAB 6: SUPER ADMIN STYLE TARIFFS & LIVE PRICING
         ======================================================== */}
         {activeTab === "pricing" && (
           <>
@@ -921,7 +1181,6 @@ const AdminDashboard = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Network Filter Pills */}
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.networkFilterScroll}>
               {["ALL", "MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
                 <TouchableOpacity
@@ -936,7 +1195,6 @@ const AdminDashboard = () => {
               ))}
             </ScrollView>
 
-            {/* Super Admin Plan Cards */}
             {filteredPricing.map((plan) => (
               <View key={plan.id} style={styles.superPlanCard}>
                 <View style={styles.superPlanCardTop}>
@@ -969,7 +1227,6 @@ const AdminDashboard = () => {
                   </TouchableOpacity>
                 </View>
 
-                {/* Tier Pricing Breakdown Grid */}
                 <View style={styles.tierPricingRow}>
                   <View style={styles.tierBox}>
                     <Text style={styles.tierBoxLabel}>Customer</Text>
@@ -1001,7 +1258,7 @@ const AdminDashboard = () => {
         )}
 
         {/* ========================================================
-            TAB 6: DIRECTIVES & QUOTA DISPATCH
+            TAB 7: DIRECTIVES & QUOTA DISPATCH
         ======================================================== */}
         {activeTab === "targets" && (
           <View style={styles.formCard}>
@@ -1077,7 +1334,7 @@ const AdminDashboard = () => {
         )}
 
         {/* ========================================================
-            TAB 7: INSTANT PUSH NOTIFICATION BROADCASTER
+            TAB 8: INSTANT PUSH NOTIFICATION BROADCASTER
         ======================================================== */}
         {activeTab === "broadcast" && (
           <View style={styles.formCard}>
@@ -1175,7 +1432,8 @@ const AdminDashboard = () => {
                 { key: "sales", label: "Data & Airtime Sales", icon: "trending-up" },
                 { key: "hierarchy", label: "Cadre Hierarchy", icon: "git-branch" },
                 { key: "users", label: "User Directory", icon: "users" },
-                { key: "pricing", label: "SuperAdmin Tariffs", icon: "tag" },
+                { key: "refunds", label: `Refund Queue (${pendingRefundsList.length})`, icon: "replay" },
+                { key: "pricing", label: "Tariffs & Margins", icon: "tag" },
                 { key: "targets", label: "Directives & Quotas", icon: "target" },
                 { key: "broadcast", label: "Push Notification", icon: "send" },
               ].map((m) => (
@@ -1193,6 +1451,29 @@ const AdminDashboard = () => {
                   </Text>
                 </TouchableOpacity>
               ))}
+
+              <Text style={styles.sidebarNavSectionTitle}>OPERATIONAL COMMANDS</Text>
+              <TouchableOpacity
+                style={styles.sidebarNavItem}
+                onPress={() => {
+                  closeSidebar();
+                  setTransferModalVisible(true);
+                }}
+              >
+                <MaterialCommunityIcons name="account-switch" size={17} color="#0284c7" />
+                <Text style={styles.sidebarNavText}>Reassign Agent Team</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.sidebarNavItem}
+                onPress={() => {
+                  closeSidebar();
+                  setCreateUserModalVisible(true);
+                }}
+              >
+                <Ionicons name="person-add-outline" size={17} color="#0284c7" />
+                <Text style={styles.sidebarNavText}>Provision New Account</Text>
+              </TouchableOpacity>
 
               <Text style={styles.sidebarNavSectionTitle}>IDENTITY & SUPPORT</Text>
               <TouchableOpacity
@@ -1215,17 +1496,6 @@ const AdminDashboard = () => {
               >
                 <FontAwesome5 name="fingerprint" size={15} color="#d97706" />
                 <Text style={styles.sidebarNavText}>BVN Desk</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.sidebarNavItem}
-                onPress={() => {
-                  closeSidebar();
-                  navigation.navigate("SupportDashboard");
-                }}
-              >
-                <Ionicons name="headset-outline" size={17} color="#e11d48" />
-                <Text style={styles.sidebarNavText}>Support Desk</Text>
               </TouchableOpacity>
             </ScrollView>
 
@@ -1288,7 +1558,97 @@ const AdminDashboard = () => {
       </Modal>
 
       {/* ========================================================
-          MODAL 2: CREATE UNIVERSAL USER / CADRE STAFF
+          MODAL 2: REASSIGN AGENT TEAM (TRANSFER)
+      ======================================================== */}
+      <Modal visible={transferModalVisible} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Reassign Agent Network</Text>
+                <Text style={styles.modalSubLeader}>
+                  Transfer agents from a terminated/suspended supervisor to a new supervisor
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setTransferModalVisible(false)}>
+                <Feather name="x" size={20} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.targetRoleSelectorRow}>
+                <TouchableOpacity
+                  style={[styles.targetCadreBtn, transferType === "bulk" && styles.targetCadreBtnActive]}
+                  onPress={() => setTransferType("bulk")}
+                >
+                  <Text style={[styles.targetCadreBtnText, transferType === "bulk" && styles.targetCadreBtnTextActive]}>
+                    Entire Team (Bulk)
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.targetCadreBtn, transferType === "single" && styles.targetCadreBtnActive]}
+                  onPress={() => setTransferType("single")}
+                >
+                  <Text style={[styles.targetCadreBtnText, transferType === "single" && styles.targetCadreBtnTextActive]}>
+                    Single Agent
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {transferType === "bulk" ? (
+                <>
+                  <Text style={styles.inputFieldLabel}>CURRENT/SUSPENDED SUPERVISOR ID *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Enter current supervisor ID"
+                    placeholderTextColor="#94a3b8"
+                    value={oldSupervisorId}
+                    onChangeText={setOldSupervisorId}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.inputFieldLabel}>AGENT ID TO REASSIGN *</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    placeholder="Enter agent ID"
+                    placeholderTextColor="#94a3b8"
+                    value={transferAgentId}
+                    onChangeText={setTransferAgentId}
+                  />
+                </>
+              )}
+
+              <Text style={styles.inputFieldLabel}>DESTINATION SUPERVISOR ID (NEW LEAD) *</Text>
+              <TextInput
+                style={styles.formInput}
+                placeholder="Enter new supervisor ID"
+                placeholderTextColor="#94a3b8"
+                value={newSupervisorId}
+                onChangeText={setNewSupervisorId}
+              />
+
+              <TouchableOpacity
+                style={[styles.submitFormBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleExecuteAgentTransfer}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.submitFormBtnText}>
+                    {transferType === "bulk" ? "AUTHORIZE TEAM REASSIGNMENT" : "REASSIGN AGENT"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ========================================================
+          MODAL 3: CREATE UNIVERSAL USER / CADRE STAFF
       ======================================================== */}
       <Modal visible={createUserModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -1389,7 +1749,7 @@ const AdminDashboard = () => {
       </Modal>
 
       {/* ========================================================
-          MODAL 3: USER INSPECTION & STATUS OVERRIDE
+          MODAL 4: USER INSPECTION & STATUS OVERRIDE
       ======================================================== */}
       <Modal visible={userModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -1444,7 +1804,7 @@ const AdminDashboard = () => {
       </Modal>
 
       {/* ========================================================
-          MODAL 4: SUPER ADMIN EDIT TIER PRICING MODAL
+          MODAL 5: SUPER ADMIN EDIT TIER PRICING MODAL
       ======================================================== */}
       <Modal visible={pricingModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -1539,7 +1899,7 @@ const AdminDashboard = () => {
       </Modal>
 
       {/* ========================================================
-          MODAL 5: CREATE NEW PLAN MODAL (SUPER ADMIN STYLE)
+          MODAL 6: CREATE NEW PLAN MODAL
       ======================================================== */}
       <Modal visible={addPlanModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
@@ -1757,7 +2117,6 @@ const styles = StyleSheet.create({
   },
   sectionHeaderSub: { color: "#0284c7", fontSize: 9.5, fontWeight: "700" },
   
-  // --- DARK TELEMETRY STYLING ---
   darkTelemetryContainer: {
     backgroundColor: "#0f172a",
     borderRadius: 16,
@@ -1949,7 +2308,48 @@ const styles = StyleSheet.create({
   userBalanceSide: { alignItems: "flex-end", gap: 3 },
   userBalanceVal: { color: "#059669", fontSize: 12, fontWeight: "900" },
 
-  // --- SUPER ADMIN TARIFF SPECIFIC STYLES ---
+  // BULK REFUND TOOLBAR & CARDS
+  tabWrapper: { width: "100%" },
+  bulkRefundToolbar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  bulkRefundSelectAllBtn: { flexDirection: "row", alignItems: "center" },
+  bulkRefundSelectAllText: { color: "#0284c7", fontSize: 12, fontWeight: "bold", marginLeft: 8 },
+  bulkRefundSubmitBtn: {
+    backgroundColor: "#e11d48",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  bulkRefundSubmitBtnText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+
+  refundQueueCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderLeftWidth: 4,
+    borderLeftColor: "#e11d48",
+  },
+  refundQueueTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+  refundQueueBeneficiary: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
+  refundQueueRef: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
+  refundQueueReason: { color: "#e11d48", fontSize: 11, marginTop: 4 },
+  refundQueueAmount: { color: "#e11d48", fontSize: 15, fontWeight: "900" },
+  refundQueueStatus: { color: "#d97706", fontSize: 9.5, fontWeight: "900", marginTop: 2 },
+
   addPlanHeaderBtn: {
     flexDirection: "row",
     alignItems: "center",

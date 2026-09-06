@@ -42,19 +42,15 @@ const NsdDashboard = ({ navigation }) => {
     nationalAirtimeSold: 0,
   });
   const [activityLogs, setActivityLogs] = useState([]);
-  const [failedRefundableList, setFailedRefundableList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Tabs & Search
-  const [activeTab, setActiveTab] = useState("states"); // 'states' | 'managers' | 'refunds' | 'history'
+  const [activeTab, setActiveTab] = useState("states"); // 'states' | 'managers' | 'history'
   const [searchQuery, setSearchQuery] = useState("");
 
   // Selective State Selection Array (36 States + FCT)
   const [selectedStateNames, setSelectedStateNames] = useState([]);
-
-  // Batch Refund Selection IDs
-  const [selectedRefundIds, setSelectedRefundIds] = useState([]);
 
   // Sidebar Drawer
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -144,33 +140,24 @@ const NsdDashboard = ({ navigation }) => {
 
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [dashRes, logsRes, refundsRes] = await Promise.all([
+        const [dashRes, logsRes] = await Promise.all([
           axios
             .get(`${BASE_URL}/super-leader/dashboard`, { headers, timeout: 15000 })
             .catch(() => ({ data: {} })),
           axios
             .get(`${BASE_URL}/leader/live-audit-stream`, { headers, timeout: 15000 })
             .catch(() => ({ data: { logs: [] } })),
-          axios
-            .get(`${BASE_URL}/super-leader/pending-refunds`, { headers, timeout: 15000 })
-            .catch(() => ({ data: { refunds: [] } })),
         ]);
 
         const dashData = dashRes.data?.data || dashRes.data || {};
         const fetchedStates = Array.isArray(dashData.statesMatrix) ? dashData.statesMatrix : [];
         const fetchedStats = dashData.nationalStats || {};
         const fetchedLogs = Array.isArray(logsRes.data?.logs) ? logsRes.data.logs : [];
-        const fetchedRefunds = Array.isArray(refundsRes.data?.refunds)
-          ? refundsRes.data.refunds
-          : Array.isArray(dashData.pendingRefunds)
-          ? dashData.pendingRefunds
-          : [];
 
         if (!isMounted.current) return;
 
         setStatesData(fetchedStates);
         setActivityLogs(fetchedLogs);
-        setFailedRefundableList(fetchedRefunds);
 
         const calculatedTotalAgents = fetchedStates.reduce(
           (acc, curr) => acc + (Number(curr.agentsCount) || 0),
@@ -234,7 +221,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // State Selection Handlers
   const handleSelectAllStates = () => {
     if (selectedStateNames.length === ALL_NIGERIAN_STATES.length) {
       setSelectedStateNames([]);
@@ -251,76 +237,6 @@ const NsdDashboard = ({ navigation }) => {
     }
   };
 
-  // Refund Selection Handlers (SELECT ALL)
-  const handleSelectAllRefunds = () => {
-    if (selectedRefundIds.length === failedRefundableList.length && failedRefundableList.length > 0) {
-      setSelectedRefundIds([]);
-    } else {
-      setSelectedRefundIds(failedRefundableList.map((item) => item._id || item.id));
-    }
-  };
-
-  const handleToggleRefundSelect = (id) => {
-    if (selectedRefundIds.includes(id)) {
-      setSelectedRefundIds(selectedRefundIds.filter((item) => item !== id));
-    } else {
-      setSelectedRefundIds([...selectedRefundIds, id]);
-    }
-  };
-
-  // Execute Batch Refunds
-  const handleExecuteBatchRefund = async () => {
-    if (selectedRefundIds.length === 0) {
-      showAlert("Validation Notice", "Please select at least one item to refund.");
-      return;
-    }
-
-    const confirmAction = async () => {
-      setActionLoading(true);
-      try {
-        const token = await AsyncStorage.getItem("userToken");
-        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-
-        const res = await axios.post(
-          `${BASE_URL}/super-leader/process-batch-refund`,
-          { transactionIds: selectedRefundIds },
-          { headers }
-        );
-
-        if (res.data?.success) {
-          showAlert(
-            "Refund Successful",
-            res.data.message || `Processed refund for ${selectedRefundIds.length} transactions.`
-          );
-          setSelectedRefundIds([]);
-          fetchNationalTelemetry();
-        } else {
-          showAlert("Notice", res.data?.message || "Refunds completed with notices.");
-        }
-      } catch (err) {
-        showAlert("Error", err.response?.data?.message || err.message || "Could not process batch refund.");
-      } finally {
-        if (isMounted.current) setActionLoading(false);
-      }
-    };
-
-    if (Platform.OS === "web") {
-      if (window.confirm(`Authorize refund for ${selectedRefundIds.length} selected accounts?`)) {
-        confirmAction();
-      }
-    } else {
-      Alert.alert(
-        "Confirm Batch Refund",
-        `Authorize immediate refund for ${selectedRefundIds.length} selected accounts?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Proceed", style: "destructive", onPress: confirmAction },
-        ]
-      );
-    }
-  };
-
-  // Agent Team Reassignment (Transfer)
   const handleExecuteTransfer = async () => {
     if (!newSupervisorId.trim()) {
       return showAlert("Validation Error", "Destination Supervisor ID is required.");
@@ -702,20 +618,6 @@ const NsdDashboard = ({ navigation }) => {
           />
           <Text style={[styles.mainNavTabText, activeTab === "managers" && styles.mainNavTabTextActive]}>
             Managers ({nationalStats.activeManagers})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.mainNavTab, activeTab === "refunds" && styles.mainNavTabActive]}
-          onPress={() => setActiveTab("refunds")}
-        >
-          <MaterialIcons
-            name="replay"
-            size={16}
-            color={activeTab === "refunds" ? "#1e40af" : "#64748b"}
-          />
-          <Text style={[styles.mainNavTabText, activeTab === "refunds" && styles.mainNavTabTextActive]}>
-            Batch Refunds ({failedRefundableList.length})
           </Text>
         </TouchableOpacity>
 
@@ -1252,98 +1154,7 @@ const NsdDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 3: BATCH REFUNDS MANAGEMENT */}
-          {activeTab === "refunds" && (
-            <View style={styles.tabContentWrapper}>
-              <View style={styles.bulkActionRibbon}>
-                <TouchableOpacity style={styles.bulkSelectBtn} onPress={handleSelectAllRefunds}>
-                  <MaterialIcons
-                    name={
-                      selectedRefundIds.length === failedRefundableList.length &&
-                      failedRefundableList.length > 0
-                        ? "check-box"
-                        : "check-box-outline-blank"
-                    }
-                    size={22}
-                    color="#1e40af"
-                  />
-                  <Text style={styles.bulkSelectBtnText}>
-                    {selectedRefundIds.length === failedRefundableList.length &&
-                    failedRefundableList.length > 0
-                      ? "Deselect All Transactions"
-                      : `Select All (${selectedRefundIds.length}/${failedRefundableList.length})`}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.bulkTargetBtn,
-                    { backgroundColor: selectedRefundIds.length > 0 ? "#dc2626" : "#cbd5e1" },
-                  ]}
-                  disabled={selectedRefundIds.length === 0 || actionLoading}
-                  onPress={handleExecuteBatchRefund}
-                >
-                  {actionLoading ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
-                  ) : (
-                    <>
-                      <MaterialIcons name="replay" size={14} color="#ffffff" />
-                      <Text style={styles.bulkTargetBtnText}>
-                        Refund Selected ({selectedRefundIds.length})
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionHeaderLabel}>
-                  FAILED QUEUED TRANSACTIONS FOR REFUND ({failedRefundableList.length})
-                </Text>
-              </View>
-
-              {failedRefundableList.length > 0 ? (
-                failedRefundableList.map((item) => {
-                  const id = item._id || item.id;
-                  const isChecked = selectedRefundIds.includes(id);
-
-                  return (
-                    <TouchableOpacity
-                      key={id}
-                      style={[styles.refundCard, isChecked && styles.refundCardActive]}
-                      onPress={() => handleToggleRefundSelect(id)}
-                      activeOpacity={0.8}
-                    >
-                      <MaterialIcons
-                        name={isChecked ? "check-box" : "check-box-outline-blank"}
-                        size={22}
-                        color={isChecked ? "#1e40af" : "#94a3b8"}
-                        style={{ marginRight: 10 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.refundUserText}>
-                          {item.user?.name || item.userName || "Customer Account"} • {item.user?.phone || item.phone || "No Phone"}
-                        </Text>
-                        <Text style={styles.refundServiceText}>
-                          {item.service || "Service Failure"}: ₦{Number(item.amount || 0).toLocaleString()}
-                        </Text>
-                        <Text style={styles.refundReasonText}>
-                          Reason: {item.reason || item.errorMessage || "Gateway timed out/failed."}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })
-              ) : (
-                <View style={styles.emptyFeed}>
-                  <Ionicons name="checkmark-circle-outline" size={38} color="#059669" />
-                  <Text style={styles.emptyFeedText}>No failed transactions pending refund.</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* TAB 4: AUDIT STREAM */}
+          {/* TAB 3: AUDIT STREAM */}
           {activeTab === "history" && (
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
@@ -1439,21 +1250,6 @@ const NsdDashboard = ({ navigation }) => {
                 </View>
                 <Text style={[styles.navItemText, activeTab === "managers" && { color: "#1e40af", fontWeight: "900" }]}>
                   State Managers
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.navItem, activeTab === "refunds" && styles.navItemActive]}
-                onPress={() => {
-                  toggleSidebar(false);
-                  setActiveTab("refunds");
-                }}
-              >
-                <View style={[styles.navIconBox, { backgroundColor: "#fef2f2" }]}>
-                  <MaterialIcons name="replay" size={16} color="#dc2626" />
-                </View>
-                <Text style={[styles.navItemText, activeTab === "refunds" && { color: "#dc2626", fontWeight: "900" }]}>
-                  Batch Refunds Desk
                 </Text>
               </TouchableOpacity>
 
@@ -2392,21 +2188,6 @@ const styles = StyleSheet.create({
   inspectSupName: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
   inspectSupLga: { color: "#1e40af", fontSize: 11, marginTop: 2, fontWeight: "600" },
   supCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-
-  refundCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  refundCardActive: { borderColor: "#1e40af", backgroundColor: "#eff6ff" },
-  refundUserText: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
-  refundServiceText: { color: "#1e40af", fontSize: 12, fontWeight: "700", marginTop: 2 },
-  refundReasonText: { color: "#dc2626", fontSize: 11, marginTop: 2 },
 
   logCard: {
     backgroundColor: "#ffffff",

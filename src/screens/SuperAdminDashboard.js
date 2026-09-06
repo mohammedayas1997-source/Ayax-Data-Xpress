@@ -37,27 +37,6 @@ const ALL_NIGERIAN_STATES = [
   "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"
 ];
 
-const ALL_SYSTEM_SERVICES = [
-  { key: "standardSlip", categoryKey: "nimc", name: "NIMC Standard Slip", category: "NIMC Printing", icon: "file-alt", defaultFee: 500 },
-  { key: "premiumCard", categoryKey: "nimc", name: "NIMC Premium Card", category: "NIMC Printing", icon: "id-card", defaultFee: 1500 },
-  { key: "basicSlip", categoryKey: "nimc", name: "NIMC Basic Slip", category: "NIMC Printing", icon: "print", defaultFee: 300 },
-  { key: "nin", categoryKey: "nimc", name: "NIN Verification Lookup", category: "NIMC Printing", icon: "fingerprint", defaultFee: 200 },
-  { key: "phone", categoryKey: "nimc", name: "NIMC Phone Search", category: "NIMC Printing", icon: "phone-alt", defaultFee: 500 },
-  { key: "trackingId", categoryKey: "nimc", name: "Tracking ID Search", category: "NIMC Printing", icon: "barcode", defaultFee: 500 },
-  { key: "mod_name", categoryKey: "nimc", name: "Modification: Name Correction", category: "NIMC Modification", icon: "user-edit", defaultFee: 2500 },
-  { key: "mod_phone", categoryKey: "nimc", name: "Modification: Phone Update", category: "NIMC Modification", icon: "mobile-alt", defaultFee: 2000 },
-  { key: "mod_dob", categoryKey: "nimc", name: "Modification: Date of Birth", category: "NIMC Modification", icon: "calendar-alt", defaultFee: 3000 },
-  { key: "mod_address", categoryKey: "nimc", name: "Modification: Address Details", category: "NIMC Modification", icon: "map-marker-alt", defaultFee: 1500 },
-  { key: "val_noRecord", categoryKey: "nimc", name: "Validation: No Record", category: "NIN Validation", icon: "search-minus", defaultFee: 1300 },
-  { key: "val_sim", categoryKey: "nimc", name: "Validation: SIM Card Bypass", category: "NIN Validation", icon: "sim-card", defaultFee: 1300 },
-  { key: "val_vnin", categoryKey: "nimc", name: "Validation: vNIN Linkage", category: "NIN Validation", icon: "shield-alt", defaultFee: 1300 },
-  { key: "val_bank", categoryKey: "nimc", name: "Validation: Bank Records", category: "NIN Validation", icon: "university", defaultFee: 1300 },
-  { key: "bvn_standard", categoryKey: "bvn", name: "BVN Standard Slip", category: "BVN Services", icon: "user-check", defaultFee: 300 },
-  { key: "bvn_premium", categoryKey: "bvn", name: "BVN Premium Card", category: "BVN Services", icon: "id-badge", defaultFee: 1000 },
-  { key: "bvn_phone", categoryKey: "bvn", name: "BVN Phone Lookup", category: "BVN Services", icon: "phone-square-alt", defaultFee: 400 },
-  { key: "bvn_basic", categoryKey: "bvn", name: "BVN Basic Verification", category: "BVN Services", icon: "user-tie", defaultFee: 200 },
-];
-
 const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [prices, setPrices] = useState({});
@@ -65,12 +44,11 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [dataPlansList, setDataPlansList] = useState([]);
   const [allUsersList, setAllUsersList] = useState([]);
   const [pendingRefundsList, setPendingRefundsList] = useState([]);
+  const [selectedRefundIds, setSelectedRefundIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [activeMainTab, setActiveMainTab] = useState("overview");
-  const [selectedTariffCategory, setSelectedTariffCategory] = useState("All");
-  const [tariffSearch, setTariffSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [userSearchQuery, setUserSearchQuery] = useState("");
 
@@ -83,16 +61,20 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [inspectedType, setInspectedType] = useState("user");
 
   const [createUserModalVisible, setCreateUserModalVisible] = useState(false);
-  const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
   const [walletModalVisible, setWalletModalVisible] = useState(false);
-  const [refundModalVisible, setRefundModalVisible] = useState(false);
   const [roleModalVisible, setRoleModalVisible] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [lockModalVisible, setLockModalVisible] = useState(false);
   const [targetModalVisible, setTargetModalVisible] = useState(false);
-  const [planManagerModalVisible, setPlanManagerModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Transfer Agent States
+  const [transferModalVisible, setTransferModalVisible] = useState(false);
+  const [transferType, setTransferType] = useState("bulk"); // 'bulk' | 'single'
+  const [oldSupervisorId, setOldSupervisorId] = useState("");
+  const [newSupervisorId, setNewSupervisorId] = useState("");
+  const [transferAgentId, setTransferAgentId] = useState("");
 
   const [newFirstName, setNewFirstName] = useState("");
   const [newSurname, setNewSurname] = useState("");
@@ -102,13 +84,8 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [newRole, setNewRole] = useState("agent");
   const [newState, setNewState] = useState("Kano");
   const [newLga, setNewLga] = useState("Ajingi");
-  const [newSupervisorId, setNewSupervisorId] = useState("");
+  const [newSupervisorIdInput, setNewSupervisorIdInput] = useState("");
   const [newInitialBalance, setNewInitialBalance] = useState("0");
-
-  const [targetTariffService, setTargetTariffService] = useState(null);
-  const [newTariffPrice, setNewTariffPrice] = useState("");
-  const [newAgentPrice, setNewAgentPrice] = useState("");
-  const [newCostPrice, setNewCostPrice] = useState("");
 
   const [notifAudience, setNotifAudience] = useState("all");
   const [notifTargetUser, setNotifTargetUser] = useState("");
@@ -137,14 +114,13 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
   const [targetMonth, setTargetMonth] = useState("August 2026");
 
-  const [editingPlanId, setEditingPlanId] = useState(null);
-  const [planNetwork, setPlanNetwork] = useState("MTN");
-  const [planName, setPlanName] = useState("");
-  const [planCode, setPlanCode] = useState("");
-  const [planUserPrice, setPlanUserPrice] = useState("");
-  const [planAgentPrice, setPlanAgentPrice] = useState("");
-  const [planCostPrice, setPlanCostPrice] = useState("");
-  const [planValidity, setPlanValidity] = useState("30");
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const showAlert = (title, message) => {
     if (Platform.OS === "web") {
@@ -167,7 +143,9 @@ const SuperAdminDashboard = ({ navigation }) => {
         toValue: -sidebarWidth,
         duration: 220,
         useNativeDriver: false,
-      }).start(() => setSidebarOpen(false));
+      }).start(() => {
+        if (isMounted.current) setSidebarOpen(false);
+      });
     }
   };
 
@@ -201,6 +179,8 @@ const SuperAdminDashboard = ({ navigation }) => {
         ),
       ]);
 
+      if (!isMounted.current) return;
+
       if (telemetryRes.data?.stats) {
         setStats(telemetryRes.data.stats);
         if (telemetryRes.data.prices) setPrices(telemetryRes.data.prices);
@@ -224,8 +204,10 @@ const SuperAdminDashboard = ({ navigation }) => {
         console.log("Telemetry Sync Notice:", err.response?.data?.message || err.message);
       }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMounted.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [navigation]);
 
@@ -264,62 +246,89 @@ const SuperAdminDashboard = ({ navigation }) => {
     }
   };
 
-  const handleCreateUser = async () => {
-    if (!newPhone.trim() || !newFirstName.trim()) {
-      return showAlert("Validation Error", "First Name and Phone Number are required.");
-    }
-
-    setActionLoading(true);
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const fullName = `${newFirstName.trim()} ${newSurname.trim()}`.trim();
-      const payload = {
-        firstName: newFirstName.trim(),
-        surname: newSurname.trim() || "Staff",
-        name: fullName.toUpperCase(),
-        phone: newPhone.trim(),
-        email: newEmail.trim() || `${newPhone.trim()}@ayaxdata.online`,
-        password: newPassword.trim() || "Password123@",
-        role: newRole,
-        state: newState.trim() || "Kano",
-        lga: newLga.trim() || "Ajingi",
-        supervisorId: newSupervisorId.trim() || undefined,
-        walletBalance: Number(newInitialBalance || 0),
-        balance: Number(newInitialBalance || 0),
-        pin: "2026",
-        transactionPin: "2026",
-        isVerified: true,
-        isSuspended: false,
-        status: "active",
-      };
-
-      const res = await axios.post(`${BASE_URL}/superadmin/create-user`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() =>
-        axios.post(`${BASE_URL}/auth/register`, payload, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      );
-
-      if (res.data?.success || res.status === 200 || res.status === 201) {
-        showAlert("User Provisioned", `Account created for ${fullName} as ${newRole.toUpperCase()}.`);
-        setCreateUserModalVisible(false);
-        setNewFirstName("");
-        setNewSurname("");
-        setNewPhone("");
-        setNewEmail("");
-        setNewSupervisorId("");
-        setNewInitialBalance("0");
-        fetchMasterTelemetry();
-      }
-    } catch (err) {
-      showAlert("Creation Error", err.response?.data?.message || err.message);
-    } finally {
-      setActionLoading(false);
+  // REFUND SELECTION & EXECUTION HANDLERS
+  const handleToggleSelectAllRefunds = () => {
+    if (selectedRefundIds.length === pendingRefundsList.length && pendingRefundsList.length > 0) {
+      setSelectedRefundIds([]);
+    } else {
+      setSelectedRefundIds(pendingRefundsList.map((item) => item._id || item.transactionId || item.id));
     }
   };
 
-  const handleApproveRefundRequest = async (item) => {
+  const handleToggleRefundItem = (id) => {
+    if (selectedRefundIds.includes(id)) {
+      setSelectedRefundIds(selectedRefundIds.filter((item) => item !== id));
+    } else {
+      setSelectedRefundIds([...selectedRefundIds, id]);
+    }
+  };
+
+  const handleBatchApproveRefunds = async () => {
+    if (selectedRefundIds.length === 0) {
+      showAlert("Validation Error", "Please select at least one refund request.");
+      return;
+    }
+
+    const confirmAction = async () => {
+      setActionLoading(true);
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+        const res = await axios.post(
+          `${BASE_URL}/superadmin/refunds/batch-approve`,
+          { transactionIds: selectedRefundIds },
+          { headers }
+        ).catch(async () => {
+          // Fallback: approve sequentially if batch endpoint not found
+          const selectedItems = pendingRefundsList.filter((item) =>
+            selectedRefundIds.includes(item._id || item.transactionId || item.id)
+          );
+          for (const item of selectedItems) {
+            await axios.post(
+              `${BASE_URL}/superadmin/refunds/approve`,
+              {
+                transactionId: item._id || item.transactionId,
+                reference: item.reference || item.transactionReference,
+                beneficiary: item.user?.phone || item.user?.email || item.phone || item.recipient,
+                refundAmount: Number(item.amount || item.refundAmount || 0),
+                reason: item.reason || item.refundReason || "SuperAdmin Approved Batch Refund",
+              },
+              { headers }
+            );
+          }
+          return { data: { success: true, message: `Successfully approved ${selectedRefundIds.length} refunds.` } };
+        });
+
+        if (res.data?.success || res.status === 200) {
+          showAlert("Batch Refunds Approved", res.data.message || `Processed refund for ${selectedRefundIds.length} tickets.`);
+          setSelectedRefundIds([]);
+          fetchMasterTelemetry();
+        }
+      } catch (err) {
+        showAlert("Refund Error", err.response?.data?.message || err.message);
+      } finally {
+        if (isMounted.current) setActionLoading(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Are you sure you want to approve and refund ${selectedRefundIds.length} selected accounts?`)) {
+        confirmAction();
+      }
+    } else {
+      Alert.alert(
+        "Confirm Batch Refund",
+        `Are you sure you want to approve and refund ${selectedRefundIds.length} selected accounts?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Approve All", style: "destructive", onPress: confirmAction },
+        ]
+      );
+    }
+  };
+
+  const handleApproveSingleRefund = async (item) => {
     const targetId = item._id || item.transactionId;
     const ref = item.reference || item.transactionReference;
     const beneficiary = item.user?.phone || item.user?.email || item.phone || item.recipient;
@@ -358,7 +367,107 @@ const SuperAdminDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Refund Approval Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
+    }
+  };
+
+  // AGENT TEAM TRANSFER HANDLER
+  const handleExecuteAgentTransfer = async () => {
+    if (!newSupervisorId.trim()) {
+      return showAlert("Validation Error", "Destination Supervisor ID is required.");
+    }
+    if (transferType === "bulk" && !oldSupervisorId.trim()) {
+      return showAlert("Validation Error", "Current/Suspended Supervisor ID is required.");
+    }
+    if (transferType === "single" && !transferAgentId.trim()) {
+      return showAlert("Validation Error", "Agent ID is required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const endpoint =
+        transferType === "bulk"
+          ? `${BASE_URL}/supervisors/transfer-all-agents`
+          : `${BASE_URL}/supervisors/transfer-single-agent`;
+
+      const payload =
+        transferType === "bulk"
+          ? { oldSupervisorId: oldSupervisorId.trim(), newSupervisorId: newSupervisorId.trim() }
+          : { agentId: transferAgentId.trim(), newSupervisorId: newSupervisorId.trim() };
+
+      const res = await axios.post(endpoint, payload, { headers });
+
+      if (res.data?.success) {
+        showAlert("Transfer Successful", res.data.message || "Agent reassignment processed.");
+        setTransferModalVisible(false);
+        setOldSupervisorId("");
+        setNewSupervisorId("");
+        setTransferAgentId("");
+        fetchMasterTelemetry();
+      } else {
+        showAlert("Transfer Failed", res.data?.message || "Could not complete reassignment.");
+      }
+    } catch (err) {
+      showAlert("Transfer Error", err.response?.data?.message || err.message);
+    } finally {
+      if (isMounted.current) setActionLoading(false);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!newPhone.trim() || !newFirstName.trim()) {
+      return showAlert("Validation Error", "First Name and Phone Number are required.");
+    }
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const fullName = `${newFirstName.trim()} ${newSurname.trim()}`.trim();
+      const payload = {
+        firstName: newFirstName.trim(),
+        surname: newSurname.trim() || "Staff",
+        name: fullName.toUpperCase(),
+        phone: newPhone.trim(),
+        email: newEmail.trim() || `${newPhone.trim()}@ayaxdata.online`,
+        password: newPassword.trim() || "Password123@",
+        role: newRole,
+        state: newState.trim() || "Kano",
+        lga: newLga.trim() || "Ajingi",
+        supervisorId: newSupervisorIdInput.trim() || undefined,
+        walletBalance: Number(newInitialBalance || 0),
+        balance: Number(newInitialBalance || 0),
+        pin: "2026",
+        transactionPin: "2026",
+        isVerified: true,
+        isSuspended: false,
+        status: "active",
+      };
+
+      const res = await axios.post(`${BASE_URL}/superadmin/create-user`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() =>
+        axios.post(`${BASE_URL}/auth/register`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+
+      if (res.data?.success || res.status === 200 || res.status === 201) {
+        showAlert("User Provisioned", `Account created for ${fullName} as ${newRole.toUpperCase()}.`);
+        setCreateUserModalVisible(false);
+        setNewFirstName("");
+        setNewSurname("");
+        setNewPhone("");
+        setNewEmail("");
+        setNewSupervisorIdInput("");
+        setNewInitialBalance("0");
+        fetchMasterTelemetry();
+      }
+    } catch (err) {
+      showAlert("Creation Error", err.response?.data?.message || err.message);
+    } finally {
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -392,7 +501,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Ledger Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -426,7 +535,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Target Assignment Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -456,7 +565,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Role Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -488,39 +597,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Security Override Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleExecuteToggleLock = async (lock) => {
-    if (!lockUserId.trim()) {
-      return showAlert("Validation Error", "Target identifier is required.");
-    }
-
-    setActionLoading(true);
-    try {
-      const token = await AsyncStorage.getItem("userToken");
-      const res = await axios.patch(
-        `${BASE_URL}/superadmin/users/toggle-lock`,
-        {
-          userId: lockUserId.trim(),
-          lock,
-          reason: lockReason.trim() || "Administrative security inspection",
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (res.data?.success || res.status === 200) {
-        showAlert("Security State Changed", res.data.message || "Account state toggled.");
-        setLockModalVisible(false);
-        setLockUserId("");
-        setLockReason("");
-        fetchMasterTelemetry();
-      }
-    } catch (err) {
-      showAlert("Account Lock Error", err.response?.data?.message || err.message);
-    } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -564,7 +641,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     } catch (err) {
       showAlert("Notification Error", err.response?.data?.message || err.message);
     } finally {
-      setActionLoading(false);
+      if (isMounted.current) setActionLoading(false);
     }
   };
 
@@ -601,6 +678,9 @@ const SuperAdminDashboard = ({ navigation }) => {
       case "create_user":
         setCreateUserModalVisible(true);
         break;
+      case "transfer":
+        setTransferModalVisible(true);
+        break;
       case "notify":
         setNotificationModalVisible(true);
         break;
@@ -615,9 +695,6 @@ const SuperAdminDashboard = ({ navigation }) => {
         break;
       case "security":
         setPasswordModalVisible(true);
-        break;
-      case "lock":
-        setLockModalVisible(true);
         break;
       default:
         break;
@@ -654,6 +731,14 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
 
         <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <TouchableOpacity
+            style={[styles.avatarBtn, { marginRight: 8 }]}
+            onPress={() => setTransferModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="account-switch" size={18} color="#00f0ff" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.avatarBtn, { marginRight: 8 }]}
             onPress={() => setCreateUserModalVisible(true)}
@@ -1158,10 +1243,55 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 4: PENDING REFUNDS */}
+          {/* TAB 4: BATCH REFUND QUEUE */}
           {activeMainTab === "refunds" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
+                {/* SELECT ALL & BATCH REFUND TOOLBAR */}
+                <View style={styles.bulkRefundToolbar}>
+                  <TouchableOpacity
+                    style={styles.bulkRefundSelectAllBtn}
+                    onPress={handleToggleSelectAllRefunds}
+                    activeOpacity={0.8}
+                  >
+                    <MaterialIcons
+                      name={
+                        selectedRefundIds.length === pendingRefundsList.length && pendingRefundsList.length > 0
+                          ? "check-box"
+                          : "check-box-outline-blank"
+                      }
+                      size={22}
+                      color="#00f0ff"
+                    />
+                    <Text style={styles.bulkRefundSelectAllText}>
+                      {selectedRefundIds.length === pendingRefundsList.length && pendingRefundsList.length > 0
+                        ? "Deselect All"
+                        : `Select All (${selectedRefundIds.length}/${pendingRefundsList.length})`}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.bulkRefundSubmitBtn,
+                      selectedRefundIds.length === 0 && { opacity: 0.5 },
+                    ]}
+                    onPress={handleBatchApproveRefunds}
+                    disabled={selectedRefundIds.length === 0 || actionLoading}
+                    activeOpacity={0.85}
+                  >
+                    {actionLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="replay" size={16} color="#fff" style={{ marginRight: 6 }} />
+                        <Text style={styles.bulkRefundSubmitBtnText}>
+                          Refund Selected ({selectedRefundIds.length})
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
                 <View style={styles.sectionHeaderRow}>
                   <Text style={styles.sectionHeaderLabel}>PENDING REFUND REQUESTS QUEUE</Text>
                   <Text style={{ color: "#f87171", fontSize: 11, fontWeight: "900" }}>
@@ -1171,13 +1301,32 @@ const SuperAdminDashboard = ({ navigation }) => {
 
                 {pendingRefundsList.length > 0 ? (
                   pendingRefundsList.map((item, idx) => {
+                    const id = item._id || item.transactionId || item.id || String(idx);
+                    const isChecked = selectedRefundIds.includes(id);
                     const beneficiary = item.user?.phone || item.user?.email || item.phone || item.recipient || "Subscriber";
                     const amount = Number(item.amount || item.refundAmount || 0);
-                    const ref = item.reference || item.transactionReference || item._id;
+                    const ref = item.reference || item.transactionReference || id;
 
                     return (
-                      <View key={item._id || idx.toString()} style={styles.refundQueueCard}>
+                      <View
+                        key={id}
+                        style={[
+                          styles.refundQueueCard,
+                          isChecked && { borderColor: "#00f0ff", backgroundColor: "rgba(0, 240, 255, 0.05)" },
+                        ]}
+                      >
                         <View style={styles.refundQueueTop}>
+                          <TouchableOpacity
+                            style={{ marginRight: 10, marginTop: 2 }}
+                            onPress={() => handleToggleRefundItem(id)}
+                          >
+                            <MaterialIcons
+                              name={isChecked ? "check-box" : "check-box-outline-blank"}
+                              size={24}
+                              color={isChecked ? "#00f0ff" : "#64748b"}
+                            />
+                          </TouchableOpacity>
+
                           <View style={{ flex: 1 }}>
                             <Text style={styles.refundQueueBeneficiary}>Account: {beneficiary}</Text>
                             <Text style={styles.refundQueueRef}>Ref: {ref}</Text>
@@ -1194,7 +1343,7 @@ const SuperAdminDashboard = ({ navigation }) => {
                         <View style={styles.refundQueueActionsRow}>
                           <TouchableOpacity
                             style={styles.approveRefundBtn}
-                            onPress={() => handleApproveRefundRequest(item)}
+                            onPress={() => handleApproveSingleRefund(item)}
                             disabled={actionLoading}
                           >
                             <Ionicons name="checkmark-circle" size={15} color="#ffffff" />
@@ -1461,6 +1610,96 @@ const SuperAdminDashboard = ({ navigation }) => {
         </View>
       </Modal>
 
+      {/* REASSIGN / AGENT TEAM TRANSFER MODAL */}
+      <Modal visible={transferModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: 520 }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Reassign Agent Network</Text>
+                <Text style={styles.modalCardSubtitle}>
+                  Move agents from suspended or terminated supervisor to a new supervisor
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setTransferModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <View style={styles.toggleRowContainer}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, transferType === "bulk" && styles.creditActiveToggle]}
+                  onPress={() => setTransferType("bulk")}
+                >
+                  <Text style={[styles.toggleBtnText, transferType === "bulk" && styles.activeToggleText]}>
+                    Entire Team (Bulk)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, transferType === "single" && styles.debitActiveToggle]}
+                  onPress={() => setTransferType("single")}
+                >
+                  <Text style={[styles.toggleBtnText, transferType === "single" && styles.activeToggleText]}>
+                    Single Agent
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {transferType === "bulk" ? (
+                <>
+                  <Text style={styles.formFieldLabel}>CURRENT/SUSPENDED SUPERVISOR ID *</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="Enter current supervisor ID"
+                    placeholderTextColor="#64748b"
+                    value={oldSupervisorId}
+                    onChangeText={setOldSupervisorId}
+                  />
+                </>
+              ) : (
+                <>
+                  <Text style={styles.formFieldLabel}>AGENT ID TO TRANSFER *</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    placeholder="Enter agent ID"
+                    placeholderTextColor="#64748b"
+                    value={transferAgentId}
+                    onChangeText={setTransferAgentId}
+                  />
+                </>
+              )}
+
+              <Text style={styles.formFieldLabel}>DESTINATION SUPERVISOR ID (NEW LEAD) *</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                placeholder="Enter new supervisor ID"
+                placeholderTextColor="#64748b"
+                value={newSupervisorId}
+                onChangeText={setNewSupervisorId}
+              />
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleExecuteAgentTransfer}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialCommunityIcons name="account-switch" size={18} color="#ffffff" style={{ marginRight: 6 }} />
+                    <Text style={styles.primaryActionBtnText}>
+                      {transferType === "bulk" ? "AUTHORIZE TEAM REASSIGNMENT" : "REASSIGN AGENT"}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* SIDEBAR DRAWER */}
       {sidebarOpen && (
         <TouchableOpacity style={styles.sidebarBackdrop} activeOpacity={1} onPress={() => toggleSidebar(false)}>
@@ -1544,13 +1783,20 @@ const SuperAdminDashboard = ({ navigation }) => {
                 </Text>
               </TouchableOpacity>
 
-              <Text style={styles.sidebarCategory}>CREATION & APPOINTMENTS</Text>
+              <Text style={styles.sidebarCategory}>CREATION & REASSIGNMENT</Text>
+
+              <TouchableOpacity style={styles.navItem} onPress={() => openActionModal("transfer")}>
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(0, 240, 255, 0.15)" }]}>
+                  <MaterialCommunityIcons name="account-switch" size={18} color="#00f0ff" />
+                </View>
+                <Text style={[styles.navItemText, { color: "#00f0ff" }]}>Reassign Agent Network</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity style={styles.navItem} onPress={() => openActionModal("create_user")}>
                 <View style={[styles.navIconBox, { backgroundColor: "rgba(0, 240, 255, 0.15)" }]}>
                   <Ionicons name="person-add" size={16} color="#00f0ff" />
                 </View>
-                <Text style={[styles.navItemText, { color: "#00f0ff" }]}>Create User / Appoint Staff</Text>
+                <Text style={styles.navItemText}>Create User / Appoint Staff</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.navItem} onPress={() => openActionModal("role")}>
@@ -1590,13 +1836,6 @@ const SuperAdminDashboard = ({ navigation }) => {
                   <MaterialIcons name="lock-reset" size={18} color="#818cf8" />
                 </View>
                 <Text style={styles.navItemText}>Force-Reset Credentials</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.navItem} onPress={() => openActionModal("lock")}>
-                <View style={[styles.navIconBox, { backgroundColor: "rgba(185, 28, 28, 0.2)" }]}>
-                  <MaterialIcons name="block" size={18} color="#fca5a5" />
-                </View>
-                <Text style={styles.navItemText}>Freeze / Unlock Account</Text>
               </TouchableOpacity>
 
               <View style={{ height: 30 }} />
@@ -2389,6 +2628,31 @@ const styles = StyleSheet.create({
   categoryTabActive: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
   categoryTabText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   categoryTabTextActive: { color: "#ffffff" },
+
+  // BULK REFUND TOOLBAR STYLES
+  bulkRefundToolbar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#0f172a",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  bulkRefundSelectAllBtn: { flexDirection: "row", alignItems: "center" },
+  bulkRefundSelectAllText: { color: "#00f0ff", fontSize: 12, fontWeight: "bold", marginLeft: 8 },
+  bulkRefundSubmitBtn: {
+    backgroundColor: "#dc2626",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  bulkRefundSubmitBtnText: { color: "#ffffff", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+
   refundQueueCard: {
     backgroundColor: "#0f172a",
     borderRadius: 14,
