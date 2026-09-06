@@ -130,8 +130,8 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const openWhatsApp = () => {
-    Linking.openURL("whatsapp://send?phone=+2349033738409&text=Hello Ayax Xpress Support").catch(() => {
-      Linking.openURL("https://wa.me/2349033738409");
+    Linking.openURL("whatsapp://send?phone=+2349061244444&text=Hello Ayax Xpress Support").catch(() => {
+      Linking.openURL("https://wa.me/2349061244444");
     });
   };
 
@@ -140,7 +140,7 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const makeCall = () => {
-    Linking.openURL("tel:+2349033738409");
+    Linking.openURL("tel:+2349061244444");
   };
 
   const openDeveloperApis = () => {
@@ -430,27 +430,6 @@ const LoginScreen = ({ navigation }) => {
             </View>
           </View>
 
-          {/* DEVELOPER APIS LINK BUTTON */}
-          <TouchableOpacity
-            style={styles.developerApiBtn}
-            onPress={openDeveloperApis}
-            activeOpacity={0.85}
-          >
-            <MaterialCommunityIcons
-              name="code-tags"
-              size={20}
-              color="#0284c7"
-              style={{ marginRight: 8 }}
-            />
-            <Text style={styles.developerApiBtnText}>Developer APIs</Text>
-            <Ionicons
-              name="open-outline"
-              size={15}
-              color="#0284c7"
-              style={{ marginLeft: 6 }}
-            />
-          </TouchableOpacity>
-
           <View style={styles.contactContainer}>
             <Text style={styles.contactTitle}>Quick Support</Text>
             <View style={styles.iconRow}>
@@ -473,8 +452,29 @@ const LoginScreen = ({ navigation }) => {
                 <Ionicons name="mail" size={24} color="#EA4335" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.phoneNumber}>+234 903 373 8409</Text>
+            <Text style={styles.phoneNumber}>+234 906 124 4444</Text>
           </View>
+
+          {/* DEVELOPER APIS LINK BUTTON A KASAN LAMBAR WAYA */}
+          <TouchableOpacity
+            style={styles.developerApiBtn}
+            onPress={openDeveloperApis}
+            activeOpacity={0.85}
+          >
+            <MaterialCommunityIcons
+              name="code-tags"
+              size={20}
+              color="#0284c7"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.developerApiBtnText}>Developer APIs</Text>
+            <Ionicons
+              name="open-outline"
+              size={15}
+              color="#0284c7"
+              style={{ marginLeft: 6 }}
+            />
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -577,26 +577,6 @@ const styles = StyleSheet.create({
   },
   noAccountText: { color: "#64748b", fontSize: 14 },
   signupText: { color: "#0a1d37", fontSize: 14, fontWeight: "bold" },
-  developerApiBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#f0f9ff",
-    borderWidth: 1.5,
-    borderColor: "#bae6fd",
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginTop: 22,
-    alignSelf: "center",
-    width: "100%",
-  },
-  developerApiBtnText: {
-    color: "#0284c7",
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
   contactContainer: {
     marginTop: 25,
     alignItems: "center",
@@ -628,6 +608,26 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#0a1d37",
     textAlign: "center",
+  },
+  developerApiBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1.5,
+    borderColor: "#bae6fd",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 20,
+    alignSelf: "center",
+    width: "100%",
+  },
+  developerApiBtnText: {
+    color: "#0284c7",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
   footerLinks: {
     flexDirection: "row",
