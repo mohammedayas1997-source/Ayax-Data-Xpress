@@ -236,28 +236,198 @@ const BVNScreen = ({ navigation }) => {
     }
   };
 
-  // 5. Download Printable PDF Slip ko Window Print
+  // 5. Download Printable BVN Slip (PDF / Print Generator)
   const handleDownloadPDF = async () => {
-    const downloadTarget =
-      bvnData?.pdfUrl ||
-      bvnData?.slipUrl ||
-      bvnData?.url ||
-      bvnData?.slip;
-
-    if (downloadTarget) {
+    // 1. Idan uwar garke ta bayar da direct link, buɗe shi
+    if (bvnData?.pdfUrl || bvnData?.slipUrl) {
+      const url = bvnData.pdfUrl || bvnData.slipUrl;
       if (Platform.OS === "web") {
-        window.open(downloadTarget, "_blank");
+        window.open(url, "_blank");
       } else {
-        await Linking.openURL(downloadTarget);
+        await Linking.openURL(url);
       }
       return;
     }
 
-    // Idan babu direct link na file, bude dialog na buga takarda (Print / Save as PDF)
-    if (Platform.OS === "web" && typeof window !== "undefined") {
-      window.print();
+    // 2. Ciro dukkan bayanan mutum
+    const fullName =
+      bvnData?.fullName ||
+      bvnData?.name ||
+      `${bvnData?.firstName || bvnData?.firstname || ""} ${bvnData?.middleName || bvnData?.middlename || ""} ${bvnData?.lastName || bvnData?.surname || ""}`.trim() ||
+      "N/A";
+
+    const bvn = bvnData?.bvn || bvnData?.bvnNumber || "N/A";
+    const formattedBvn =
+      bvn.length === 11 ? `${bvn.slice(0, 4)} ${bvn.slice(4, 7)} ${bvn.slice(7)}` : bvn;
+
+    const phone = bvnData?.phoneNumber || bvnData?.phone || "N/A";
+    const dob = bvnData?.dateOfBirth || bvnData?.dob || "N/A";
+    const gender = (bvnData?.gender || "N/A").toUpperCase();
+    const nin = bvnData?.nin || bvnData?.ninNumber || "N/A";
+    const bank = bvnData?.enrollmentBank || bvnData?.bank || "COMMERCIAL BANK";
+    const branch = bvnData?.enrollmentBranch || "N/A";
+
+    const userPhoto = bvnData?.photo || bvnData?.image
+      ? (String(bvnData.photo || bvnData.image).startsWith("data:image")
+          ? (bvnData.photo || bvnData.image)
+          : `data:image/jpeg;base64,${bvnData.photo || bvnData.image}`)
+      : "https://via.placeholder.com/150";
+
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+      `BVN:${bvn}|Name:${fullName}|DOB:${dob}|Bank:${bank}`
+    )}`;
+
+    const selectedType = selectedService?.id || "bvn_standard";
+    let slipHtmlContent = "";
+
+    if (selectedType === "bvn_premium") {
+      // TSARI NA 1: PREMIUM WALLET BVN CARD (PLASTIC FORMAT)
+      slipHtmlContent = `
+        <div style="display: flex; gap: 20px; justify-content: center; margin-top: 50px; font-family: Arial, sans-serif;">
+          <!-- Front Side -->
+          <div style="width: 360px; height: 225px; border-radius: 12px; border: 1px solid #93c5fd; padding: 14px; position: relative; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); box-shadow: 0 4px 10px rgba(0,0,0,0.15); overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <div style="font-size: 11px; font-weight: 900; color: #0369a1; letter-spacing: 0.5px;">CENTRAL BANK OF NIGERIA</div>
+                <div style="font-size: 8px; color: #0284c7; font-weight: bold;">BANK VERIFICATION NUMBER IDENTIFICATION CARD</div>
+              </div>
+              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 30px;" />
+            </div>
+
+            <div style="display: flex; margin-top: 10px;">
+              <img src="${userPhoto}" style="width: 85px; height: 100px; border-radius: 6px; object-fit: cover; border: 2px solid #0284c7;" />
+              <div style="margin-left: 12px; font-size: 11px; flex: 1;">
+                <span style="color: #64748b; font-size: 8px;">FULL NAME</span>
+                <div style="font-weight: 900; font-size: 11.5px; color: #0f172a; line-height: 14px;">${fullName}</div>
+
+                <div style="display: flex; gap: 10px; margin-top: 4px;">
+                  <div><span style="color: #64748b; font-size: 8px;">DATE OF BIRTH</span><div style="font-weight: bold; font-size: 10px;">${dob}</div></div>
+                  <div><span style="color: #64748b; font-size: 8px;">GENDER</span><div style="font-weight: bold; font-size: 10px;">${gender}</div></div>
+                </div>
+
+                <div style="margin-top: 4px;">
+                  <span style="color: #64748b; font-size: 8px;">PHONE</span>
+                  <div style="font-weight: bold; font-size: 10px;">${phone}</div>
+                </div>
+              </div>
+              <img src="${qrCodeUrl}" style="width: 65px; height: 65px; margin-top: 5px;" />
+            </div>
+
+            <div style="position: absolute; bottom: 8px; left: 14px; right: 14px; text-align: center; border-top: 1px dashed #38bdf8; padding-top: 4px;">
+              <div style="font-size: 8px; color: #0369a1; font-weight: bold;">BANK VERIFICATION NUMBER (BVN)</div>
+              <div style="font-size: 18px; font-weight: 900; letter-spacing: 2px; color: #0c4a6e;">${formattedBvn}</div>
+            </div>
+          </div>
+
+          <!-- Back Side -->
+          <div style="width: 360px; height: 225px; border-radius: 12px; border: 1px solid #cbd5e1; padding: 18px; position: relative; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.15); text-align: center;">
+            <h3 style="margin: 0; font-size: 13px; color: #0f172a;">TERMS & CONDITIONS</h3>
+            <p style="font-size: 8px; color: #64748b; margin: 4px 0 8px;">Property of Central Bank of Nigeria / NIBSS</p>
+            <p style="font-size: 8px; line-height: 12px; color: #334155; text-align: justify;">
+              This digital identity document is issued for biometric identification and financial security verification. It remains the property of the Central Bank of Nigeria. If found, please return to any commercial bank branch nationwide or nearest police station.
+            </p>
+            <div style="margin-top: 12px; padding: 6px; background: #f8fafc; border-radius: 6px; font-size: 9px; text-align: left;">
+              <div><strong>Primary Bank:</strong> ${bank}</div>
+              <div><strong>Linked NIN:</strong> ${nin}</div>
+            </div>
+          </div>
+        </div>
+      `;
     } else {
-      showAlert("Notice", "BVN Profile verified. You can screenshot or print this page as official document.");
+      // TSARI NA 2: STANDARD / BASIC OFFICIAL BVN SLIP (A4 PAPER FORMAT)
+      slipHtmlContent = `
+        <div style="width: 750px; margin: 30px auto; border: 2px solid #0284c7; border-radius: 8px; font-family: Arial, sans-serif; background: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); overflow: hidden;">
+          <!-- Header -->
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; background: #0369a1; color: #fff;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 55px; filter: brightness(0) invert(1);" />
+            <div style="text-align: center;">
+              <h2 style="margin: 0; font-size: 18px; letter-spacing: 0.5px;">CENTRAL BANK OF NIGERIA</h2>
+              <h4 style="margin: 3px 0; font-size: 13px; font-weight: normal;">NIGERIA INTER-BANK SETTLEMENT SYSTEM (NIBSS)</h4>
+              <div style="font-size: 11px; background: #0284c7; display: inline-block; padding: 2px 10px; border-radius: 10px; margin-top: 4px; font-weight: bold;">
+                OFFICIAL BVN VERIFICATION SLIP
+              </div>
+            </div>
+            <img src="${qrCodeUrl}" style="height: 55px; width: 55px; background: #fff; padding: 2px; border-radius: 4px;" />
+          </div>
+
+          <!-- Main Details -->
+          <div style="padding: 20px 24px;">
+            <div style="display: flex; gap: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 18px;">
+              <img src="${userPhoto}" style="width: 120px; height: 135px; border-radius: 8px; border: 2px solid #0284c7; object-fit: cover;" />
+              <div style="flex: 1;">
+                <div style="font-size: 10px; color: #64748b; font-weight: bold;">REGISTERED FULL NAME</div>
+                <div style="font-size: 18px; font-weight: 900; color: #0f172a; margin-bottom: 12px;">${fullName}</div>
+
+                <div style="background: #f0f9ff; border: 1px dashed #38bdf8; padding: 8px 12px; border-radius: 8px; display: inline-block;">
+                  <span style="font-size: 9px; color: #0284c7; font-weight: bold;">BANK VERIFICATION NUMBER</span>
+                  <div style="font-size: 22px; font-weight: 900; letter-spacing: 2px; color: #0369a1;">${formattedBvn}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table of particulars -->
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px;">
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b; width: 30%;"><strong>Phone Number:</strong></td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${phone}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;"><strong>Date of Birth:</strong></td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${dob}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;"><strong>Gender:</strong></td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${gender}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;"><strong>Linked NIN:</strong></td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${nin}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 8px 0; color: #64748b;"><strong>Enrollment Bank:</strong></td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${bank}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b;"><strong>Enrollment Branch:</strong></td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: bold;">${branch}</td>
+              </tr>
+            </table>
+
+            <div style="margin-top: 20px; padding: 10px; background: #f8fafc; border-left: 4px solid #0284c7; font-size: 10px; color: #475569;">
+              <strong>DISCLAIMER:</strong> This slip is an authentic electronic extract of bank verification biometric data managed under the regulatory framework of the Central Bank of Nigeria (CBN).
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 4. Buga shafin a matsayin Printable PDF
+    if (Platform.OS === "web" && typeof window !== "undefined") {
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>BVN Official Slip - ${bvn}</title>
+              <style>
+                @media print {
+                  body { margin: 0; padding: 0; background: #fff; }
+                  @page { size: auto; margin: 10mm; }
+                }
+              </style>
+            </head>
+            <body onload="window.print();">
+              ${slipHtmlContent}
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+      } else {
+        window.print();
+      }
+    } else {
+      showAlert("BVN Slip Ready", "Official slip template created. Save or capture this document.");
     }
   };
 
