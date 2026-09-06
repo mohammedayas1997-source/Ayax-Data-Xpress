@@ -42,7 +42,7 @@ const searchOptions = [
     name: "Phone Number Search",
     placeholder: "Enter Linked Phone Number (e.g. 08012345678)",
     icon: "phone-alt",
-    length: 11,
+    length: 14,
     desc: "Fetch identity profile linked to SIM number",
   },
   {
@@ -84,7 +84,6 @@ const NIMCScreen = ({ navigation }) => {
   const [selectedSearch, setSelectedSearch] = useState(null);
   const [searchValue, setSearchValue] = useState("");
 
-  // Prices State (Live from backend)
   const [prices, setPrices] = useState({
     nin: 100,
     phone: 150,
@@ -95,14 +94,12 @@ const NIMCScreen = ({ navigation }) => {
   });
   const [fetchingPrices, setFetchingPrices] = useState(true);
 
-  // Admin Control States
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminPriceModal, setAdminPriceModal] = useState(false);
   const [editingService, setEditingService] = useState(null);
   const [newPriceInput, setNewPriceInput] = useState("");
   const [updatingPrice, setUpdatingPrice] = useState(false);
 
-  // Verification & PIN States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -119,7 +116,6 @@ const NIMCScreen = ({ navigation }) => {
     }
   };
 
-  // 1. Fetch live prices & check admin role
   const fetchLivePrices = useCallback(async () => {
     try {
       setFetchingPrices(true);
@@ -136,7 +132,7 @@ const NIMCScreen = ({ navigation }) => {
         }
       }
     } catch (err) {
-      console.log("Prices fetch fallback:", err.message);
+      console.log("Prices fallback active:", err.message);
     } finally {
       setFetchingPrices(false);
     }
@@ -156,7 +152,6 @@ const NIMCScreen = ({ navigation }) => {
     fetchLivePrices();
   }, [fetchLivePrices]);
 
-  // 2. Admin Price Update Action
   const handleSaveAdminPrice = async () => {
     const numericPrice = Number(newPriceInput);
     if (!newPriceInput || isNaN(numericPrice) || numericPrice < 0) {
@@ -164,7 +159,7 @@ const NIMCScreen = ({ navigation }) => {
     }
 
     if (!editingService?.id) {
-      return showAlert("Error", "No service selected for price update.");
+      return showAlert("Error", "No service selected.");
     }
 
     setUpdatingPrice(true);
@@ -192,7 +187,7 @@ const NIMCScreen = ({ navigation }) => {
         setNewPriceInput("");
         showAlert("Updated", `${editingService.name} price updated to ₦${numericPrice.toLocaleString()}`);
       } else {
-        throw new Error(res.data?.message || "Failed to update price on server.");
+        throw new Error(res.data?.message || "Failed to update price.");
       }
     } catch (err) {
       setPrices((prev) => ({ ...prev, [editingService.id]: numericPrice }));
@@ -204,7 +199,6 @@ const NIMCScreen = ({ navigation }) => {
     }
   };
 
-  // 3. Initiate Verification & Prompt Security PIN
   const handleInitiateVerification = () => {
     if (!searchValue.trim() || searchValue.trim().length < 6) {
       return showAlert(
@@ -215,7 +209,6 @@ const NIMCScreen = ({ navigation }) => {
     setPinModalVisible(true);
   };
 
-  // 4. Verify & Fetch Slip Data
   const handleVerification = async () => {
     if (!pin || pin.length < 4) {
       return showAlert("Security PIN", "Please enter your 4-digit Transaction PIN.");
@@ -234,22 +227,45 @@ const NIMCScreen = ({ navigation }) => {
       const serviceId = selectedSearch?.id || "nin";
       const activeAmount = prices[serviceId] || 100;
 
+      let cleanInput = searchValue.trim();
+      let payload = {
+        serviceType: serviceId,
+        searchType: serviceId,
+        amount: activeAmount,
+        pin: pin.trim(),
+        transactionPin: pin.trim(),
+        format: "pdf",
+        generatePdf: true,
+      };
+
+      if (serviceId === "phone") {
+        let phoneDigits = cleanInput.replace(/\D/g, "");
+        if (phoneDigits.startsWith("234") && phoneDigits.length >= 13) {
+          phoneDigits = "0" + phoneDigits.slice(3);
+        } else if (phoneDigits.length === 10 && !phoneDigits.startsWith("0")) {
+          phoneDigits = "0" + phoneDigits;
+        }
+        payload.phone = phoneDigits;
+        payload.phoneNumber = phoneDigits;
+        payload.searchValue = phoneDigits;
+      } else if (serviceId === "trackingId") {
+        payload.trackingId = cleanInput;
+        payload.searchValue = cleanInput;
+      } else {
+        payload.nin = cleanInput;
+        payload.ninNumber = cleanInput;
+        payload.searchValue = cleanInput;
+      }
+
       const res = await axios.post(
         `${BASE_URL}/nimc/submit-request`,
-        {
-          nin: searchValue.trim(),
-          searchValue: searchValue.trim(),
-          serviceType: serviceId,
-          amount: activeAmount,
-          pin: pin.trim(),
-          transactionPin: pin.trim(),
-        },
+        payload,
         {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          timeout: 35000,
+          timeout: 55000,
         }
       );
 
@@ -257,7 +273,8 @@ const NIMCScreen = ({ navigation }) => {
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        setUserData(result.data || result);
+        const parsedData = result.data || result;
+        setUserData(parsedData);
         setView("result");
       } else {
         throw new Error(result.message || "Verification failed. Check your input.");
@@ -273,19 +290,24 @@ const NIMCScreen = ({ navigation }) => {
     }
   };
 
-  // 5. Official NIMC High-Fidelity Slips Generator (Print & Save PDF)
   const handleDownloadPDF = async () => {
-    if (userData?.pdfUrl || userData?.slipUrl) {
-      const url = userData.pdfUrl || userData.slipUrl;
+    const directPdf =
+      userData?.pdfUrl ||
+      userData?.slipUrl ||
+      userData?.downloadUrl ||
+      userData?.fileUrl ||
+      userData?.url ||
+      userData?.slip;
+
+    if (directPdf && typeof directPdf === "string" && directPdf.startsWith("http")) {
       if (Platform.OS === "web") {
-        window.open(url, "_blank");
+        window.open(directPdf, "_blank");
       } else {
-        await Linking.openURL(url);
+        await Linking.openURL(directPdf);
       }
       return;
     }
 
-    // 1. Tace Sunaye da Lambobi
     const rawFullName = (
       userData?.fullName ||
       userData?.name ||
@@ -298,13 +320,14 @@ const NIMCScreen = ({ navigation }) => {
     const middleName = (userData?.middleName || userData?.middlename || nameParts.slice(2).join(" ") || "AYAS").toUpperCase();
     const givenNames = `${firstName}, ${middleName}`.replace(/,\s*$/, "");
 
-    const rawNin = String(userData?.nin || userData?.ninNumber || searchValue || "").replace(/\D/g, "");
+    const rawNin = String(
+      userData?.nin || userData?.ninNumber || userData?.idNumber || searchValue || ""
+    ).replace(/\D/g, "");
     const nin = rawNin.length === 11 ? rawNin : "68609193060";
     const formattedNin = `${nin.slice(0, 4)} ${nin.slice(4, 7)} ${nin.slice(7)}`;
 
     const trackingId = (userData?.trackingId || userData?.tracking_id || "TRK" + nin.slice(-8)).toUpperCase();
-    
-    // Tace Kwanan Wata
+
     let rawDob = userData?.birthdate || userData?.dob || "1997-07-02";
     let formattedDob = "02 JUL 1997";
     try {
@@ -339,15 +362,11 @@ const NIMCScreen = ({ navigation }) => {
 
     const selectedType = selectedSearch?.id || "standardSlip";
 
-    // SVG Micro-Text Watermarks
     const greenWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'><text x='5' y='30' fill='%2315803d' opacity='0.16' font-size='10' font-family='monospace' font-weight='bold' transform='rotate(-22 70 35)'>${nin}</text><text x='15' y='60' fill='%2315803d' opacity='0.10' font-size='8' font-family='monospace' transform='rotate(-22 70 35)'>${phone}</text></svg>`;
     const cardWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='60' viewBox='0 0 120 60'><text x='5' y='28' fill='%23475569' opacity='0.15' font-size='9.5' font-family='monospace' font-weight='bold' transform='rotate(-22 60 30)'>${nin}</text></svg>`;
 
     let slipHtmlContent = "";
 
-    // =========================================================================
-    // 1. BASIC / REGULAR SLIP (TABLE FORMAT)
-    // =========================================================================
     if (selectedType === "basicSlip") {
       slipHtmlContent = `
         <div class="sheet">
@@ -422,16 +441,10 @@ const NIMCScreen = ({ navigation }) => {
           </div>
         </div>
       `;
-    }
-
-    // =========================================================================
-    // 2. PREMIUM DIGITAL SLIP (GREEN 2-PANEL WITH MICRO-WATERMARK)
-    // =========================================================================
-    else if (selectedType === "premiumCard") {
+    } else if (selectedType === "premiumCard") {
       slipHtmlContent = `
         <div class="sheet">
           <div class="premium-box">
-            <!-- Gaba (Front) -->
             <div class="prem-front" style="background-image: url('${greenWatermarkBg}');">
               <div class="prem-center-coat"></div>
 
@@ -484,7 +497,6 @@ const NIMCScreen = ({ navigation }) => {
               </div>
             </div>
 
-            <!-- Baya (Disclaimer) -->
             <div class="prem-back">
               <div class="disc-header">DISCLAIMER</div>
               <div class="disc-sub">Trust, but verify</div>
@@ -502,16 +514,10 @@ const NIMCScreen = ({ navigation }) => {
           </div>
         </div>
       `;
-    }
-
-    // =========================================================================
-    // 3. STANDARD SLIP (WALLET ID CARD TSARI NA ASALI)
-    // =========================================================================
-    else {
+    } else {
       slipHtmlContent = `
         <div class="sheet">
           <div class="card-deck">
-            <!-- Front Card -->
             <div class="std-card" style="background-image: url('${cardWatermarkBg}');">
               <div class="std-center-coat"></div>
 
@@ -550,7 +556,6 @@ const NIMCScreen = ({ navigation }) => {
               </div>
             </div>
 
-            <!-- Back Card -->
             <div class="std-card" style="padding: 14px 18px; display: flex; flex-direction: column; justify-content: center; text-align: center;">
               <div class="disc-header" style="font-size: 12px;">DISCLAIMER</div>
               <div class="disc-sub" style="font-size: 8.5px; margin-bottom: 5px;">Trust, but verify</div>
@@ -570,7 +575,6 @@ const NIMCScreen = ({ navigation }) => {
       `;
     }
 
-    // D. Buɗe Allon Print
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const printWindow = window.open("", "_blank");
       if (printWindow) {
@@ -584,7 +588,6 @@ const NIMCScreen = ({ navigation }) => {
                 body { font-family: Arial, Helvetica, sans-serif; background: #cbd5e1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                 .sheet { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
                 
-                /* Regular Slip */
                 .regular-card { width: 780px; background: #fff; border: 2px solid #000; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
                 .regular-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 18px; border-bottom: 2px solid #000; }
                 .regular-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
@@ -592,18 +595,15 @@ const NIMCScreen = ({ navigation }) => {
                 .regular-disclaimer { padding: 6px 10px; font-size: 8.5px; border-bottom: 2px solid #000; line-height: 13px; }
                 .regular-footer { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; font-size: 9px; }
 
-                /* Premium Digital Slip (Landscape) */
                 .premium-box { width: 840px; height: 260px; display: flex; border: 1.5px solid #000; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
                 .prem-front { flex: 1.18; padding: 12px 14px; border-right: 1.5px solid #000; background-color: #f1fbf4; position: relative; overflow: hidden; background-repeat: repeat; }
                 .prem-back { flex: 0.82; padding: 14px 18px; display: flex; flex-direction: column; justify-content: center; text-align: center; background: #fff; }
                 .prem-center-coat { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; background: url('https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg') no-repeat center; background-size: contain; opacity: 0.08; pointer-events: none; z-index: 1; }
 
-                /* Standard Wallet Card */
                 .card-deck { display: flex; gap: 20px; }
                 .std-card { width: 345px; height: 215px; border: 1.5px solid #222; border-radius: 6px; background-color: #fff; padding: 8px 12px; position: relative; overflow: hidden; background-repeat: repeat; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
                 .std-center-coat { position: absolute; top: 25px; left: 50%; transform: translateX(-50%); width: 110px; height: 110px; background: url('https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg') no-repeat center; background-size: contain; opacity: 0.12; pointer-events: none; z-index: 1; }
 
-                /* Typography */
                 .lbl { color: #64748b; font-size: 7px; font-weight: bold; }
                 .val-bold { font-weight: 900; color: #000; }
                 .val-sm { font-weight: bold; font-size: 9.5px; color: #000; }
@@ -640,7 +640,6 @@ const NIMCScreen = ({ navigation }) => {
     showAlert("Copied", `${label || "Value"} copied to clipboard.`);
   };
 
-  // ---------------- VIEW 1: SELECTION MENU ----------------
   if (view === "main" && !selectedSearch) {
     return (
       <View style={styles.container}>
@@ -776,7 +775,6 @@ const NIMCScreen = ({ navigation }) => {
     );
   }
 
-  // ---------------- VIEW 2: SEARCH FORM ----------------
   if (view === "main" && selectedSearch) {
     const activePrice = prices[selectedSearch.id] || 100;
 
@@ -885,12 +883,19 @@ const NIMCScreen = ({ navigation }) => {
     );
   }
 
-  // ---------------- VIEW 3: RESULT SLIP PREVIEW ----------------
   if (view === "result") {
     const fullName =
       userData?.fullName ||
       userData?.name ||
-      `${userData?.firstName || ""} ${userData?.middleName || ""} ${userData?.surname || ""}`.trim() ||
+      `${userData?.firstName || userData?.firstname || ""} ${userData?.middleName || userData?.middlename || ""} ${userData?.surname || ""}`.trim() ||
+      "N/A";
+
+    const resolvedNin =
+      userData?.nin ||
+      userData?.ninNumber ||
+      userData?.idNumber ||
+      userData?.details?.nin ||
+      userData?.details?.data?.nin ||
       "N/A";
 
     return (
@@ -914,12 +919,12 @@ const NIMCScreen = ({ navigation }) => {
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
           <View style={styles.resultCard}>
             <View style={styles.photoContainer}>
-              {userData?.photo ? (
+              {userData?.photo || userData?.image ? (
                 <Image
                   source={{
-                    uri: userData.photo.startsWith("data:image")
-                      ? userData.photo
-                      : `data:image/jpeg;base64,${userData.photo}`,
+                    uri: String(userData.photo || userData.image).startsWith("data:image")
+                      ? userData.photo || userData.image
+                      : `data:image/jpeg;base64,${userData.photo || userData.image}`,
                   }}
                   style={styles.userPhoto}
                 />
@@ -938,9 +943,9 @@ const NIMCScreen = ({ navigation }) => {
               <ResultRow label="Full Name" value={fullName} />
               <ResultRow
                 label="National Identity Number (NIN)"
-                value={userData?.nin || userData?.ninNumber || "N/A"}
+                value={resolvedNin}
                 copyable
-                onCopy={() => copyToClipboard(userData?.nin || userData?.ninNumber, "NIN")}
+                onCopy={() => copyToClipboard(resolvedNin, "NIN")}
               />
               <ResultRow
                 label="Tracking ID"
@@ -1199,6 +1204,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   downloadPdfBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.85)",
