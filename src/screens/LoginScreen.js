@@ -123,9 +123,57 @@ const LoginScreen = ({ navigation }) => {
 
       if (isEnabled === "true" && hasHardware && isEnrolled) {
         setIsBiometricEnabled(true);
+        // Cika filayen idan akwai bayanan da aka ajiye
+        const savedId = await AsyncStorage.getItem("savedIdentifier");
+        if (savedId) {
+          setIdentifierInput(savedId);
+        }
+        // Fito da katin yatsa kai tsaye a shigowa
+        triggerAutoBiometrics();
       }
     } catch (e) {
       console.log("Biometric check skipped:", e?.message);
+    }
+  };
+
+  const triggerAutoBiometrics = async () => {
+    try {
+      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
+      const savedPassword = await AsyncStorage.getItem("savedPassword");
+
+      if (!savedIdentifier || !savedPassword) return;
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Login to Ayax Xpress with Biometrics",
+        fallbackLabel: "Use Password",
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        setLoading(true);
+        const response = await axios.post(`${BASE_URL}/auth/login`, {
+          identifier: savedIdentifier,
+          email: savedIdentifier,
+          phone: savedIdentifier,
+          username: savedIdentifier,
+          password: savedPassword,
+        });
+
+        const resData = response.data || {};
+        const token = resData.token || resData.accessToken || resData.data?.token || "";
+        const userPayload = resData.user || resData.data?.user || resData.data || {};
+        const userRole = (userPayload?.role || resData.role || "user").trim().toLowerCase();
+
+        if (token) {
+          await AsyncStorage.setItem("userToken", token);
+          await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+          routeUserByRole(userRole, savedIdentifier);
+        }
+      }
+    } catch (err) {
+      console.log("Auto biometric prompt skipped:", err?.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -324,6 +372,9 @@ const LoginScreen = ({ navigation }) => {
                 }}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoComplete="username"
+                textContentType="username"
+                importantForAutofill="yes"
               />
             </View>
 
@@ -345,6 +396,9 @@ const LoginScreen = ({ navigation }) => {
                   if (errorMessage) setErrorMessage("");
                 }}
                 secureTextEntry={!showPassword}
+                autoComplete="password"
+                textContentType="password"
+                importantForAutofill="yes"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                 <Ionicons
