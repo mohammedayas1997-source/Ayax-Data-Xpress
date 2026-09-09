@@ -1,6 +1,8 @@
 import "react-native-gesture-handler";
 import React, { useContext } from "react";
-import { Platform } from "react-native";
+// --- Platform Gyara ---
+import { Platform } from "react-native"; 
+// ----------------------
 import {
   NavigationContainer,
   DefaultTheme,
@@ -57,6 +59,25 @@ import NINValidation from "./src/screens/NINValidation";
 import AdminDashboard from "./src/screens/AdminDashboard";
 import LandingScreen from "./src/screens/LandingScreen";
 
+// =========================================================
+// !!! INJECTING CSS TO ENABLE SCROLLING ON MOBILE WEB !!!
+// =========================================================
+if (Platform.OS === "web" && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = `
+    html, body, #root {
+      height: auto !important;
+      min-height: 100% !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+      display: flex;
+      flex-direction: column;
+    }
+  `;
+  document.head.appendChild(style);
+}
+// =========================================================
+
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
 
@@ -84,28 +105,32 @@ function AppContent() {
   const themeContext = useContext(ThemeContext);
   const isDarkMode = themeContext?.isDarkMode ?? false;
 
-  // Idan a yanar gizo ne (Web/Vercel) zai bude LandingScreen, idan kuma app ne a waya zai bude OnboardingScreen
-  const initialRoute = Platform.OS === "web" ? "Landing" : "Onboarding";
+  // Duba ko ana buɗewa ta browser ta yanar gizo ko ta manhaja ta waya
+  const initialScreen = Platform.OS === "web" ? "Landing" : "Onboarding";
 
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
       <Stack.Navigator
-        initialRouteName={initialRoute}
+        initialRouteName={initialScreen}
         screenOptions={{
           headerStyle: { backgroundColor: "#0f172a" },
           headerTintColor: "#38bdf8",
         }}
       >
+        {/* SHAFI NA FARKO IDAN WEB NE */}
         <Stack.Screen
           name="Landing"
           component={LandingScreen}
           options={{ headerShown: false }}
         />
+        
+        {/* SHAFI NA FARKO IDAN MOBILE APP NE */}
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
           options={{ headerShown: false }}
         />
+        
         <Stack.Screen
           name="Login"
           component={LoginScreen}
