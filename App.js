@@ -54,6 +54,7 @@ import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
 import TermsScreen from "./src/screens/TermsScreen";
 import NINValidation from "./src/screens/NINValidation";
 import AdminDashboard from "./src/screens/AdminDashboard";
+import LandingScreen from "./src/screens/LandingScreen";
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -85,12 +86,17 @@ function AppContent() {
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
       <Stack.Navigator
-        initialRouteName="Onboarding"
+        initialRouteName="Landing"
         screenOptions={{
           headerStyle: { backgroundColor: "#0f172a" },
           headerTintColor: "#38bdf8",
         }}
       >
+        <Stack.Screen
+          name="Landing"
+          component={LandingScreen}
+          options={{ headerShown: false }}
+        />
         <Stack.Screen
           name="Onboarding"
           component={OnboardingScreen}
