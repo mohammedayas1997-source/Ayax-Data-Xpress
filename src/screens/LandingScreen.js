@@ -8,6 +8,7 @@ import {
   Image,
   Linking,
   Dimensions,
+  Platform,
 } from "react-native";
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -40,71 +41,77 @@ export default function LandingScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* NAVBAR */}
-      <View style={styles.navbar}>
-        <View style={styles.navContainer}>
-          <View style={styles.navBrand}>
-            <View style={styles.logoBox}>
-              <Image
-                source={require("../../assets/Logo.png")}
-                style={styles.logoImg}
-                resizeMode="contain"
-              />
-            </View>
-            <View>
-              <Text style={styles.navBrandTitle}>Ayax Xpress</Text>
-              <Text style={styles.navBrandSub}>Global Ventures Ltd</Text>
-            </View>
-          </View>
-
-          <View style={styles.navRight}>
-            <TouchableOpacity
-              style={styles.btnApiNav}
-              onPress={openDeveloperApis}
-            >
-              <MaterialCommunityIcons name="code-tags" size={16} color="#38bdf8" />
-              <Text style={styles.btnApiNavText}>Developer API</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.btnLoginNav} onPress={goToLogin}>
-              <Text style={styles.btnLoginNavText}>Login to Portal</Text>
-            </TouchableOpacity>
-
-            {!isDesktop && (
-              <TouchableOpacity
-                style={styles.mobileMenuToggle}
-                onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                <Ionicons
-                  name={mobileMenuOpen ? "close" : "menu"}
-                  size={24}
-                  color="#ffffff"
+      <ScrollView
+        style={styles.scrollWrapper}
+        contentContainerStyle={styles.scrollBody}
+        showsVerticalScrollIndicator={true}
+        bounces={true}
+        overScrollMode="always"
+      >
+        {/* NAVBAR */}
+        <View style={styles.navbar}>
+          <View style={styles.navContainer}>
+            <View style={styles.navBrand}>
+              <View style={styles.logoBox}>
+                <Image
+                  source={require("../../assets/Logo.png")}
+                  style={styles.logoImg}
+                  resizeMode="contain"
                 />
+              </View>
+              <View>
+                <Text style={styles.navBrandTitle}>Ayax Xpress</Text>
+                <Text style={styles.navBrandSub}>Global Ventures Ltd</Text>
+              </View>
+            </View>
+
+            <View style={styles.navRight}>
+              <TouchableOpacity
+                style={styles.btnApiNav}
+                onPress={openDeveloperApis}
+              >
+                <MaterialCommunityIcons name="code-tags" size={16} color="#38bdf8" />
+                <Text style={styles.btnApiNavText}>Developer API</Text>
               </TouchableOpacity>
-            )}
+
+              <TouchableOpacity style={styles.btnLoginNav} onPress={goToLogin}>
+                <Text style={styles.btnLoginNavText}>Login to Portal</Text>
+              </TouchableOpacity>
+
+              {!isDesktop && (
+                <TouchableOpacity
+                  style={styles.mobileMenuToggle}
+                  onPress={() => setMobileMenuOpen(!mobileMenuOpen)}
+                >
+                  <Ionicons
+                    name={mobileMenuOpen ? "close" : "menu"}
+                    size={24}
+                    color="#ffffff"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+
+          {/* MOBILE DRAWER */}
+          {mobileMenuOpen && !isDesktop && (
+            <View style={styles.mobileDrawer}>
+              <TouchableOpacity style={styles.drawerItem} onPress={goToLogin}>
+                <Ionicons name="log-in-outline" size={20} color="#38bdf8" />
+                <Text style={styles.drawerItemText}>Login to Portal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.drawerItem} onPress={openDeveloperApis}>
+                <MaterialCommunityIcons name="code-tags" size={20} color="#38bdf8" />
+                <Text style={styles.drawerItemText}>Developer APIs</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.drawerItem} onPress={openWhatsApp}>
+                <FontAwesome name="whatsapp" size={20} color="#25D366" />
+                <Text style={styles.drawerItemText}>WhatsApp Support</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
-        {/* MOBILE DRAWER */}
-        {mobileMenuOpen && !isDesktop && (
-          <View style={styles.mobileDrawer}>
-            <TouchableOpacity style={styles.drawerItem} onPress={goToLogin}>
-              <Ionicons name="log-in-outline" size={20} color="#38bdf8" />
-              <Text style={styles.drawerItemText}>Login to Portal</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={openDeveloperApis}>
-              <MaterialCommunityIcons name="code-tags" size={20} color="#38bdf8" />
-              <Text style={styles.drawerItemText}>Developer APIs</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={openWhatsApp}>
-              <FontAwesome name="whatsapp" size={20} color="#25D366" />
-              <Text style={styles.drawerItemText}>WhatsApp Support</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollBody} showsVerticalScrollIndicator={false}>
         {/* HERO SECTION */}
         <View style={styles.heroSection}>
           <View style={styles.heroTag}>
@@ -234,13 +241,32 @@ export default function LandingScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
+  container: {
+    flex: 1,
+    backgroundColor: "#f8fafc",
+    width: "100%",
+    ...(Platform.OS === "web"
+      ? {
+          height: "100vh",
+          overflowY: "auto",
+        }
+      : {}),
+  },
+  scrollWrapper: {
+    flex: 1,
+    width: "100%",
+  },
+  scrollBody: {
+    flexGrow: 1,
+    paddingBottom: 60,
+  },
   navbar: {
     backgroundColor: "rgba(10, 25, 47, 0.96)",
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(56, 189, 248, 0.2)",
+    width: "100%",
     zIndex: 10,
   },
   navContainer: {
@@ -295,12 +321,12 @@ const styles = StyleSheet.create({
   },
   drawerItem: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10 },
   drawerItemText: { color: "#ffffff", fontSize: 14, fontWeight: "bold" },
-  scrollBody: { paddingBottom: 40 },
   heroSection: {
     backgroundColor: "#0a192f",
     paddingVertical: 50,
     paddingHorizontal: 20,
     alignItems: "center",
+    width: "100%",
   },
   heroTag: {
     flexDirection: "row",
@@ -384,14 +410,14 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   rcBadgeText: { color: "#38bdf8", fontSize: 11, fontWeight: "bold" },
-  metricsGrid: { flexDirection: "row", justifyContent: "space-between", marginTop: 15 },
+  metricsGrid: { flexDirection: "row", justifyContent: "space-between", marginTop: 15, width: "100%" },
   metricItem: { alignItems: "center" },
   metricValue: { color: "#ffffff", fontSize: 16, fontWeight: "bold" },
   metricLabel: { color: "#94a3b8", fontSize: 10, marginTop: 2 },
-  servicesSection: { paddingVertical: 50, paddingHorizontal: 20, alignItems: "center" },
+  servicesSection: { paddingVertical: 50, paddingHorizontal: 20, alignItems: "center", width: "100%" },
   sectionPre: { color: "#0284c7", fontSize: 11, fontWeight: "bold", letterSpacing: 1 },
   sectionTitle: { color: "#0f172a", fontSize: 24, fontWeight: "bold", marginTop: 4, marginBottom: 25, textAlign: "center" },
-  cardsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 15, justifyContent: "center", maxWidth: 1100 },
+  cardsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 15, justifyContent: "center", maxWidth: 1100, width: "100%" },
   serviceBox: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
@@ -402,7 +428,7 @@ const styles = StyleSheet.create({
   },
   serviceBoxTitle: { color: "#0f172a", fontSize: 16, fontWeight: "bold", marginTop: 10, marginBottom: 6 },
   serviceBoxDesc: { color: "#64748b", fontSize: 13, lineHeight: 18 },
-  footerSection: { backgroundColor: "#050e1d", paddingVertical: 40, alignItems: "center" },
+  footerSection: { backgroundColor: "#050e1d", paddingVertical: 40, alignItems: "center", width: "100%" },
   footerTitle: { color: "#ffffff", fontSize: 15, fontWeight: "bold", marginBottom: 4 },
   footerText: { color: "#94a3b8", fontSize: 12, marginBottom: 3 },
   contactRow: { flexDirection: "row", marginVertical: 18 },
