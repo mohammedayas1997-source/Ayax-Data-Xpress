@@ -1,5 +1,6 @@
 import "react-native-gesture-handler";
 import React, { useContext } from "react";
+import { Platform } from "react-native";
 import {
   NavigationContainer,
   DefaultTheme,
@@ -83,10 +84,13 @@ function AppContent() {
   const themeContext = useContext(ThemeContext);
   const isDarkMode = themeContext?.isDarkMode ?? false;
 
+  // Idan a yanar gizo ne (Web/Vercel) zai bude LandingScreen, idan kuma app ne a waya zai bude OnboardingScreen
+  const initialRoute = Platform.OS === "web" ? "Landing" : "Onboarding";
+
   return (
     <NavigationContainer theme={isDarkMode ? DarkTheme : DefaultTheme}>
       <Stack.Navigator
-        initialRouteName="Landing"
+        initialRouteName={initialRoute}
         screenOptions={{
           headerStyle: { backgroundColor: "#0f172a" },
           headerTintColor: "#38bdf8",
