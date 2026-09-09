@@ -5,18 +5,191 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
   Image,
   Linking,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons, FontAwesome, MaterialCommunityIcons } from "@expo/vector-icons";
+import axios from "axios";
 
 const { width } = Dimensions.get("window");
 const isDesktop = width > 768;
+const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 export default function LandingScreen({ navigation }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  
+  // Login States
+  const [identifierInput, setIdentifierInput] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // Safe Navigation Dispatcher (Daidai da LoginScreen na asali)
+  const routeUserByRole = (rawRole, rawIdentifier = "") => {
+    const role = String(rawRole || "").trim().toLowerCase();
+    const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
+
+    // 1. SuperAdmin
+    if (
+      role === "superadmin" ||
+      identifier === "mohammed.ayas@ayaxdata.online" ||
+      identifier === "09033738409"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "SuperAdminDashboard" }] });
+      return;
+    }
+
+    // 2. Operations Admin
+    if (
+      role === "admin" ||
+      identifier === "mohammed@ayaxdata.online" ||
+      identifier === "admin@ayaxdata.online" ||
+      identifier === "08011112222"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "AdminDashboard" }] });
+      return;
+    }
+
+    // 3. National Sales Director
+    if (
+      role === "national_sales_director" ||
+      role === "super_leader" ||
+      identifier === "nsd@ayaxdata.online" ||
+      identifier === "08099990000"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "NsdDashboard" }] });
+      return;
+    }
+
+    // 4. State Manager
+    if (role === "state_manager" || role === "leader") {
+      navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
+      return;
+    }
+
+    // 5. Field Supervisor
+    if (role === "supervisor" || role === "field_supervisor") {
+      navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
+      return;
+    }
+
+    // 6. Retail Agent
+    if (role === "agent") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Main", state: { routes: [{ name: "AgentDashboard" }] } }],
+      });
+      return;
+    }
+
+    // 7. Support Desk
+    if (
+      role === "support" ||
+      role === "customer_service" ||
+      identifier === "support@ayaxdata.online" ||
+      identifier === "08077778888" ||
+      identifier === "09033738400"
+    ) {
+      navigation.reset({ index: 0, routes: [{ name: "SupportDashboard" }] });
+      return;
+    }
+
+    // 8. Normal Customer -> Kai tsaye zuwa Main Dashboard
+    navigation.reset({ index: 0, routes: [{ name: "Main" }] });
+  };
+
+  const handleLoginSubmit = async () => {
+    setErrorMessage("");
+    const cleanInput = identifierInput.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanInput || !cleanPassword) {
+      setErrorMessage("Please enter your email/phone and password.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const payload = {
+        identifier: cleanInput,
+        email: cleanInput,
+        phone: cleanInput,
+        username: cleanInput,
+        password: cleanPassword,
+      };
+
+      const response = await axios.post(`${BASE_URL}/auth/login`, payload, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 25000,
+      });
+
+      const resData = response.data || {};
+      const token = resData.token || resData.accessToken || resData.data?.token || "";
+      const userPayload = resData.user || resData.data?.user || resData.data || {};
+
+      let userRole = (
+        userPayload?.role ||
+        resData.role ||
+        resData.data?.role ||
+        "user"
+      )
+        .trim()
+        .toLowerCase();
+
+      if (cleanInput.toLowerCase() === "mohammed.ayas@ayaxdata.online" || cleanInput === "09033738409") {
+        userRole = "superadmin";
+      } else if (
+        cleanInput.toLowerCase() === "mohammed@ayaxdata.online" ||
+        cleanInput.toLowerCase() === "admin@ayaxdata.online" ||
+        cleanInput === "08011112222"
+      ) {
+        userRole = "admin";
+      } else if (cleanInput.toLowerCase() === "support@ayaxdata.online" || cleanInput === "08077778888") {
+        userRole = "support";
+      }
+
+      if (!token) {
+        setErrorMessage("Authentication token missing from server response.");
+        setLoading(false);
+        return;
+      }
+
+      // Adana bayanan asusu a cikin AsyncStorage / localStorage
+      await AsyncStorage.setItem("userToken", token);
+      await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+      await AsyncStorage.setItem("savedIdentifier", cleanInput);
+      await AsyncStorage.setItem("savedPassword", cleanPassword);
+
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("userToken", token);
+        window.localStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+      }
+
+      setLoginModalOpen(false);
+
+      // NAN TAKE TURA SHI ZUWA DASHBOARD!
+      routeUserByRole(userRole, cleanInput);
+    } catch (error) {
+      console.log("Login Error:", error?.response?.data || error.message);
+      if (error.response) {
+        const status = error.response.status;
+        const backendMessage = error.response.data?.message || "Invalid credentials.";
+        setErrorMessage(status === 401 ? "Invalid email/phone or password." : backendMessage);
+      } else {
+        setErrorMessage("Network error. Please check your internet connection.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openWhatsApp = () => {
     Linking.openURL("https://wa.me/2349061244444?text=Hello%20Ayax%20Xpress%20Support");
@@ -34,9 +207,23 @@ export default function LandingScreen({ navigation }) {
     Linking.openURL("https://www.ayaxapis.com");
   };
 
-  const goToLogin = () => {
-    setMobileMenuOpen(false);
-    navigation.navigate("Login");
+  // Hoton Logo mai tabbataccen hanyar budewa
+  const renderLogo = () => {
+    try {
+      return (
+        <Image
+          source={require("../../assets/Logo.png")}
+          style={styles.logoImg}
+          resizeMode="contain"
+        />
+      );
+    } catch (e) {
+      return (
+        <View style={styles.fallbackLogoCircle}>
+          <Ionicons name="diamond" size={20} color="#0284c7" />
+        </View>
+      );
+    }
   };
 
   return (
@@ -46,18 +233,13 @@ export default function LandingScreen({ navigation }) {
         contentContainerStyle={styles.scrollBody}
         showsVerticalScrollIndicator={true}
         bounces={true}
-        overScrollMode="always"
       >
         {/* NAVBAR */}
         <View style={styles.navbar}>
           <View style={styles.navContainer}>
             <View style={styles.navBrand}>
               <View style={styles.logoBox}>
-                <Image
-                  source={require("../../assets/Logo.png")}
-                  style={styles.logoImg}
-                  resizeMode="contain"
-                />
+                {renderLogo()}
               </View>
               <View>
                 <Text style={styles.navBrandTitle}>Ayax Xpress</Text>
@@ -74,7 +256,10 @@ export default function LandingScreen({ navigation }) {
                 <Text style={styles.btnApiNavText}>Developer API</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.btnLoginNav} onPress={goToLogin}>
+              <TouchableOpacity 
+                style={styles.btnLoginNav} 
+                onPress={() => setLoginModalOpen(true)}
+              >
                 <Text style={styles.btnLoginNavText}>Login to Portal</Text>
               </TouchableOpacity>
 
@@ -96,7 +281,13 @@ export default function LandingScreen({ navigation }) {
           {/* MOBILE DRAWER */}
           {mobileMenuOpen && !isDesktop && (
             <View style={styles.mobileDrawer}>
-              <TouchableOpacity style={styles.drawerItem} onPress={goToLogin}>
+              <TouchableOpacity 
+                style={styles.drawerItem} 
+                onPress={() => {
+                  setMobileMenuOpen(false);
+                  setLoginModalOpen(true);
+                }}
+              >
                 <Ionicons name="log-in-outline" size={20} color="#38bdf8" />
                 <Text style={styles.drawerItemText}>Login to Portal</Text>
               </TouchableOpacity>
@@ -128,7 +319,10 @@ export default function LandingScreen({ navigation }) {
           </Text>
 
           <View style={styles.heroBtnRow}>
-            <TouchableOpacity style={styles.btnHeroPrimary} onPress={goToLogin}>
+            <TouchableOpacity 
+              style={styles.btnHeroPrimary} 
+              onPress={() => setLoginModalOpen(true)}
+            >
               <Text style={styles.btnHeroPrimaryText}>Launch Web Portal</Text>
               <Ionicons name="arrow-forward" size={18} color="#ffffff" style={{ marginLeft: 6 }} />
             </TouchableOpacity>
@@ -138,7 +332,7 @@ export default function LandingScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* CORPORATE GLASS CARD */}
+          {/* CORPORATE ENTITY CARD */}
           <View style={styles.corpCard}>
             <View style={styles.corpCardHeader}>
               <View>
@@ -236,6 +430,97 @@ export default function LandingScreen({ navigation }) {
           <Text style={styles.footerPhone}>+234 906 124 4444</Text>
         </View>
       </ScrollView>
+
+      {/* ================= MODAL LOGIN DIALOGUE ================= */}
+      {loginModalOpen && (
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity 
+              style={styles.modalCloseBtn}
+              onPress={() => setLoginModalOpen(false)}
+            >
+              <Ionicons name="close" size={22} color="#64748b" />
+            </TouchableOpacity>
+
+            <View style={styles.modalHeader}>
+              <View style={styles.modalLogoCircle}>
+                {renderLogo()}
+              </View>
+              <Text style={styles.modalTitle}>Ayax Xpress</Text>
+              <Text style={styles.modalSub}>Sign in to access your dashboard</Text>
+            </View>
+
+            {errorMessage ? (
+              <View style={styles.errorBox}>
+                <Ionicons name="alert-circle" size={18} color="#991b1b" />
+                <Text style={styles.errorBoxText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
+            <Text style={styles.inputLabel}>Email Address or Phone Number</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="person-outline" size={18} color="#64748b" style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="08012345678 or email"
+                placeholderTextColor="#94a3b8"
+                value={identifierInput}
+                onChangeText={(t) => {
+                  setIdentifierInput(t);
+                  if (errorMessage) setErrorMessage("");
+                }}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <Text style={styles.inputLabel}>Password</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color="#64748b" style={{ marginRight: 10 }} />
+              <TextInput
+                style={styles.modalInput}
+                placeholder="••••••••"
+                placeholderTextColor="#94a3b8"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={(t) => {
+                  setPassword(t);
+                  if (errorMessage) setErrorMessage("");
+                }}
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={18}
+                  color="#64748b"
+                />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.btnModalLogin}
+              onPress={handleLoginSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.btnModalLoginText}>Login to Account</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.signupNavRow}
+              onPress={() => {
+                setLoginModalOpen(false);
+                navigation.navigate("Signup");
+              }}
+            >
+              <Text style={{ color: "#64748b", fontSize: 13 }}>Don't have an account? </Text>
+              <Text style={{ color: "#0284c7", fontSize: 13, fontWeight: "bold" }}>Create Account</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -258,7 +543,7 @@ const styles = StyleSheet.create({
   },
   scrollBody: {
     flexGrow: 1,
-    paddingBottom: 60,
+    paddingBottom: 40,
   },
   navbar: {
     backgroundColor: "rgba(10, 25, 47, 0.96)",
@@ -285,8 +570,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
-  logoImg: { width: 28, height: 28 },
+  logoImg: { width: 30, height: 30 },
+  fallbackLogoCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#f0f9ff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   navBrandTitle: { color: "#ffffff", fontSize: 17, fontWeight: "bold" },
   navBrandSub: { color: "#38bdf8", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
   navRight: { flexDirection: "row", alignItems: "center", gap: 10 },
@@ -441,4 +735,122 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   footerPhone: { color: "#38bdf8", fontSize: 14, fontWeight: "bold" },
+
+  // MODAL STYLES
+  modalBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(10, 25, 47, 0.75)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: 440,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 15,
+    elevation: 8,
+    position: "relative",
+  },
+  modalCloseBtn: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 4,
+  },
+  modalHeader: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalLogoCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+    overflow: "hidden",
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#0f172a",
+  },
+  modalSub: {
+    fontSize: 13,
+    color: "#64748b",
+    marginTop: 2,
+  },
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fee2e2",
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 14,
+  },
+  errorBoxText: {
+    color: "#991b1b",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#475569",
+    marginBottom: 6,
+  },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 46,
+    marginBottom: 14,
+  },
+  modalInput: {
+    flex: 1,
+    height: "100%",
+    color: "#0f172a",
+    fontSize: 14,
+  },
+  btnModalLogin: {
+    backgroundColor: "#0a1d37",
+    height: 48,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  btnModalLoginText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  signupNavRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 16,
+  },
 });
