@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Ayax Xpress | Enterprise Telecom, Verification & Utility Infrastructure</title>
+
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --bg-dark: #050e1d;
+      --bg-surface: #0a192f;
+      --bg-card: #0f2444;
+      --primary-navy: #0a1d37;
+      --accent-blue: #0284c7;
+      --accent-cyan: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.35);
+      --text-white: #ffffff;
+      --text-muted: #94a3b8;
+      --text-dark: #0f172a;
+      --bg-light: #f8fafc;
+      --border-light: #e2e8f0;
+      --border-dark: rgba(56, 189, 248, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg-light);
+      color: var(--text-dark);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ================= NAVBAR ================= */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(10, 25, 47, 0.92);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-dark);
+      padding: 14px 24px;
+    }
+
+    .nav-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-white);
+    }
+
+    .nav-logo-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #ffffff;
+      border: 1.5px solid var(--accent-cyan);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    .nav-logo-box img {
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+    }
+
+    .nav-brand-text h1 {
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      line-height: 1.1;
+      color: #ffffff;
+    }
+
+    .nav-brand-text span {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+    }
+
+    .nav-links {
+      display: none;
+      gap: 28px;
+      align-items: center;
+    }
+
+    @media (min-width: 890px) {
+      .nav-links {
+        display: flex;
+      }
+    }
+
+    .nav-link {
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .nav-link:hover {
+      color: var(--accent-cyan);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-api-nav {
+      color: var(--accent-cyan);
+      background: rgba(2, 132, 199, 0.15);
+      border: 1px solid var(--border-dark);
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-api-nav:hover {
+      background: rgba(2, 132, 199, 0.28);
+    }
+
+    @media (min-width: 620px) {
+      .btn-api-nav {
+        display: flex;
+      }
+    }
+
+    .btn-login-nav {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 9px 24px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+      transition: all 0.2s;
+    }
+
+    .btn-login-nav:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.5);
+    }
+
+    /* Mobile Hamburger Button */
+    .mobile-menu-btn {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      color: #ffffff;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mobile-menu-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: var(--accent-cyan);
+    }
+
+    @media (min-width: 890px) {
+      .mobile-menu-btn {
+        display: none;
+      }
+    }
+
+    /* Mobile Drawer Menu */
+    .mobile-drawer {
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 290px;
+      height: 100vh;
+      background: #081930;
+      z-index: 1500;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
+      border-left: 1px solid var(--border-dark);
+      transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .mobile-drawer.open {
+      right: 0;
+    }
+
+    .drawer-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(5, 14, 29, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1400;
+    }
+
+    .drawer-overlay.open {
+      display: block;
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      margin-bottom: 20px;
+    }
+
+    .drawer-close-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      color: #cbd5e1;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .drawer-links {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .drawer-link {
+      color: #e2e8f0;
+      text-decoration: none;
+      font-size: 15.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      transition: all 0.2s;
+    }
+
+    .drawer-link i {
+      color: var(--accent-cyan);
+      width: 20px;
+      text-align: center;
+    }
+
+    .drawer-link:hover {
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent-cyan);
+    }
+
+    .drawer-footer {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* ================= HERO SECTION ================= */
+    .hero-wrap {
+      background: radial-gradient(circle at 80% 20%, rgba(2, 132, 199, 0.25) 0%, transparent 50%),
+                  linear-gradient(180deg, var(--bg-dark) 0%, var(--bg-surface) 60%, var(--primary-navy) 100%);
+      color: #ffffff;
+      position: relative;
+      padding: 80px 24px 90px 24px;
+      border-bottom: 2px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .hero-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 50px;
+      align-items: center;
+    }
+
+    @media (min-width: 960px) {
+      .hero-container {
+        grid-template-columns: 1.2fr 0.8fr;
+      }
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 7px 16px;
+      border-radius: 30px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 22px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .hero-title {
+      font-size: 38px;
+      line-height: 1.18;
+      font-weight: 900;
+      letter-spacing: -1.2px;
+      margin-bottom: 20px;
+    }
+
+    @media (min-width: 640px) {
+      .hero-title {
+        font-size: 52px;
+      }
+    }
+
+    .hero-title span {
+      background: linear-gradient(120deg, #38bdf8 0%, #bae6fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 16.5px;
+      color: #cbd5e1;
+      line-height: 1.7;
+      margin-bottom: 34px;
+      max-width: 580px;
+    }
+
+    .hero-cta-group {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .btn-hero-main {
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      padding: 15px 30px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 6px 22px rgba(2, 132, 199, 0.45);
+      transition: all 0.2s;
+    }
+
+    .btn-hero-main:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(2, 132, 199, 0.6);
+    }
+
+    .btn-hero-sub {
+      background: rgba(255, 255, 255, 0.08);
+      color: #ffffff;
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+      padding: 15px 26px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-hero-sub:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+
+    /* Hero Preview Glasscard */
+    .hero-preview-glass {
+      background: rgba(15, 36, 68, 0.6);
+      backdrop-filter: blur(18px);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 26px;
+      padding: 26px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    }
+
+    .glass-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 16px;
+    }
+
+    .corp-title {
+      font-size: 11.5px;
+      color: #94a3b8;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .corp-entity {
+      font-size: 16px;
+      color: #ffffff;
+      font-weight: 800;
+      margin-top: 3px;
+    }
+
+    .rc-shield-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(56, 189, 248, 0.18);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+
+    .glass-metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .metric-card {
+      background: rgba(10, 25, 47, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .metric-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .metric-val {
+      font-size: 20px;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    .metric-lbl {
+      font-size: 11.5px;
+      color: #94a3b8;
+      font-weight: 600;
+      margin-top: 3px;
+    }
+
+    /* ================= SECTION WRAPPER ================= */
+    .section-container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 70px 24px;
+    }
+
+    .section-heading-box {
+      text-align: center;
+      margin-bottom: 45px;
+    }
+
+    .section-tag {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--accent-blue);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+      display: inline-block;
+    }
+
+    .section-title {
+      font-size: 32px;
+      font-weight: 900;
+      color: var(--primary-navy);
+      letter-spacing: -0.8px;
+    }
+
+    .section-desc {
+      font-size: 15.5px;
+      color: #64748b;
+      margin-top: 10px;
+      max-width: 640px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* ================= SERVICES GRID ================= */
+    .services-catalog {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 24px;
+    }
+
+    .service-card {
+      background: #ffffff;
+      border: 1px solid var(--border-light);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 4px 16px rgba(10, 29, 55, 0.04);
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .service-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 16px 32px rgba(10, 29, 55, 0.08);
+      border-color: #cbd5e1;
+    }
+
+    .service-icon-wrap {
+      width: 54px;
+      height: 54px;
+      border-radius: 14px;
+      background: rgba(2, 132, 199, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--accent-blue);
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    .service-card h3 {
+      font-size: 19px;
+      font-weight: 800;
+      color: var(--primary-navy);
+      margin-bottom: 10px;
+    }
+
+    .service-card p {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+
+    .service-badge-pill {
+      align-self: flex-start;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: #f1f5f9;
+      color: var(--primary-navy);
+    }
+
+    /* ================= FOOTER ================= */
+    .landing-footer {
+      background: var(--bg-dark);
+      color: #ffffff;
+      padding: 70px 24px 35px 24px;
+      border-top: 2px solid var(--primary-navy);
+    }
+
+    .footer-content-grid {
+      max-width: 1240px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 40px;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .footer-col h4 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 18px;
+      color: var(--accent-cyan);
+      font-weight: 800;
+    }
+
+    .footer-col p, .footer-col a {
+      font-size: 13.5px;
+      color: #cbd5e1;
+      line-height: 1.85;
+      text-decoration: none;
+      display: block;
+    }
+
+    .footer-col a:hover {
+      color: var(--accent-cyan);
+    }
+
+    .footer-legal-bar {
+      max-width: 1240px;
+      margin: 24px auto 0 auto;
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 15px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    /* ================= LOGIN MODAL (EXACT 1-TO-1 REACT NATIVE VIEW) ================= */
+    .auth-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(5, 14, 29, 0.82);
+      backdrop-filter: blur(10px);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px 14px;
+      overflow-y: auto;
+    }
+
+    .modal-sheet {
+      width: 100%;
+      max-width: 490px;
+      background-color: #ffffff;
+      border-radius: 25px;
+      padding: 26px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      border: 1px solid #e2e8f0;
+      position: relative;
+      animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalSlideUp {
+      from { transform: translateY(20px) scale(0.97); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    .btn-modal-close {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      background: #f1f5f9;
+      border: none;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      color: #64748b;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .btn-modal-close:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .modal-header-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+
+    .modal-logo-circle {
+      width: 84px;
+      height: 84px;
+      border-radius: 42px;
+      background-color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 12px;
+      border: 1.5px solid #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+
+    .modal-logo-circle img {
+      width: 56px;
+      height: 56px;
+      object-fit: contain;
+    }
+
+    .modal-app-title {
+      font-size: 27px;
+      font-weight: 800;
+      color: var(--primary-navy);
+      letter-spacing: -0.5px;
+    }
+
+    .modal-tagline-text {
+      font-size: 13.5px;
+      color: #64748b;
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .error-banner {
+      display: none;
+      background-color: #fef2f2;
+      border: 1px solid #fee2e2;
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .error-banner i {
+      color: #b91c1c;
+      font-size: 18px;
+    }
+
+    .error-banner-text {
+      color: #991b1b;
+      font-size: 13.5px;
+      font-weight: 600;
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    .form-label {
+      display: block;
+      color: #475569;
+      font-size: 13.5px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .input-wrapper {
+      display: flex;
+      align-items: center;
+      background-color: #f8fafc;
+      border-radius: 12px;
+      padding: 0 15px;
+      margin-bottom: 18px;
+      border: 1px solid #e2e8f0;
+      transition: all 0.2s ease;
+      height: 48px;
+    }
+
+    .input-wrapper:focus-within {
+      border-color: var(--primary-navy);
+      background-color: #ffffff;
+      box-shadow: 0 0 0 3px rgba(10, 29, 55, 0.08);
+    }
+
+    .input-icon {
+      color: #64748b;
+      font-size: 16px;
+      margin-right: 12px;
+      width: 18px;
+      text-align: center;
+    }
+
+    .text-input {
+      flex: 1;
+      height: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #0f172a;
+      font-size: 14.5px;
+      font-weight: 500;
+    }
+
+    .toggle-eye {
+      cursor: pointer;
+      color: #64748b;
+      font-size: 16px;
+      padding: 4px;
+    }
+
+    .action-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .biometric-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .biometric-btn i {
+      font-size: 26px;
+      color: var(--primary-navy);
+    }
+
+    .biometric-text {
+      font-size: 10px;
+      color: var(--primary-navy);
+      font-weight: 700;
+      margin-top: 2px;
+    }
+
+    .forgot-link {
+      background: none;
+      border: none;
+      color: var(--primary-navy);
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-left: auto;
+      text-decoration: none;
+    }
+
+    .forgot-link:hover {
+      text-decoration: underline;
+    }
+
+    .login-submit-btn {
+      width: 100%;
+      background: linear-gradient(135deg, var(--primary-navy) 0%, #112d54 100%);
+      height: 52px;
+      border-radius: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(10, 29, 55, 0.25);
+    }
+
+    .login-submit-btn:hover {
+      background: #061325;
+    }
+
+    .login-submit-btn:disabled {
+      opacity: 0.75;
+      cursor: not-allowed;
+    }
+
+    .login-btn-text {
+      color: #ffffff;
+      font-size: 16.5px;
+      font-weight: 700;
+    }
+
+    .spinner-loader {
+      display: none;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .signup-invite-row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 18px;
+      font-size: 13.5px;
+    }
+
+    .signup-invite-link {
+      color: var(--primary-navy);
+      font-weight: 700;
+      cursor: pointer;
+      margin-left: 4px;
+      text-decoration: none;
+    }
+
+    /* Modal Quick Support */
+    .support-block {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 16px;
+    }
+
+    .support-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .support-icons-row {
+      display: flex;
+      align-items: center;
+    }
+
+    .support-icon-pill {
+      width: 44px;
+      height: 44px;
+      border-radius: 22px;
+      background-color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border: 1px solid #e2e8f0;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .support-icon-pill:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+    }
+
+    .support-icon-pill.phone-center {
+      margin: 0 16px;
+    }
+
+    .support-phone-num {
+      margin-top: 12px;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--primary-navy);
+      text-align: center;
+    }
+
+    .developer-api-direct-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #f0f9ff;
+      border: 1.5px solid #bae6fd;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-top: 16px;
+      width: 100%;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+
+    .developer-api-direct-btn:hover {
+      background-color: #e0f2fe;
+    }
+
+    .developer-api-btn-text {
+      color: var(--accent-blue);
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      margin: 0 6px 0 8px;
+    }
+
+    /* Logged In Dashboard View inside modal */
+    .modal-dash-wrapper {
+      display: none;
+    }
+
+    .dash-user-card {
+      background: linear-gradient(135deg, var(--primary-navy) 0%, #0d3b66 100%);
+      color: #ffffff;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .dash-user-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .role-badge-pill {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.18);
+      color: #93c5fd;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .dash-wallet-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dash-modules-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .dash-module-item {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 15px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .dash-module-item:hover {
+      background: #f1f5f9;
+      border-color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================= 1. NAVIGATION ================= -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="#" class="nav-brand">
+        <div class="nav-logo-box">
+          <img
+            src="Logo.png"
+            alt="Ayax Logo"
+            onerror="this.onerror=null; this.src='assets/Logo.png'; this.onerror=function(){this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><polygon points=\'50,10 90,50 50,90 10,50\' fill=\'%230a1d37\'/><polygon points=\'50,22 78,50 50,78 22,50\' fill=\'%23ffffff\'/><polygon points=\'50,34 66,50 50,66 34,50\' fill=\'%230284c7\'/></svg>'};"
+          />
+        </div>
+        <div class="nav-brand-text">
+          <h1>Ayax Xpress</h1>
+          <span>Global Ventures Ltd</span>
+        </div>
+      </a>
+
+      <!-- Desktop Links -->
+      <div class="nav-links">
+        <a href="#services" class="nav-link">Our Services</a>
+        <a href="#contact" class="nav-link">Support</a>
+      </div>
+
+      <div class="nav-actions">
+        <a href="https://www.ayaxapis.com" target="_blank" class="btn-api-nav">
+          <i class="fa-solid fa-code"></i> Developer API
+        </a>
+        <button class="btn-login-nav" onclick="openLoginModal()">Login to Portal</button>
+        
+        <!-- Mobile Drawer Hamburger Toggle Button -->
+        <button class="mobile-menu-btn" onclick="toggleMobileDrawer()" aria-label="Toggle Menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Mobile Drawer Overlay -->
+  <div class="drawer-overlay" id="drawerOverlay" onclick="closeMobileDrawer()"></div>
+
+  <!-- Mobile Navigation Drawer -->
+  <aside class="mobile-drawer" id="mobileDrawer">
+    <div class="drawer-header">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div class="nav-logo-box" style="width: 36px; height: 36px;">
+          <img src="Logo.png" alt="Logo" style="width: 22px; height: 22px;" onerror="this.onerror=null; this.src='assets/Logo.png';">
+        </div>
+        <strong style="color: #ffffff; font-size: 16px;">Ayax Xpress</strong>
+      </div>
+      <button class="drawer-close-btn" onclick="closeMobileDrawer()">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <nav class="drawer-links">
+      <a href="#services" class="drawer-link" onclick="closeMobileDrawer()">
+        <i class="fa-solid fa-cubes"></i> Our Services
+      </a>
+      <a href="https://www.ayaxapis.com" target="_blank" class="drawer-link">
+        <i class="fa-solid fa-code"></i> Developer API Docs
+      </a>
+      <a href="#contact" class="drawer-link" onclick="closeMobileDrawer()">
+        <i class="fa-solid fa-headset"></i> Quick Support
+      </a>
+    </nav>
+
+    <div class="drawer-footer">
+      <button class="btn-login-nav" style="width: 100%; padding: 12px;" onclick="closeMobileDrawer(); openLoginModal();">
+        <i class="fa-solid fa-arrow-right-to-bracket" style="margin-right: 6px;"></i> Login to Portal
+      </button>
+      <div style="font-size: 11px; color: #64748b; text-align: center;">
+        RC: 9345377 &bull; +234 906 124 4444
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================= 2. HERO SECTION ================= -->
+  <header class="hero-wrap">
+    <div class="hero-container">
+      <div>
+        <div class="hero-tag">
+          <i class="fa-solid fa-bolt"></i> Telecom • Identity Verification • DisCo Utility API
+        </div>
+        <h1 class="hero-title">
+          Unified Digital <span>Infrastructure</span> for Nigeria.
+        </h1>
+        <p class="hero-subtitle">
+          AYAX GLOBAL VENTURES LTD delivers robust MTN SME & Corporate Gifting, Airtel enterprise pipelines, instant BVN, NIN, & CAC business validations, and high-frequency utility payments with 99.9% uptime.
+        </p>
+        <div class="hero-cta-group">
+          <button class="btn-hero-main" onclick="openLoginModal()">
+            <span>Launch Web Portal</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+          <a href="https://www.ayaxapis.com" target="_blank" class="btn-hero-sub">
+            <i class="fa-solid fa-terminal"></i> API Documentation
+          </a>
+        </div>
+      </div>
+
+      <!-- Hero Preview Glasscard -->
+      <div class="hero-preview-glass">
+        <div class="glass-header">
+          <div>
+            <div class="corp-title">Certified Corporate Entity</div>
+            <div class="corp-entity">AYAX GLOBAL VENTURES LTD</div>
+          </div>
+          <div class="rc-shield-badge">
+            <i class="fa-solid fa-shield-halved"></i> RC: 9345377
+          </div>
+        </div>
+
+        <div class="glass-metrics-grid">
+          <div class="metric-card">
+            <div class="metric-val">99.99%</div>
+            <div class="metric-lbl">Gateway Uptime</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val">Instant</div>
+            <div class="metric-lbl">MTN & Airtel Dispatch</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val">Real-time</div>
+            <div class="metric-lbl">BVN & NIN Verification</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-val">24/7</div>
+            <div class="metric-lbl">Restful APIs & Webhooks</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= 3. ALL ENTERPRISE SERVICES ================= -->
+  <section class="section-container" id="services">
+    <div class="section-heading-box">
+      <span class="section-tag">Enterprise Ecosystem</span>
+      <h2 class="section-title">Everything Your Business Needs in One Portal</h2>
+      <p class="section-desc">From wholesale automated data pipelines to identity verification and utility payments—accessible via Web, Mobile App, and REST APIs.</p>
+    </div>
+
+    <div class="services-catalog">
+      <!-- 1. MTN Telecom -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-tower-broadcast"></i></div>
+          <h3>MTN SME & Corporate Gifting</h3>
+          <p>High-volume quota distribution delivering instant SME and Corporate Gifting data to all 36 states with real-time balance sync.</p>
+        </div>
+        <span class="service-badge-pill">Telecom Gateway</span>
+      </div>
+
+      <!-- 2. Airtel Telecom -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-signal"></i></div>
+          <h3>Airtel Business & CG Data</h3>
+          <p>Direct Airtel enterprise pipelines for corporate data gifting and SME data sharing with automated delivery callbacks.</p>
+        </div>
+        <span class="service-badge-pill">Telecom Gateway</span>
+      </div>
+
+      <!-- 3. BVN Verification -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-id-card"></i></div>
+          <h3>BVN Identity Verification</h3>
+          <p>Instant Bank Verification Number verification returning certified name, date of birth, and biometric match validation.</p>
+        </div>
+        <span class="service-badge-pill">Compliance & KYC</span>
+      </div>
+
+      <!-- 4. NIN Verification -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-fingerprint"></i></div>
+          <h3>NIN Database Verification</h3>
+          <p>Direct National Identity Number lookups verifying bearer status, photo matching, and legal verification slip generation.</p>
+        </div>
+        <span class="service-badge-pill">Compliance & KYC</span>
+      </div>
+
+      <!-- 5. CAC Business Verification -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-briefcase"></i></div>
+          <h3>CAC Entity & Company Verification</h3>
+          <p>Validate Corporate Affairs Commission RC numbers, directors, corporate status, and business entities in real time.</p>
+        </div>
+        <span class="service-badge-pill">Compliance & KYC</span>
+      </div>
+
+      <!-- 6. DisCo Electricity & Bills -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-bolt-lightning"></i></div>
+          <h3>Electricity & Utility Bills</h3>
+          <p>Automated prepaid meter token generation and postpaid bill settlement across Ikeja, Eko, Abuja, Kano, and all DisCos.</p>
+        </div>
+        <span class="service-badge-pill">Utility Settlement</span>
+      </div>
+
+      <!-- 7. Cable TV Subscriptions -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-tv"></i></div>
+          <h3>Cable TV Subscriptions</h3>
+          <p>Instant smartcard renewals and bouquet upgrades for DStv, GOtv, and StarTimes with zero delay.</p>
+        </div>
+        <span class="service-badge-pill">Utility Settlement</span>
+      </div>
+
+      <!-- 8. Developer API Marketplace -->
+      <div class="service-card">
+        <div>
+          <div class="service-icon-wrap"><i class="fa-solid fa-code"></i></div>
+          <h3>Developer API Marketplace</h3>
+          <p>Embed our data vending, BVN validation, and utility endpoints directly into your apps and websites via ayaxapis.com.</p>
+        </div>
+        <span class="service-badge-pill">RESTful API Engine</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. FOOTER ================= -->
+  <footer class="landing-footer" id="contact">
+    <div class="footer-content-grid">
+      <div class="footer-col">
+        <h4>AYAX GLOBAL VENTURES LTD</h4>
+        <p>Registration: <strong>RC: 9345377</strong></p>
+        <p>Operational Hub: Suite C13 & C14, Yammusa Plaza, Hotoron Arewa, Kano State.</p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Support & Desk</h4>
+        <p><i class="fa-solid fa-phone"></i> +234 906 124 4444</p>
+        <p><i class="fa-brands fa-whatsapp"></i> +234 906 124 4444</p>
+        <p><i class="fa-solid fa-envelope"></i> support@ayaxdata.online</p>
+      </div>
+
+      <div class="footer-col">
+        <h4>Digital Products</h4>
+        <a href="https://ayaxdigital.solutions" target="_blank">ayaxdigital.solutions</a>
+        <a href="https://www.ayaxapis.com" target="_blank">ayaxapis.com (Developer Gateway)</a>
+        <a href="#" onclick="openLoginModal(); return false;">Ayax Xpress Web Portal</a>
+      </div>
+    </div>
+
+    <div class="footer-legal-bar">
+      <span>&copy; 2026 AYAX GLOBAL VENTURES LTD (RC: 9345377). All rights reserved.</span>
+    </div>
+  </footer>
+
+  <!-- ================= 5. AUTHENTICATION MODAL (React Native Screen 1-to-1) ================= -->
+  <div class="auth-overlay" id="authOverlay">
+    <div class="modal-sheet">
+      <button class="btn-modal-close" onclick="closeLoginModal()"><i class="fa-solid fa-xmark"></i></button>
+
+      <!-- Exact Login Screen View -->
+      <div id="loginModalView">
+        <div class="modal-header-block">
+          <div class="modal-logo-circle">
+            <img
+              src="Logo.png"
+              alt="Ayax Xpress Logo"
+              onerror="this.onerror=null; this.src='assets/Logo.png'; this.onerror=function(){this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><polygon points=\'50,10 90,50 50,90 10,50\' fill=\'%230a1d37\'/><polygon points=\'50,22 78,50 50,78 22,50\' fill=\'%23ffffff\'/><polygon points=\'50,34 66,50 50,66 34,50\' fill=\'%230284c7\'/></svg>'};"
+            />
+          </div>
+          <h2 class="modal-app-title">Ayax Xpress</h2>
+          <p class="modal-tagline-text">Swift & Reliable Utility Payments</p>
+        </div>
+
+        <div>
+          <!-- Error Banner -->
+          <div class="error-banner" id="errorBanner">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <span class="error-banner-text" id="errorBannerText"></span>
+          </div>
+
+          <!-- Identifier -->
+          <label class="form-label">Email Address or Phone Number</label>
+          <div class="input-wrapper">
+            <i class="fa-regular fa-user input-icon"></i>
+            <input
+              type="text"
+              id="identifierInput"
+              class="text-input"
+              placeholder="Email or 08012345678"
+              autocomplete="username"
+            />
+          </div>
+
+          <!-- Password -->
+          <label class="form-label">Password</label>
+          <div class="input-wrapper">
+            <i class="fa-solid fa-lock input-icon"></i>
+            <input
+              type="password"
+              id="passwordInput"
+              class="text-input"
+              placeholder="••••••••"
+              autocomplete="current-password"
+            />
+            <span class="toggle-eye" onclick="togglePasswordVisibility()">
+              <i class="fa-regular fa-eye" id="passwordEyeIcon"></i>
+            </span>
+          </div>
+
+          <!-- Action Row -->
+          <div class="action-row">
+            <button type="button" class="biometric-btn" onclick="handleBiometricPrompt()">
+              <i class="fa-solid fa-fingerprint"></i>
+              <span class="biometric-text">Touch ID</span>
+            </button>
+            <a href="#" class="forgot-link" onclick="alert('Please contact support desk at +234 906 124 4444 to reset password.')">Forgot Password?</a>
+          </div>
+
+          <!-- Login Button -->
+          <button type="button" class="login-submit-btn" id="loginBtn" onclick="handleLogin()">
+            <span class="login-btn-text" id="loginBtnText">Login to Account</span>
+            <div class="spinner-loader" id="loginSpinner"></div>
+          </button>
+
+          <!-- Signup Row -->
+          <div class="signup-invite-row">
+            <span style="color: #64748b;">Don't have an account? </span>
+            <a href="#" class="signup-invite-link" onclick="alert('Please register via the Ayax Xpress mobile app or contact support desk.')">Create Account</a>
+          </div>
+        </div>
+
+        <!-- Quick Support Container (Unified Support: +234 906 124 4444) -->
+        <div class="support-block">
+          <span class="support-label">Quick Support</span>
+          <div class="support-icons-row">
+            <a href="https://wa.me/2349061244444?text=Hello%20Ayax%20Xpress%20Support" target="_blank" class="support-icon-pill">
+              <i class="fa-brands fa-whatsapp" style="color: #25D366; font-size: 22px;"></i>
+            </a>
+            <a href="tel:+2349061244444" class="support-icon-pill phone-center">
+              <i class="fa-solid fa-phone" style="color: #0a1d37; font-size: 18px;"></i>
+            </a>
+            <a href="mailto:support@ayaxdata.online" class="support-icon-pill">
+              <i class="fa-solid fa-envelope" style="color: #EA4335; font-size: 18px;"></i>
+            </a>
+          </div>
+          <div class="support-phone-num">+234 906 124 4444</div>
+        </div>
+
+        <!-- Developer APIs Button -->
+        <a href="https://www.ayaxapis.com" target="_blank" class="developer-api-direct-btn">
+          <i class="fa-solid fa-code" style="color: #0284c7; font-size: 17px;"></i>
+          <span class="developer-api-btn-text">Developer APIs</span>
+          <i class="fa-solid fa-arrow-up-right-from-square" style="color: #0284c7; font-size: 13px;"></i>
+        </a>
+      </div>
+
+      <!-- Logged In User View (When Authorized) -->
+      <div id="dashboardModalView" class="modal-dash-wrapper">
+        <div class="dash-user-card">
+          <div class="dash-user-head">
+            <div>
+              <div class="role-badge-pill" id="dashUserRole">CUSTOMER</div>
+              <h3 style="font-size: 18px; margin-top: 5px;" id="dashUserName">Ayax User</h3>
+              <p style="font-size: 13px; color: #94a3b8;" id="dashUserIdentifier"></p>
+            </div>
+            <button style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color: #fff; padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;" onclick="handleLogout()">Logout</button>
+          </div>
+
+          <div class="dash-wallet-box">
+            <div>
+              <div style="font-size: 10px; color: #cbd5e1; text-transform: uppercase;">Available Balance</div>
+              <div style="font-size: 24px; font-weight: 800;" id="dashWalletBalance">₦0.00</div>
+            </div>
+            <button style="background: #ffffff; color: #0a1d37; border: none; padding: 8px 14px; border-radius: 8px; font-weight: 700; font-size: 12px; cursor: pointer;" onclick="alert('Redirecting to payment gateway...')">+ Fund</button>
+          </div>
+        </div>
+
+        <div class="dash-modules-grid">
+          <div class="dash-module-item" onclick="alert('MTN & Airtel Vending Modules Active.')">
+            <i class="fa-solid fa-tower-broadcast" style="color: #0284c7; font-size: 22px; margin-bottom: 6px;"></i>
+            <span style="display: block; font-size: 13px; font-weight: 700;">Data Vending</span>
+          </div>
+          <div class="dash-module-item" onclick="alert('BVN & NIN Lookups Active.')">
+            <i class="fa-solid fa-id-card" style="color: #0284c7; font-size: 22px; margin-bottom: 6px;"></i>
+            <span style="display: block; font-size: 13px; font-weight: 700;">KYC & BVN</span>
+          </div>
+          <div class="dash-module-item" onclick="alert('Prepaid Meter Vending Active.')">
+            <i class="fa-solid fa-bolt-lightning" style="color: #0284c7; font-size: 22px; margin-bottom: 6px;"></i>
+            <span style="display: block; font-size: 13px; font-weight: 700;">Electricity Token</span>
+          </div>
+          <div class="dash-module-item" onclick="window.open('https://www.ayaxapis.com', '_blank')">
+            <i class="fa-solid fa-code" style="color: #0284c7; font-size: 22px; margin-bottom: 6px;"></i>
+            <span style="display: block; font-size: 13px; font-weight: 700;">API Tokens</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= 6. JAVASCRIPT LOGIC ================= -->
+  <script>
+    // CENTRAL BACKEND SERVER (Daidai da Mobile App)
+    const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
+
+    let showPassword = false;
+
+    window.addEventListener('DOMContentLoaded', () => {
+      // 1. Check saved credentials
+      const savedId = localStorage.getItem("savedIdentifier");
+      if (savedId) {
+        document.getElementById("identifierInput").value = savedId;
+      }
+
+      // 2. Check existing user session
+      const token = localStorage.getItem("userToken");
+      const rawUserData = localStorage.getItem("userData");
+      if (token && rawUserData) {
+        try {
+          const user = JSON.parse(rawUserData);
+          renderDashboard(user, user.role || "user", savedId || user.email || user.phone);
+        } catch (e) {
+          localStorage.removeItem("userToken");
+        }
+      }
+    });
+
+    // ================= MOBILE DRAWER MENU LOGIC =================
+    function toggleMobileDrawer() {
+      const drawer = document.getElementById('mobileDrawer');
+      const overlay = document.getElementById('drawerOverlay');
+      const isOpen = drawer.classList.contains('open');
+
+      if (isOpen) {
+        closeMobileDrawer();
+      } else {
+        drawer.classList.add('open');
+        overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeMobileDrawer() {
+      const drawer = document.getElementById('mobileDrawer');
+      const overlay = document.getElementById('drawerOverlay');
+      drawer.classList.remove('open');
+      overlay.classList.remove('open');
+      document.body.style.overflow = 'auto';
+    }
+
+    // ================= AUTH MODAL CONTROL =================
+    function openLoginModal() {
+      document.getElementById('authOverlay').style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLoginModal() {
+      document.getElementById('authOverlay').style.display = 'none';
+      document.body.style.overflow = 'auto';
+    }
+
+    window.onclick = function(event) {
+      const overlay = document.getElementById('authOverlay');
+      if (event.target === overlay) {
+        closeLoginModal();
+      }
+    };
+
+    function togglePasswordVisibility() {
+      showPassword = !showPassword;
+      const pwdInput = document.getElementById("passwordInput");
+      const eyeIcon = document.getElementById("passwordEyeIcon");
+      pwdInput.type = showPassword ? "text" : "password";
+      eyeIcon.className = showPassword ? "fa-regular fa-eye-slash" : "fa-regular fa-eye";
+    }
+
+    function setErrorMessage(msg) {
+      const banner = document.getElementById("errorBanner");
+      const bannerText = document.getElementById("errorBannerText");
+      if (!msg) {
+        banner.style.display = "none";
+        bannerText.textContent = "";
+      } else {
+        bannerText.textContent = msg;
+        banner.style.display = "flex";
+      }
+    }
+
+    // ================= ROLE-BASED ACCESS ROUTING =================
+    function routeUserByRole(rawRole, rawIdentifier = "") {
+      const role = String(rawRole || "").trim().toLowerCase();
+      const identifier = String(rawIdentifier || "").trim().toLowerCase();
+
+      let resolvedRole = role || "user";
+
+      if (role === "superadmin" || identifier === "mohammed.ayas@ayaxdata.online" || identifier === "09033738409") {
+        resolvedRole = "SuperAdmin";
+      } else if (role === "admin" || identifier === "mohammed@ayaxdata.online" || identifier === "admin@ayaxdata.online" || identifier === "08011112222") {
+        resolvedRole = "Operations Admin";
+      } else if (role === "national_sales_director" || role === "super_leader" || identifier === "nsd@ayaxdata.online" || identifier === "08099990000") {
+        resolvedRole = "National Sales Director";
+      } else if (role === "state_manager" || role === "leader") {
+        resolvedRole = "State Manager";
+      } else if (role === "supervisor" || role === "field_supervisor") {
+        resolvedRole = "Field Supervisor";
+      } else if (role === "agent") {
+        resolvedRole = "Retail Agent";
+      } else if (role === "support" || role === "customer_service" || identifier === "support@ayaxdata.online" || identifier === "08077778888" || identifier === "09033738400") {
+        resolvedRole = "Support Desk";
+      }
+
+      const rawUserData = localStorage.getItem("userData");
+      const user = rawUserData ? JSON.parse(rawUserData) : { role: resolvedRole };
+      renderDashboard(user, resolvedRole, identifier);
+    }
+
+    function renderDashboard(user, roleName, identifier) {
+      document.getElementById("loginModalView").style.display = "none";
+      document.getElementById("dashboardModalView").style.display = "block";
+
+      document.getElementById("dashUserRole").textContent = roleName.toUpperCase();
+      document.getElementById("dashUserName").textContent = user.fullName || user.name || user.username || "Mohammed Ayas";
+      document.getElementById("dashUserIdentifier").textContent = identifier || user.email || user.phone || "";
+
+      const balance = user.walletBalance || user.balance || 15400.00;
+      document.getElementById("dashWalletBalance").textContent = "₦" + parseFloat(balance).toLocaleString("en-NG", { minimumFractionDigits: 2 });
+    }
+
+    // ================= LOGIN SUBMISSION =================
+    async function handleLogin() {
+      setErrorMessage("");
+
+      const cleanInput = document.getElementById("identifierInput").value.trim();
+      const cleanPassword = document.getElementById("passwordInput").value.trim();
+
+      if (!cleanInput || !cleanPassword) {
+        setErrorMessage("Please enter your email/phone and password.");
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const payload = {
+          identifier: cleanInput,
+          email: cleanInput,
+          phone: cleanInput,
+          username: cleanInput,
+          password: cleanPassword,
+        };
+
+        const response = await fetch(`${BASE_URL}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const resData = await response.json();
+
+        if (!response.ok) {
+          const errorMsg = resData?.message || (response.status === 401 ? "Invalid email/phone or password." : "Server error.");
+          throw new Error(errorMsg);
+        }
+
+        const token = resData.token || resData.accessToken || resData.data?.token || "";
+        const userPayload = resData.user || resData.data?.user || resData.data || {};
+
+        let userRole = (userPayload?.role || resData.role || resData.data?.role || "user").trim().toLowerCase();
+
+        if (cleanInput.toLowerCase() === "mohammed.ayas@ayaxdata.online" || cleanInput === "09033738409") {
+          userRole = "superadmin";
+        } else if (cleanInput.toLowerCase() === "mohammed@ayaxdata.online" || cleanInput.toLowerCase() === "admin@ayaxdata.online" || cleanInput === "08011112222") {
+          userRole = "admin";
+        } else if (cleanInput.toLowerCase() === "support@ayaxdata.online" || cleanInput === "08077778888") {
+          userRole = "support";
+        }
+
+        if (!token) {
+          setErrorMessage("Authentication token missing from server response.");
+          setLoading(false);
+          return;
+        }
+
+        localStorage.setItem("userToken", token);
+        localStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+        localStorage.setItem("savedIdentifier", cleanInput);
+        localStorage.setItem("savedPassword", cleanPassword);
+
+        routeUserByRole(userRole, cleanInput);
+      } catch (error) {
+        setErrorMessage(error.message || "Network error. Please check your internet connection.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function handleBiometricPrompt() {
+      const savedIdentifier = localStorage.getItem("savedIdentifier");
+      const savedPassword = localStorage.getItem("savedPassword");
+
+      if (!savedIdentifier || !savedPassword) {
+        setErrorMessage("Please login with password once first to enable Touch ID.");
+        return;
+      }
+
+      document.getElementById("identifierInput").value = savedIdentifier;
+      document.getElementById("passwordInput").value = savedPassword;
+      handleLogin();
+    }
+
+    function handleLogout() {
+      localStorage.removeItem("userToken");
+      localStorage.removeItem("userData");
+      document.getElementById("dashboardModalView").style.display = "none";
+      document.getElementById("loginModalView").style.display = "block";
+      setErrorMessage("");
+    }
+
+    function setLoading(isLoading) {
+      const btn = document.getElementById("loginBtn");
+      const btnText = document.getElementById("loginBtnText");
+      const spinner = document.getElementById("loginSpinner");
+
+      btn.disabled = isLoading;
+      if (isLoading) {
+        btnText.style.display = "none";
+        spinner.style.display = "block";
+      } else {
+        btnText.style.display = "block";
+        spinner.style.display = "none";
+      }
+    }
+  </script>
+
+</body>
+</html>
