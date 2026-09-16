@@ -36,7 +36,7 @@ const AdminDashboard = () => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const slideAnim = useState(new Animated.Value(-width * 0.85))[0];
 
-  // Active Tab: 'overview' | 'sales' | 'hierarchy' | 'users' | 'refunds' | 'pricing' | 'targets' | 'broadcast'
+  // Active Tab: 'overview' | 'sales' | 'hierarchy' | 'users' | 'refunds' | 'pricing' | 'identity_pricing' | 'targets' | 'broadcast'
   const [activeTab, setActiveTab] = useState("overview");
 
   // Telemetry & Sales Statistics
@@ -100,99 +100,50 @@ const AdminDashboard = () => {
     airtimeGoal: "250000",
   });
 
-  // Pricing & Tariffs State
-  const [pricingList, setPricingList] = useState([
-    {
-      id: "mtn_sme_1gb",
-      network: "MTN",
-      planType: "SME",
-      plan: "1.0 GB",
-      validity: "30 Days",
-      costPrice: 245,
-      userPrice: 285,
-      agentPrice: 265,
-      supervisorPrice: 255,
-      apiPrice: 250,
-      status: "active",
-    },
-    {
-      id: "mtn_cg_1gb",
-      network: "MTN",
-      planType: "Corporate Gifting",
-      plan: "1.0 GB",
-      validity: "30 Days",
-      costPrice: 255,
-      userPrice: 295,
-      agentPrice: 280,
-      supervisorPrice: 270,
-      apiPrice: 265,
-      status: "active",
-    },
-    {
-      id: "airtel_cg_1gb",
-      network: "AIRTEL",
-      planType: "Corporate Gifting",
-      plan: "1.0 GB",
-      validity: "30 Days",
-      costPrice: 240,
-      userPrice: 280,
-      agentPrice: 265,
-      supervisorPrice: 255,
-      apiPrice: 250,
-      status: "active",
-    },
-    {
-      id: "glo_data_1gb",
-      network: "GLO",
-      planType: "Data Gifting",
-      plan: "1.0 GB",
-      validity: "30 Days",
-      costPrice: 220,
-      userPrice: 265,
-      agentPrice: 250,
-      supervisorPrice: 240,
-      apiPrice: 235,
-      status: "active",
-    },
-    {
-      id: "9mobile_sme_1gb",
-      network: "9MOBILE",
-      planType: "SME",
-      plan: "1.0 GB",
-      validity: "30 Days",
-      costPrice: 180,
-      userPrice: 230,
-      agentPrice: 210,
-      supervisorPrice: 200,
-      apiPrice: 195,
-      status: "active",
-    },
-  ]);
-
+  // Pricing & Tariffs State (DATA PLANS)
+  const [pricingList, setPricingList] = useState([]);
   const [selectedNetworkFilter, setSelectedNetworkFilter] = useState("ALL");
   const [pricingModalVisible, setPricingModalVisible] = useState(false);
   const [addPlanModalVisible, setAddPlanModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
 
+  // Farashin Customer da Agent Kawai (An cire Base Cost da sauran filaye)
   const [editTierPrices, setEditTierPrices] = useState({
-    costPrice: "",
     userPrice: "",
     agentPrice: "",
-    supervisorPrice: "",
-    apiPrice: "",
     status: "active",
   });
 
+  // Sabon Plan Form (Tare da Zaɓuɓɓuka da zaɓin rubutawa da hannu)
   const [newPlanForm, setNewPlanForm] = useState({
     network: "MTN",
     planType: "SME",
-    plan: "2.0 GB",
+    customPlanType: "",
+    planSize: "1.0 GB",
+    customPlanSize: "",
     validity: "30 Days",
-    costPrice: "490",
-    userPrice: "560",
-    agentPrice: "530",
-    supervisorPrice: "510",
-    apiPrice: "500",
+    customValidity: "",
+    userPrice: "285",
+    agentPrice: "265",
+  });
+
+  // NIMC, BVN & UTILITY GLOBAL PRICING STATE
+  const [identityServicesList, setIdentityServicesList] = useState([
+    { serviceCategory: "nimc", serviceKey: "nin_verification", name: "NIN Verification / Validation", userPrice: 150, agentPrice: 120 },
+    { serviceCategory: "nimc", serviceKey: "nin_slip_reprint", name: "Standard / Premium NIN Slip Reprint", userPrice: 350, agentPrice: 280 },
+    { serviceCategory: "nimc", serviceKey: "icao_validation", name: "NIMC ICAO Biometric Validation", userPrice: 2500, agentPrice: 2000 },
+    { serviceCategory: "nimc", serviceKey: "nin_modification", name: "NIN Data Modification Request", userPrice: 1500, agentPrice: 1200 },
+    { serviceCategory: "bvn", serviceKey: "bvn_verification", name: "BVN Instant Verification Desk", userPrice: 200, agentPrice: 150 },
+    { serviceCategory: "bvn", serviceKey: "bvn_match_generate", name: "BVN Match & Document Generation", userPrice: 500, agentPrice: 400 },
+    { serviceCategory: "cable", serviceKey: "dstv_gotv_startimes", name: "Cable TV Subscription Fee", userPrice: 100, agentPrice: 50 },
+    { serviceCategory: "electricity", serviceKey: "disco_token_generation", name: "Electricity Token Fee", userPrice: 100, agentPrice: 50 },
+  ]);
+
+  const [identityModalVisible, setIdentityModalVisible] = useState(false);
+  const [selectedIdentityService, setSelectedIdentityService] = useState(null);
+  const [editIdentityForm, setEditIdentityForm] = useState({
+    userPrice: "",
+    agentPrice: "",
   });
 
   // Targets & Directives State
@@ -250,11 +201,12 @@ const AdminDashboard = () => {
 
       const config = { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 };
 
-      const [statsRes, usersRes, plansRes, refundsRes] = await Promise.allSettled([
+      const [statsRes, usersRes, plansRes, refundsRes, superPlansRes] = await Promise.allSettled([
         axios.get(`${BASE_URL}/admin/dashboard-stats`, config),
         axios.get(`${BASE_URL}/admin/users?limit=150`, config),
         axios.get(`${BASE_URL}/data/plans`, config),
         axios.get(`${BASE_URL}/admin/transactions?status=pending-refund`, config),
+        axios.get(`${BASE_URL}/superadmin/plans`, config),
       ]);
 
       if (statsRes.status === "fulfilled" && statsRes.value.data) {
@@ -285,11 +237,15 @@ const AdminDashboard = () => {
         setUsersList(Array.isArray(rawUsers) ? rawUsers : []);
       }
 
-      if (plansRes.status === "fulfilled" && plansRes.value.data?.plans) {
-        const serverPlans = plansRes.value.data.plans;
-        if (Array.isArray(serverPlans) && serverPlans.length > 0) {
-          setPricingList(serverPlans);
-        }
+      let loadedPlans = [];
+      if (superPlansRes.status === "fulfilled" && superPlansRes.value.data?.plans) {
+        loadedPlans = superPlansRes.value.data.plans;
+      } else if (plansRes.status === "fulfilled" && plansRes.value.data?.plans) {
+        loadedPlans = plansRes.value.data.plans;
+      }
+
+      if (Array.isArray(loadedPlans) && loadedPlans.length > 0) {
+        setPricingList(loadedPlans);
       }
 
       if (refundsRes.status === "fulfilled" && refundsRes.value.data) {
@@ -538,14 +494,12 @@ const AdminDashboard = () => {
     }
   };
 
+  // EDIT EXISTING PLAN TARIFF (Customer & Agent Only)
   const handleOpenEditPlan = (plan) => {
     setSelectedPlan(plan);
     setEditTierPrices({
-      costPrice: String(plan.costPrice || plan.cost || ""),
       userPrice: String(plan.userPrice || plan.price || ""),
-      agentPrice: String(plan.agentPrice || plan.price || ""),
-      supervisorPrice: String(plan.supervisorPrice || plan.price || ""),
-      apiPrice: String(plan.apiPrice || plan.price || ""),
+      agentPrice: String(plan.agentPrice || plan.userPrice || plan.price || ""),
       status: plan.status || "active",
     });
     setPricingModalVisible(true);
@@ -553,19 +507,20 @@ const AdminDashboard = () => {
 
   const handleSaveTierPricing = async () => {
     if (!editTierPrices.userPrice || !editTierPrices.agentPrice) {
-      showAlert("Incomplete Pricing", "Please specify at least User and Agent prices.");
+      showAlert("Incomplete Pricing", "Please specify Customer and Agent selling prices.");
       return;
     }
 
+    const uPrice = Number(editTierPrices.userPrice);
+    const aPrice = Number(editTierPrices.agentPrice);
+
     const updatedPlanObj = {
       ...selectedPlan,
-      costPrice: Number(editTierPrices.costPrice),
-      userPrice: Number(editTierPrices.userPrice),
-      agentPrice: Number(editTierPrices.agentPrice),
-      supervisorPrice: Number(editTierPrices.supervisorPrice || editTierPrices.agentPrice),
-      apiPrice: Number(editTierPrices.apiPrice || editTierPrices.agentPrice),
-      price: Number(editTierPrices.userPrice),
+      userPrice: uPrice,
+      agentPrice: aPrice,
+      price: uPrice,
       status: editTierPrices.status,
+      isActive: editTierPrices.status === "active",
     };
 
     setPricingList((prev) =>
@@ -575,39 +530,59 @@ const AdminDashboard = () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       await axios.post(
-        `${BASE_URL}/admin/pricing/update-tier`,
-        { planId: selectedPlan.id, ...updatedPlanObj },
+        `${BASE_URL}/superadmin/pricing/update-tier`,
+        {
+          id: selectedPlan.id || selectedPlan._id,
+          planId: selectedPlan.planCode || selectedPlan.id || selectedPlan._id,
+          userPrice: uPrice,
+          agentPrice: aPrice,
+          price: uPrice,
+          status: editTierPrices.status,
+          broadcast: true,
+        },
         { headers: { Authorization: `Bearer ${token}` } }
-      ).catch(() => {});
+      );
 
-      showAlert("Pricing Tier Synced", `${selectedPlan.network} ${selectedPlan.plan} updated successfully.`);
+      showAlert("Live Tariff Deployed", `${selectedPlan.network} ${selectedPlan.plan || selectedPlan.name} is now updated for Customer & Agents.`);
       setPricingModalVisible(false);
     } catch (e) {
       setPricingModalVisible(false);
     }
   };
 
+  // ADD NEW PLAN WITH DROPDOWN + CUSTOM INPUT
   const handleAddNewPlanSubmit = async () => {
-    if (!newPlanForm.network || !newPlanForm.plan || !newPlanForm.userPrice) {
-      showAlert("Missing Fields", "Please complete Network, Plan Size, and User Price.");
+    const finalPlanType = newPlanForm.planType === "CUSTOM" ? newPlanForm.customPlanType.trim() : newPlanForm.planType;
+    const finalPlanSize = newPlanForm.planSize === "CUSTOM" ? newPlanForm.customPlanSize.trim() : newPlanForm.planSize;
+    const finalValidity = newPlanForm.validity === "CUSTOM" ? newPlanForm.customValidity.trim() : newPlanForm.validity;
+    const uPrice = Number(newPlanForm.userPrice || 0);
+    const aPrice = Number(newPlanForm.agentPrice || uPrice);
+
+    if (!newPlanForm.network || !finalPlanType || !finalPlanSize || uPrice <= 0) {
+      showAlert("Incomplete Form", "Please ensure Network, Plan Type, Plan Volume, and Customer Price are set.");
       return;
     }
 
-    const newPlanId = `${newPlanForm.network.toLowerCase()}_${newPlanForm.planType.toLowerCase().replace(/\s+/g, "_")}_${newPlanForm.plan.toLowerCase().replace(/\s+/g, "")}_${Date.now()}`;
+    const net = newPlanForm.network.toUpperCase();
+    const pCode = `${net}_${finalPlanType.toUpperCase().replace(/\s+/g, "_")}_${finalPlanSize.toUpperCase().replace(/\s+/g, "")}_${Date.now()}`;
+    const pName = `${net} ${finalPlanType} ${finalPlanSize} (${finalValidity})`;
 
     const newPlanObject = {
-      id: newPlanId,
-      network: newPlanForm.network.toUpperCase(),
-      planType: newPlanForm.planType,
-      plan: newPlanForm.plan,
-      validity: newPlanForm.validity || "30 Days",
-      costPrice: Number(newPlanForm.costPrice || 0),
-      userPrice: Number(newPlanForm.userPrice || 0),
-      agentPrice: Number(newPlanForm.agentPrice || newPlanForm.userPrice),
-      supervisorPrice: Number(newPlanForm.supervisorPrice || newPlanForm.agentPrice),
-      apiPrice: Number(newPlanForm.apiPrice || newPlanForm.agentPrice),
-      price: Number(newPlanForm.userPrice),
+      id: pCode,
+      planCode: pCode,
+      code: pCode,
+      network: net,
+      networkName: net,
+      planType: finalPlanType,
+      plan: finalPlanSize,
+      name: pName,
+      planLabel: pName,
+      validity: finalValidity,
+      userPrice: uPrice,
+      price: uPrice,
+      agentPrice: aPrice,
       status: "active",
+      isActive: true,
     };
 
     setPricingList((prev) => [newPlanObject, ...prev]);
@@ -615,15 +590,72 @@ const AdminDashboard = () => {
     try {
       const token = await AsyncStorage.getItem("userToken");
       await axios.post(
-        `${BASE_URL}/admin/pricing/create-plan`,
+        `${BASE_URL}/superadmin/pricing/create-plan`,
         newPlanObject,
         { headers: { Authorization: `Bearer ${token}` } }
-      ).catch(() => {});
+      );
 
-      showAlert("New Plan Deployed", `${newPlanObject.network} ${newPlanObject.plan} is now active.`);
+      showAlert("Tariff Published", `${pName} is successfully saved to Database and published to Agent & Customer terminals.`);
       setAddPlanModalVisible(false);
     } catch (e) {
       setAddPlanModalVisible(false);
+    }
+  };
+
+  // NIMC, BVN & UTILITY PRICE EDITING & DIRECT DATABASE SYNC
+  const handleOpenIdentityEdit = (service) => {
+    setSelectedIdentityService(service);
+    setEditIdentityForm({
+      userPrice: String(service.userPrice || ""),
+      agentPrice: String(service.agentPrice || service.userPrice || ""),
+    });
+    setIdentityModalVisible(true);
+  };
+
+  const handleSaveIdentityPricing = async () => {
+    if (!editIdentityForm.userPrice) {
+      showAlert("Validation Error", "Please provide Customer selling price.");
+      return;
+    }
+
+    const uPrice = Number(editIdentityForm.userPrice);
+    const aPrice = Number(editIdentityForm.agentPrice || uPrice);
+
+    setIdentityServicesList((prev) =>
+      prev.map((s) =>
+        s.serviceKey === selectedIdentityService.serviceKey
+          ? { ...s, userPrice: uPrice, agentPrice: aPrice }
+          : s
+      )
+    );
+
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const headers = { Authorization: `Bearer ${token}` };
+
+      await axios.post(
+        `${BASE_URL}/superadmin/pricing/set-global`,
+        {
+          serviceCategory: selectedIdentityService.serviceCategory,
+          serviceKey: selectedIdentityService.serviceKey,
+          serviceId: selectedIdentityService.serviceKey,
+          name: selectedIdentityService.name,
+          amount: uPrice,
+          userPrice: uPrice,
+          agentPrice: aPrice,
+          costPrice: 0,
+        },
+        { headers }
+      );
+
+      showAlert(
+        "Identity & Utility Tariff Updated 🛡️",
+        `${selectedIdentityService.name} tariffs have been synchronized to database and published across customer & agent terminals.`
+      );
+      setIdentityModalVisible(false);
+    } catch (err) {
+      showAlert("Sync Error", err.response?.data?.message || err.message);
+      setIdentityModalVisible(false);
     }
   };
 
@@ -745,7 +777,8 @@ const AdminDashboard = () => {
             { key: "hierarchy", label: "Cadre Hierarchy", icon: "git-branch" },
             { key: "users", label: "User Directory", icon: "users" },
             { key: "refunds", label: `Refunds (${pendingRefundsList.length})`, icon: "replay" },
-            { key: "pricing", label: "Tariffs & Margin", icon: "tag" },
+            { key: "pricing", label: "Data Tariffs", icon: "wifi" },
+            { key: "identity_pricing", label: "NIMC, BVN & Bills", icon: "shield-checkmark" },
             { key: "targets", label: "Directives & Quotas", icon: "target" },
             { key: "broadcast", label: "Push Notification", icon: "bell" },
           ].map((tab) => (
@@ -770,9 +803,7 @@ const AdminDashboard = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#0284c7" />}
       >
-        {/* ========================================================
-            TAB 1: OVERVIEW & COMPANY BALANCE TELEMETRY
-        ======================================================== */}
+        {/* TAB 1: OVERVIEW */}
         {activeTab === "overview" && (
           <>
             <View style={styles.sectionHeaderRow}>
@@ -828,7 +859,6 @@ const AdminDashboard = () => {
               </View>
             </View>
 
-            {/* Quick Hierarchy Breakdown Cards */}
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeaderLabel}>OPERATIONAL CADRE NETWORK</Text>
               <Text style={styles.sectionHeaderSub}>TAP TO INSPECT SUBORDINATES</Text>
@@ -864,9 +894,7 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* ========================================================
-            TAB 2: SALES TELEMETRY (DATA & AIRTIME)
-        ======================================================== */}
+        {/* TAB 2: SALES */}
         {activeTab === "sales" && (
           <>
             <View style={styles.sectionHeaderRow}>
@@ -923,9 +951,7 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* ========================================================
-            TAB 3: CADRE HIERARCHY & TEAM DRILL-DOWN
-        ======================================================== */}
+        {/* TAB 3: HIERARCHY */}
         {activeTab === "hierarchy" && (
           <>
             <View style={styles.sectionHeaderRow}>
@@ -971,9 +997,7 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* ========================================================
-            TAB 4: USER & CADRE DIRECTORY
-        ======================================================== */}
+        {/* TAB 4: USERS DIRECTORY */}
         {activeTab === "users" && (
           <>
             <View style={styles.searchFilterContainer}>
@@ -1056,12 +1080,9 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* ========================================================
-            TAB 5: BATCH REFUND QUEUE DESK
-        ======================================================== */}
+        {/* TAB 5: REFUNDS */}
         {activeTab === "refunds" && (
           <View style={styles.tabWrapper}>
-            {/* SELECT ALL & BATCH ACTION TOOLBAR */}
             <View style={styles.bulkRefundToolbar}>
               <TouchableOpacity
                 style={styles.bulkRefundSelectAllBtn}
@@ -1165,13 +1186,11 @@ const AdminDashboard = () => {
           </View>
         )}
 
-        {/* ========================================================
-            TAB 6: SUPER ADMIN STYLE TARIFFS & LIVE PRICING
-        ======================================================== */}
+        {/* TAB 6: DATA TARIFFS (CUSTOMER & AGENT ONLY - NO BASE API COST) */}
         {activeTab === "pricing" && (
           <>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeaderLabel}>SUPER ADMIN LIVE TARIFFS & TIER MARGINS</Text>
+              <Text style={styles.sectionHeaderLabel}>DATA BUNDLE LIVE TARIFFS (CUSTOMER & AGENT)</Text>
               <TouchableOpacity
                 style={styles.addPlanHeaderBtn}
                 onPress={() => setAddPlanModalVisible(true)}
@@ -1196,7 +1215,7 @@ const AdminDashboard = () => {
             </ScrollView>
 
             {filteredPricing.map((plan) => (
-              <View key={plan.id} style={styles.superPlanCard}>
+              <View key={plan.id || plan._id} style={styles.superPlanCard}>
                 <View style={styles.superPlanCardTop}>
                   <View style={{ flex: 1 }}>
                     <View style={styles.planBadgeRow}>
@@ -1214,8 +1233,7 @@ const AdminDashboard = () => {
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.superPlanTitle}>{plan.plan} ({plan.validity || "30 Days"})</Text>
-                    <Text style={styles.superPlanCost}>Base Cost: ₦{plan.costPrice || plan.cost}</Text>
+                    <Text style={styles.superPlanTitle}>{plan.plan || plan.name} ({plan.validity || "30 Days"})</Text>
                   </View>
 
                   <TouchableOpacity
@@ -1223,33 +1241,19 @@ const AdminDashboard = () => {
                     onPress={() => handleOpenEditPlan(plan)}
                   >
                     <Feather name="sliders" size={15} color="#0284c7" />
-                    <Text style={styles.superPlanEditText}>Set Tiers</Text>
+                    <Text style={styles.superPlanEditText}>Edit Prices</Text>
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.tierPricingRow}>
-                  <View style={styles.tierBox}>
-                    <Text style={styles.tierBoxLabel}>Customer</Text>
-                    <Text style={styles.tierBoxPrice}>₦{plan.userPrice || plan.price}</Text>
-                    <Text style={styles.tierBoxMargin}>+₦{(plan.userPrice || plan.price) - (plan.costPrice || plan.cost)}</Text>
+                <View style={styles.cleanPricingRow}>
+                  <View style={styles.cleanPriceBox}>
+                    <Text style={styles.cleanPriceLabel}>Customer Retail Price</Text>
+                    <Text style={styles.cleanPriceValue}>₦{plan.userPrice || plan.price || 0}</Text>
                   </View>
-
-                  <View style={styles.tierBox}>
-                    <Text style={styles.tierBoxLabel}>Agent</Text>
-                    <Text style={styles.tierBoxPrice}>₦{plan.agentPrice || plan.price}</Text>
-                    <Text style={styles.tierBoxMargin}>+₦{(plan.agentPrice || plan.price) - (plan.costPrice || plan.cost)}</Text>
-                  </View>
-
-                  <View style={styles.tierBox}>
-                    <Text style={styles.tierBoxLabel}>Supervisor</Text>
-                    <Text style={styles.tierBoxPrice}>₦{plan.supervisorPrice || plan.price}</Text>
-                    <Text style={styles.tierBoxMargin}>+₦{(plan.supervisorPrice || plan.price) - (plan.costPrice || plan.cost)}</Text>
-                  </View>
-
-                  <View style={styles.tierBox}>
-                    <Text style={styles.tierBoxLabel}>API / SM</Text>
-                    <Text style={styles.tierBoxPrice}>₦{plan.apiPrice || plan.price}</Text>
-                    <Text style={styles.tierBoxMargin}>+₦{(plan.apiPrice || plan.price) - (plan.costPrice || plan.cost)}</Text>
+                  <View style={styles.cleanPriceDivider} />
+                  <View style={styles.cleanPriceBox}>
+                    <Text style={styles.cleanPriceLabel}>Retail Agent Wholesale</Text>
+                    <Text style={[styles.cleanPriceValue, { color: "#0284c7" }]}>₦{plan.agentPrice || plan.userPrice || 0}</Text>
                   </View>
                 </View>
               </View>
@@ -1257,9 +1261,61 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* ========================================================
-            TAB 7: DIRECTIVES & QUOTA DISPATCH
-        ======================================================== */}
+        {/* TAB 7: NIMC, BVN & UTILITY GLOBAL PRICING */}
+        {activeTab === "identity_pricing" && (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeaderLabel}>NIMC, BVN, CABLE & UTILITY SERVICES PRICING</Text>
+              <Text style={styles.sectionHeaderLive}>DIRECT DATABASE SYNC</Text>
+            </View>
+            <Text style={styles.hierarchyHint}>
+              Set prices for NIN validation, slip reprint, BVN match, and token verification. Synchronizes live to Customer & Agent terminals.
+            </Text>
+
+            {identityServicesList.map((svc) => (
+              <View key={svc.serviceKey} style={styles.superPlanCard}>
+                <View style={styles.superPlanCardTop}>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.planBadgeRow}>
+                      <View style={[styles.planNetworkPill, { backgroundColor: svc.serviceCategory === "nimc" ? "#ecfdf5" : svc.serviceCategory === "bvn" ? "#fef3c7" : "#eff6ff" }]}>
+                        <Text style={[styles.planNetworkPillTxt, { color: svc.serviceCategory === "nimc" ? "#065f46" : svc.serviceCategory === "bvn" ? "#92400e" : "#1e40af" }]}>
+                          {svc.serviceCategory.toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={styles.planTypePill}>
+                        <Text style={styles.planTypePillTxt}>GOVT VERIFIED GATEWAY</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.superPlanTitle}>{svc.name}</Text>
+                    <Text style={styles.superPlanCost}>Identifier Key: {svc.serviceKey}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.superPlanEditBtn}
+                    onPress={() => handleOpenIdentityEdit(svc)}
+                  >
+                    <Feather name="edit-2" size={15} color="#0284c7" />
+                    <Text style={styles.superPlanEditText}>Set Tariff</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.cleanPricingRow}>
+                  <View style={styles.cleanPriceBox}>
+                    <Text style={styles.cleanPriceLabel}>Customer Price</Text>
+                    <Text style={styles.cleanPriceValue}>₦{Number(svc.userPrice).toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.cleanPriceDivider} />
+                  <View style={styles.cleanPriceBox}>
+                    <Text style={styles.cleanPriceLabel}>Agent Wholesale Price</Text>
+                    <Text style={[styles.cleanPriceValue, { color: "#0284c7" }]}>₦{Number(svc.agentPrice).toLocaleString()}</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
+
+        {/* TAB 8: TARGETS */}
         {activeTab === "targets" && (
           <View style={styles.formCard}>
             <Text style={styles.formCardTitle}>Command Directive & Quota Allocation</Text>
@@ -1333,9 +1389,7 @@ const AdminDashboard = () => {
           </View>
         )}
 
-        {/* ========================================================
-            TAB 8: INSTANT PUSH NOTIFICATION BROADCASTER
-        ======================================================== */}
+        {/* TAB 9: BROADCAST */}
         {activeTab === "broadcast" && (
           <View style={styles.formCard}>
             <Text style={styles.formCardTitle}>Push Notification Broadcaster</Text>
@@ -1408,9 +1462,7 @@ const AdminDashboard = () => {
         <View style={{ height: 60 }} />
       </ScrollView>
 
-      {/* ========================================================
-          SIDEBAR DRAWER OVERLAY
-      ======================================================== */}
+      {/* SIDEBAR OVERLAY */}
       {sidebarVisible && (
         <View style={styles.sidebarBackdrop}>
           <TouchableOpacity style={styles.backdropTouch} onPress={closeSidebar} activeOpacity={1} />
@@ -1433,7 +1485,8 @@ const AdminDashboard = () => {
                 { key: "hierarchy", label: "Cadre Hierarchy", icon: "git-branch" },
                 { key: "users", label: "User Directory", icon: "users" },
                 { key: "refunds", label: `Refund Queue (${pendingRefundsList.length})`, icon: "replay" },
-                { key: "pricing", label: "Tariffs & Margins", icon: "tag" },
+                { key: "pricing", label: "Data Tariffs", icon: "wifi" },
+                { key: "identity_pricing", label: "NIMC, BVN & Bills", icon: "shield-checkmark" },
                 { key: "targets", label: "Directives & Quotas", icon: "target" },
                 { key: "broadcast", label: "Push Notification", icon: "send" },
               ].map((m) => (
@@ -1474,29 +1527,6 @@ const AdminDashboard = () => {
                 <Ionicons name="person-add-outline" size={17} color="#0284c7" />
                 <Text style={styles.sidebarNavText}>Provision New Account</Text>
               </TouchableOpacity>
-
-              <Text style={styles.sidebarNavSectionTitle}>IDENTITY & SUPPORT</Text>
-              <TouchableOpacity
-                style={styles.sidebarNavItem}
-                onPress={() => {
-                  closeSidebar();
-                  navigation.navigate("NIMCRequests");
-                }}
-              >
-                <Ionicons name="card-outline" size={17} color="#0284c7" />
-                <Text style={styles.sidebarNavText}>NIMC Queue ({stats.pendingNIMC || 0})</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.sidebarNavItem}
-                onPress={() => {
-                  closeSidebar();
-                  navigation.navigate("BVNScreen");
-                }}
-              >
-                <FontAwesome5 name="fingerprint" size={15} color="#d97706" />
-                <Text style={styles.sidebarNavText}>BVN Desk</Text>
-              </TouchableOpacity>
             </ScrollView>
 
             <TouchableOpacity style={styles.sidebarLogoutBtn} onPress={handleLogout}>
@@ -1507,9 +1537,7 @@ const AdminDashboard = () => {
         </View>
       )}
 
-      {/* ========================================================
-          MODAL 1: HIERARCHY SUBORDINATES INSPECTION
-      ======================================================== */}
+      {/* MODAL 1: HIERARCHY SUBORDINATES INSPECTION */}
       <Modal visible={hierarchyModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -1557,9 +1585,7 @@ const AdminDashboard = () => {
         </View>
       </Modal>
 
-      {/* ========================================================
-          MODAL 2: REASSIGN AGENT TEAM (TRANSFER)
-      ======================================================== */}
+      {/* MODAL 2: TRANSFER AGENTS */}
       <Modal visible={transferModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -1647,9 +1673,7 @@ const AdminDashboard = () => {
         </View>
       </Modal>
 
-      {/* ========================================================
-          MODAL 3: CREATE UNIVERSAL USER / CADRE STAFF
-      ======================================================== */}
+      {/* MODAL 3: CREATE USER */}
       <Modal visible={createUserModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -1730,16 +1754,6 @@ const AdminDashboard = () => {
                 placeholderTextColor="#94a3b8"
               />
 
-              <Text style={styles.inputFieldLabel}>Assigned Monthly Data Goal (GB)</Text>
-              <TextInput
-                style={styles.formInput}
-                value={userFormData.dataGoal}
-                onChangeText={(t) => setUserFormData({ ...userFormData, dataGoal: t })}
-                placeholder="e.g. 1500"
-                keyboardType="numeric"
-                placeholderTextColor="#94a3b8"
-              />
-
               <TouchableOpacity style={styles.submitFormBtn} onPress={handleCreateUser}>
                 <Text style={styles.submitFormBtnText}>CREATE & SYNC ACCOUNT</Text>
               </TouchableOpacity>
@@ -1748,73 +1762,16 @@ const AdminDashboard = () => {
         </View>
       </Modal>
 
-      {/* ========================================================
-          MODAL 4: USER INSPECTION & STATUS OVERRIDE
-      ======================================================== */}
-      <Modal visible={userModalVisible} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>User Record & Account Status</Text>
-              <TouchableOpacity onPress={() => setUserModalVisible(false)}>
-                <Feather name="x" size={20} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            {selectedUser && (
-              <ScrollView style={{ maxHeight: 380 }}>
-                <Text style={styles.detailLabel}>Full Name</Text>
-                <Text style={styles.detailVal}>{selectedUser.name || selectedUser.firstName || "N/A"}</Text>
-
-                <Text style={styles.detailLabel}>Phone & Email</Text>
-                <Text style={styles.detailVal}>{selectedUser.phone} • {selectedUser.email || "No email"}</Text>
-
-                <Text style={styles.detailLabel}>Role Cadre</Text>
-                <Text style={[styles.detailVal, { color: "#0284c7", fontWeight: "900" }]}>
-                  {String(selectedUser.role).toUpperCase()}
-                </Text>
-
-                <Text style={styles.detailLabel}>Wallet Balance</Text>
-                <Text style={[styles.detailVal, { color: "#059669", fontSize: 16, fontWeight: "900" }]}>
-                  ₦{Number(selectedUser.walletBalance || selectedUser.balance || 0).toLocaleString()}
-                </Text>
-
-                <Text style={styles.detailLabel}>Assigned Location</Text>
-                <Text style={styles.detailVal}>{selectedUser.address || "HQ Station"}, {selectedUser.lga} LGA, {selectedUser.state} State</Text>
-
-                <View style={styles.modalActionButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#e11d48" }]}
-                    onPress={() => handleUpdateUserStatus(selectedUser._id, "suspended")}
-                  >
-                    <Text style={styles.modalBtnText}>Suspend Account</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#10b981" }]}
-                    onPress={() => handleUpdateUserStatus(selectedUser._id, "active")}
-                  >
-                    <Text style={styles.modalBtnText}>Activate Account</Text>
-                  </TouchableOpacity>
-                </View>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* ========================================================
-          MODAL 5: SUPER ADMIN EDIT TIER PRICING MODAL
-      ======================================================== */}
+      {/* MODAL 4: EDIT DATA TARIFF (CUSTOMER & AGENT ONLY - NO BASE API COST) */}
       <Modal visible={pricingModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Set Multi-Tier Plan Pricing</Text>
+                <Text style={styles.modalTitle}>Set Data Plan Selling Prices</Text>
                 {selectedPlan && (
                   <Text style={styles.modalSubLeader}>
-                    {selectedPlan.network} - {selectedPlan.plan} ({selectedPlan.planType})
+                    {selectedPlan.network} - {selectedPlan.plan || selectedPlan.name}
                   </Text>
                 )}
               </View>
@@ -1824,9 +1781,9 @@ const AdminDashboard = () => {
             </View>
 
             {selectedPlan && (
-              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
                 <View style={styles.tierModalStatusRow}>
-                  <Text style={styles.tierModalStatusLabel}>Plan Status</Text>
+                  <Text style={styles.tierModalStatusLabel}>Plan Active Status</Text>
                   <View style={styles.statusToggleRow}>
                     <TouchableOpacity
                       style={[styles.statusToggleBtn, editTierPrices.status === "active" && styles.statusToggleBtnActive]}
@@ -1844,16 +1801,7 @@ const AdminDashboard = () => {
                   </View>
                 </View>
 
-                <Text style={styles.inputFieldLabel}>Base API Provider Cost (₦)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTierPrices.costPrice}
-                  onChangeText={(t) => setEditTierPrices({ ...editTierPrices, costPrice: t })}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                />
-
-                <Text style={styles.inputFieldLabel}>Regular Customer Price (₦)</Text>
+                <Text style={styles.inputFieldLabel}>Customer Selling Price (₦)</Text>
                 <TextInput
                   style={styles.formInput}
                   value={editTierPrices.userPrice}
@@ -1862,7 +1810,7 @@ const AdminDashboard = () => {
                   placeholderTextColor="#94a3b8"
                 />
 
-                <Text style={styles.inputFieldLabel}>Retail Merchant / Agent Price (₦)</Text>
+                <Text style={styles.inputFieldLabel}>Retail Agent Wholesale Price (₦)</Text>
                 <TextInput
                   style={styles.formInput}
                   value={editTierPrices.agentPrice}
@@ -1871,26 +1819,8 @@ const AdminDashboard = () => {
                   placeholderTextColor="#94a3b8"
                 />
 
-                <Text style={styles.inputFieldLabel}>Supervisor Price (₦)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTierPrices.supervisorPrice}
-                  onChangeText={(t) => setEditTierPrices({ ...editTierPrices, supervisorPrice: t })}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                />
-
-                <Text style={styles.inputFieldLabel}>API Vendor / State Manager Price (₦)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTierPrices.apiPrice}
-                  onChangeText={(t) => setEditTierPrices({ ...editTierPrices, apiPrice: t })}
-                  keyboardType="numeric"
-                  placeholderTextColor="#94a3b8"
-                />
-
                 <TouchableOpacity style={styles.submitFormBtn} onPress={handleSaveTierPricing}>
-                  <Text style={styles.submitFormBtnText}>SAVE & DEPLOY TIER PRICING</Text>
+                  <Text style={styles.submitFormBtnText}>SAVE & DEPLOY DATA TARIFF</Text>
                 </TouchableOpacity>
               </ScrollView>
             )}
@@ -1898,21 +1828,20 @@ const AdminDashboard = () => {
         </View>
       </Modal>
 
-      {/* ========================================================
-          MODAL 6: CREATE NEW PLAN MODAL
-      ======================================================== */}
+      {/* MODAL 5: CREATE NEW PLAN (SELECTION + CUSTOM INPUT - NO BASE API COST) */}
       <Modal visible={addPlanModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Deploy New Network Plan</Text>
+              <Text style={styles.modalTitle}>Publish New Data Tariff</Text>
               <TouchableOpacity onPress={() => setAddPlanModalVisible(false)}>
                 <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputFieldLabel}>Select Network</Text>
+            <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+              {/* NETWORK SELECTOR */}
+              <Text style={styles.inputFieldLabel}>Select Telecom Network</Text>
               <View style={styles.targetRoleSelectorRow}>
                 {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((n) => (
                   <TouchableOpacity
@@ -1927,44 +1856,86 @@ const AdminDashboard = () => {
                 ))}
               </View>
 
-              <Text style={styles.inputFieldLabel}>Plan Type</Text>
-              <TextInput
-                style={styles.formInput}
-                value={newPlanForm.planType}
-                onChangeText={(t) => setNewPlanForm({ ...newPlanForm, planType: t })}
-                placeholder="e.g. SME / Corporate Gifting / Direct"
-                placeholderTextColor="#94a3b8"
-              />
+              {/* PLAN TYPE SELECTOR + CUSTOM */}
+              <Text style={styles.inputFieldLabel}>Select Plan Type</Text>
+              <View style={styles.targetRoleSelectorRow}>
+                {["SME", "Corporate Gifting", "Gifting", "Direct", "CUSTOM"].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.targetCadreBtn, newPlanForm.planType === t && styles.targetCadreBtnActive]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, planType: t })}
+                  >
+                    <Text style={[styles.targetCadreBtnText, newPlanForm.planType === t && styles.targetCadreBtnTextActive]}>
+                      {t}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-              <Text style={styles.inputFieldLabel}>Plan Volume (Size)</Text>
-              <TextInput
-                style={styles.formInput}
-                value={newPlanForm.plan}
-                onChangeText={(t) => setNewPlanForm({ ...newPlanForm, plan: t })}
-                placeholder="e.g. 1.0 GB / 2.5 GB / 5.0 GB"
-                placeholderTextColor="#94a3b8"
-              />
+              {newPlanForm.planType === "CUSTOM" && (
+                <TextInput
+                  style={[styles.formInput, { borderColor: "#0284c7" }]}
+                  value={newPlanForm.customPlanType}
+                  onChangeText={(t) => setNewPlanForm({ ...newPlanForm, customPlanType: t })}
+                  placeholder="Type Custom Plan Type (e.g. Special Night / Weekend)"
+                  placeholderTextColor="#94a3b8"
+                />
+              )}
 
-              <Text style={styles.inputFieldLabel}>Validity Period</Text>
-              <TextInput
-                style={styles.formInput}
-                value={newPlanForm.validity}
-                onChangeText={(t) => setNewPlanForm({ ...newPlanForm, validity: t })}
-                placeholder="e.g. 30 Days"
-                placeholderTextColor="#94a3b8"
-              />
+              {/* PLAN VOLUME SELECTOR + CUSTOM */}
+              <Text style={styles.inputFieldLabel}>Select Plan Volume (Size)</Text>
+              <View style={styles.targetRoleSelectorRow}>
+                {["500 MB", "1.0 GB", "2.0 GB", "3.0 GB", "5.0 GB", "10.0 GB", "CUSTOM"].map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.targetCadreBtn, newPlanForm.planSize === s && styles.targetCadreBtnActive]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, planSize: s })}
+                  >
+                    <Text style={[styles.targetCadreBtnText, newPlanForm.planSize === s && styles.targetCadreBtnTextActive]}>
+                      {s}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
 
-              <Text style={styles.inputFieldLabel}>Base API Cost (₦)</Text>
-              <TextInput
-                style={styles.formInput}
-                value={newPlanForm.costPrice}
-                onChangeText={(t) => setNewPlanForm({ ...newPlanForm, costPrice: t })}
-                keyboardType="numeric"
-                placeholder="e.g. 245"
-                placeholderTextColor="#94a3b8"
-              />
+              {newPlanForm.planSize === "CUSTOM" && (
+                <TextInput
+                  style={[styles.formInput, { borderColor: "#0284c7" }]}
+                  value={newPlanForm.customPlanSize}
+                  onChangeText={(t) => setNewPlanForm({ ...newPlanForm, customPlanSize: t })}
+                  placeholder="Type Custom Size (e.g. 750 MB / 15.0 GB / 25.0 GB)"
+                  placeholderTextColor="#94a3b8"
+                />
+              )}
 
-              <Text style={styles.inputFieldLabel}>Regular Customer Price (₦)</Text>
+              {/* VALIDITY SELECTOR + CUSTOM */}
+              <Text style={styles.inputFieldLabel}>Select Validity Duration</Text>
+              <View style={styles.targetRoleSelectorRow}>
+                {["1 Day", "7 Days", "14 Days", "30 Days", "CUSTOM"].map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    style={[styles.targetCadreBtn, newPlanForm.validity === v && styles.targetCadreBtnActive]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, validity: v })}
+                  >
+                    <Text style={[styles.targetCadreBtnText, newPlanForm.validity === v && styles.targetCadreBtnTextActive]}>
+                      {v}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {newPlanForm.validity === "CUSTOM" && (
+                <TextInput
+                  style={[styles.formInput, { borderColor: "#0284c7" }]}
+                  value={newPlanForm.customValidity}
+                  onChangeText={(t) => setNewPlanForm({ ...newPlanForm, customValidity: t })}
+                  placeholder="Type Custom Validity (e.g. 60 Days / 90 Days)"
+                  placeholderTextColor="#94a3b8"
+                />
+              )}
+
+              {/* PRICES (CUSTOMER & AGENT ONLY - NO BASE API COST) */}
+              <Text style={styles.inputFieldLabel}>Customer Selling Price (₦)</Text>
               <TextInput
                 style={styles.formInput}
                 value={newPlanForm.userPrice}
@@ -1974,7 +1945,7 @@ const AdminDashboard = () => {
                 placeholderTextColor="#94a3b8"
               />
 
-              <Text style={styles.inputFieldLabel}>Agent Price (₦)</Text>
+              <Text style={styles.inputFieldLabel}>Retail Agent Wholesale Price (₦)</Text>
               <TextInput
                 style={styles.formInput}
                 value={newPlanForm.agentPrice}
@@ -1985,9 +1956,56 @@ const AdminDashboard = () => {
               />
 
               <TouchableOpacity style={styles.submitFormBtn} onPress={handleAddNewPlanSubmit}>
-                <Text style={styles.submitFormBtnText}>CREATE & ACTIVATE PLAN</Text>
+                <Text style={styles.submitFormBtnText}>PUBLISH TO DATABASE & CUSTOMERS</Text>
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL 6: NIMC, BVN & UTILITY GLOBAL PRICING MODAL */}
+      <Modal visible={identityModalVisible} transparent animationType="slide">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Set Identity & Utility Tariff</Text>
+                {selectedIdentityService && (
+                  <Text style={styles.modalSubLeader}>
+                    {selectedIdentityService.name} ({selectedIdentityService.serviceCategory.toUpperCase()})
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setIdentityModalVisible(false)}>
+                <Feather name="x" size={20} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedIdentityService && (
+              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                <Text style={styles.inputFieldLabel}>Customer Retail Price (₦)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editIdentityForm.userPrice}
+                  onChangeText={(t) => setEditIdentityForm({ ...editIdentityForm, userPrice: t })}
+                  keyboardType="numeric"
+                  placeholderTextColor="#94a3b8"
+                />
+
+                <Text style={styles.inputFieldLabel}>Retail Agent Wholesale Price (₦)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editIdentityForm.agentPrice}
+                  onChangeText={(t) => setEditIdentityForm({ ...editIdentityForm, agentPrice: t })}
+                  keyboardType="numeric"
+                  placeholderTextColor="#94a3b8"
+                />
+
+                <TouchableOpacity style={styles.submitFormBtn} onPress={handleSaveIdentityPricing}>
+                  <Text style={styles.submitFormBtnText}>SAVE & DEPLOY TO TERMINALS</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -2308,7 +2326,6 @@ const styles = StyleSheet.create({
   userBalanceSide: { alignItems: "flex-end", gap: 3 },
   userBalanceVal: { color: "#059669", fontSize: 12, fontWeight: "900" },
 
-  // BULK REFUND TOOLBAR & CARDS
   tabWrapper: { width: "100%" },
   bulkRefundToolbar: {
     flexDirection: "row",
@@ -2389,7 +2406,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   planBadgeRow: { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 4 },
   planNetworkPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
@@ -2398,8 +2415,8 @@ const styles = StyleSheet.create({
   planTypePillTxt: { color: "#475569", fontSize: 9.5, fontWeight: "700" },
   planStatusPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
   planStatusPillTxt: { fontSize: 9, fontWeight: "900" },
-  superPlanTitle: { color: "#0f172a", fontSize: 14, fontWeight: "900" },
-  superPlanCost: { color: "#64748b", fontSize: 11, marginTop: 1 },
+  superPlanTitle: { color: "#0f172a", fontSize: 13.5, fontWeight: "900" },
+  superPlanCost: { color: "#64748b", fontSize: 10.5, marginTop: 1 },
   superPlanEditBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -2412,19 +2429,22 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   superPlanEditText: { color: "#0284c7", fontSize: 11.5, fontWeight: "800" },
-  tierPricingRow: {
+  
+  // Clean Customer & Agent Pricing Display
+  cleanPricingRow: {
     flexDirection: "row",
     backgroundColor: "#f8fafc",
     borderRadius: 10,
-    padding: 8,
-    justifyContent: "space-between",
+    padding: 10,
+    alignItems: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  tierBox: { alignItems: "center", flex: 1 },
-  tierBoxLabel: { color: "#64748b", fontSize: 9.5, fontWeight: "700" },
-  tierBoxPrice: { color: "#0f172a", fontSize: 12.5, fontWeight: "900", marginTop: 1 },
-  tierBoxMargin: { color: "#059669", fontSize: 9, fontWeight: "800" },
+  cleanPriceBox: { flex: 1, alignItems: "center" },
+  cleanPriceLabel: { color: "#64748b", fontSize: 10, fontWeight: "700" },
+  cleanPriceValue: { color: "#0f172a", fontSize: 14, fontWeight: "900", marginTop: 2 },
+  cleanPriceDivider: { width: 1, height: 28, backgroundColor: "#cbd5e1" },
+
   tierModalStatusRow: {
     flexDirection: "row",
     justifyContent: "space-between",
