@@ -32,11 +32,12 @@ const isLargeScreen = width >= 1024;
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const LeaderDashboard = ({ navigation }) => {
-  const [managerState, setManagerState] = useState("Kano");
+  const [managerState, setManagerState] = useState("Zamfara");
   const [supervisors, setSupervisors] = useState([]);
   const [agents, setAgents] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
 
+  // Dinamik lissafin LGAs dangane da ainihin jihar da State Manager yake wakilta
   const currentLgaList =
     (NIGERIA_STATES_LGAS && NIGERIA_STATES_LGAS[managerState]) || [
       "Central",
@@ -51,7 +52,7 @@ const LeaderDashboard = ({ navigation }) => {
     airtimeGoal: 0,
     agentGoal: 0,
     supervisorGoal: 0,
-    currentMonth: "August 2026",
+    currentMonth: "September 2026",
     dataSold: 0,
     airtimeSold: 0,
   });
@@ -92,7 +93,7 @@ const LeaderDashboard = ({ navigation }) => {
   const [targetDataGoal, setTargetDataGoal] = useState("500");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
   const [targetAgentGoal, setTargetAgentGoal] = useState("10");
-  const [targetMonth, setTargetMonth] = useState("August 2026");
+  const [targetMonth, setTargetMonth] = useState("September 2026");
 
   const [enrollModalVisible, setEnrollModalVisible] = useState(false);
   const [newSupName, setNewSupName] = useState("");
@@ -120,6 +121,13 @@ const LeaderDashboard = ({ navigation }) => {
       isMounted.current = false;
     };
   }, []);
+
+  // Update default LGA selector idan jihar ta canza
+  useEffect(() => {
+    if (currentLgaList && currentLgaList.length > 0) {
+      setNewSupLga(currentLgaList[0]);
+    }
+  }, [managerState]);
 
   const toggleSidebar = (open) => {
     if (open) {
@@ -158,16 +166,13 @@ const LeaderDashboard = ({ navigation }) => {
           return;
         }
 
-        let parsedUser = {};
+        let effectiveState = managerState;
         if (storedUserData) {
           try {
-            parsedUser = JSON.parse(storedUserData);
-            if (
-              parsedUser.state &&
-              Array.isArray(ALL_NIGERIAN_STATES) &&
-              ALL_NIGERIAN_STATES.includes(parsedUser.state)
-            ) {
-              if (isMounted.current) setManagerState(parsedUser.state);
+            const parsedUser = JSON.parse(storedUserData);
+            if (parsedUser.state && parsedUser.state.trim() !== "") {
+              effectiveState = parsedUser.state.trim();
+              if (isMounted.current) setManagerState(effectiveState);
             }
           } catch (e) {}
         }
@@ -182,6 +187,17 @@ const LeaderDashboard = ({ navigation }) => {
         ]);
 
         const dashData = dashRes.data?.data || dashRes.data || {};
+
+        // Dauko ainihin Jihar daga amsar Backend kai tsaye
+        const serverState = dashData.state || dashData.managerState || dashData.leaderState || dashRes.data?.state;
+        if (serverState && serverState.trim() !== "") {
+          effectiveState = serverState.trim();
+          if (isMounted.current) setManagerState(effectiveState);
+        }
+
+        const resolvedLgaList =
+          (NIGERIA_STATES_LGAS && NIGERIA_STATES_LGAS[effectiveState]) || currentLgaList;
+
         const fetchedSupervisors = Array.isArray(dashData.supervisors) ? dashData.supervisors : [];
         const fetchedAgents = Array.isArray(agentsRes.data?.agents)
           ? agentsRes.data.agents
@@ -200,7 +216,6 @@ const LeaderDashboard = ({ navigation }) => {
           targetRes.data?.data ||
           dashData.myTargets ||
           dashData.leaderTargets ||
-          parsedUser.targets ||
           {};
 
         if (!isMounted.current) return;
@@ -222,13 +237,13 @@ const LeaderDashboard = ({ navigation }) => {
           supervisorGoal: Number(
             fetchedMyTarget.supervisorGoal ||
               fetchedMyTarget.supervisorsQuota ||
-              currentLgaList.length
+              resolvedLgaList.length
           ),
           currentMonth:
             fetchedMyTarget.currentMonth ||
             fetchedMyTarget.month ||
             fetchedMyTarget.targetCycle ||
-            "August 2026",
+            "September 2026",
           dataSold: totalStateData,
           airtimeSold: totalStateAirtime,
         });
@@ -257,7 +272,7 @@ const LeaderDashboard = ({ navigation }) => {
         }
       }
     },
-    [navigation, currentLgaList.length]
+    [navigation, managerState, currentLgaList]
   );
 
   useEffect(() => {
@@ -280,7 +295,7 @@ const LeaderDashboard = ({ navigation }) => {
     };
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
-      if (window.confirm("Do you want to log out from State Manager session?")) {
+      if (window.confirm(`Do you want to log out from ${managerState} State Manager session?`)) {
         doLogout();
       }
     } else {
@@ -579,7 +594,7 @@ const LeaderDashboard = ({ navigation }) => {
   };
 
   const handleEnrollSupervisor = async () => {
-    const selectedLga = newSupLga || currentLgaList[0] || "Central";
+    const targetLga = newSupLga || currentLgaList[0] || "Central";
 
     if (!newSupName.trim() || !newSupPhone.trim()) {
       return showAlert("Validation Error", "Full Name and Phone Number are required.");
@@ -596,7 +611,7 @@ const LeaderDashboard = ({ navigation }) => {
           email: newSupEmail.trim() ? newSupEmail.trim().toLowerCase() : undefined,
           password: newSupPassword.trim() || "Password123@",
           state: managerState,
-          lga: selectedLga,
+          lga: targetLga,
           role: "supervisor",
         },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -605,7 +620,7 @@ const LeaderDashboard = ({ navigation }) => {
       if (res.data?.success || res.status === 200 || res.status === 201) {
         showAlert(
           "Supervisor Enrolled 🎉",
-          `${newSupName} has been officially deployed to ${selectedLga} LGA, ${managerState} State.`
+          `${newSupName} has been officially deployed to ${targetLga} LGA, ${managerState} State.`
         );
         setEnrollModalVisible(false);
         setNewSupName("");
@@ -1051,7 +1066,7 @@ const LeaderDashboard = ({ navigation }) => {
                   <FontAwesome5 name="user-tie" size={13} color="#38bdf8" />
                 </View>
                 <Text style={styles.metricValueDark}>{stats.totalSupervisors}</Text>
-                <Text style={styles.metricSubDark}>Across {stats.activeLgasCount} LGAs</Text>
+                <Text style={styles.metricSubDark}>Across {stats.activeLgasCount} of {currentLgaList.length} LGAs</Text>
               </View>
 
               <View style={[styles.metricCard, styles.cardDarkBlueBg]}>
@@ -1286,7 +1301,7 @@ const LeaderDashboard = ({ navigation }) => {
               ) : (
                 <View style={styles.emptyFeed}>
                   <FontAwesome5 name="user-slash" size={34} color="#94a3b8" />
-                  <Text style={styles.emptyFeedText}>No field supervisors found in this region.</Text>
+                  <Text style={styles.emptyFeedText}>No field supervisors found in {managerState} region.</Text>
                 </View>
               )}
             </View>
@@ -1487,7 +1502,7 @@ const LeaderDashboard = ({ navigation }) => {
               ) : (
                 <View style={styles.emptyFeed}>
                   <Ionicons name="people-outline" size={36} color="#94a3b8" />
-                  <Text style={styles.emptyFeedText}>No agents recorded in this region.</Text>
+                  <Text style={styles.emptyFeedText}>No agents recorded in {managerState} region.</Text>
                 </View>
               )}
             </View>
@@ -1498,7 +1513,7 @@ const LeaderDashboard = ({ navigation }) => {
             <View style={styles.tabContentWrapper}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeaderLabel}>
-                  LOCAL GOVERNMENTS DEPLOYMENT MATRIX
+                  {managerState.toUpperCase()} LOCAL GOVERNMENTS MATRIX ({currentLgaList.length})
                 </Text>
                 <TouchableOpacity
                   style={styles.actionPillBtn}
@@ -1867,7 +1882,7 @@ const LeaderDashboard = ({ navigation }) => {
                     activeTab === "lgas" && { color: "#1e40af", fontWeight: "900" },
                   ]}
                 >
-                  LGAs Matrix
+                  LGAs Matrix ({currentLgaList.length})
                 </Text>
               </TouchableOpacity>
 
@@ -2378,7 +2393,7 @@ const LeaderDashboard = ({ navigation }) => {
               <View>
                 <Text style={styles.modalCardTitle}>Appoint Field Supervisor (FS)</Text>
                 <Text style={styles.modalCardSubtitle}>
-                  Create user profile & deploy LGA field coordinator
+                  Create user profile & deploy LGA coordinator for {managerState}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setEnrollModalVisible(false)}>
