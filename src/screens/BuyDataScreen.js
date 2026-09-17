@@ -18,6 +18,88 @@ import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
+// CIKAKKEN JERIN PLANS NA AL-IHSAN (FALLBACK DATABASE)
+const FALLBACK_ALIHSAN_PLANS = [
+  // ================= MTN DATA PLANS =================
+  // MTN DC (30 Days Direct)
+  { network: "MTN", planId: "140", planCode: "140", name: "1.0GB DC", planType: "DC", validity: "30 Days", userPrice: 230, agentPrice: 210 },
+  { network: "MTN", planId: "133", planCode: "133", name: "1.5GB DC", planType: "DC", validity: "30 Days", userPrice: 340, agentPrice: 320 },
+  { network: "MTN", planId: "134", planCode: "134", name: "2.0GB DC", planType: "DC", validity: "30 Days", userPrice: 440, agentPrice: 415 },
+  { network: "MTN", planId: "135", planCode: "135", name: "3.0GB DC", planType: "DC", validity: "30 Days", userPrice: 650, agentPrice: 620 },
+  { network: "MTN", planId: "136", planCode: "136", name: "5.0GB DC", planType: "DC", validity: "30 Days", userPrice: 1050, agentPrice: 1000 },
+  { network: "MTN", planId: "141", planCode: "141", name: "750.0MB DC", planType: "DC", validity: "30 Days", userPrice: 190, agentPrice: 170 },
+  { network: "MTN", planId: "144", planCode: "144", name: "750MB DC (7D)", planType: "DC", validity: "7 Days", userPrice: 180, agentPrice: 160 },
+  { network: "MTN", planId: "145", planCode: "145", name: "1.0GB DC (7D)", planType: "DC", validity: "7 Days", userPrice: 290, agentPrice: 275 },
+  { network: "MTN", planId: "146", planCode: "146", name: "3.0GB DC (30D)", planType: "DC", validity: "30 Days", userPrice: 760, agentPrice: 730 },
+
+  // MTN CG (Corporate Gifting)
+  { network: "MTN", planId: "26", planCode: "26", name: "500.0MB CG", planType: "CG", validity: "30 Days", userPrice: 350, agentPrice: 330 },
+  { network: "MTN", planId: "27", planCode: "27", name: "1.0GB CG", planType: "CG", validity: "30 Days", userPrice: 450, agentPrice: 425 },
+  { network: "MTN", planId: "28", planCode: "28", name: "2.0GB CG", planType: "CG", validity: "30 Days", userPrice: 900, agentPrice: 860 },
+  { network: "MTN", planId: "38", planCode: "38", name: "5.0GB CG", planType: "CG", validity: "30 Days", userPrice: 2100, agentPrice: 2000 },
+  { network: "MTN", planId: "64", planCode: "64", name: "10.0GB CG", planType: "CG", validity: "30 Days", userPrice: 4800, agentPrice: 4600 },
+  { network: "MTN", planId: "78", planCode: "78", name: "3.0GB CG", planType: "CG", validity: "30 Days", userPrice: 1350, agentPrice: 1300 },
+  { network: "MTN", planId: "83", planCode: "83", name: "2.0GB CG (2D)", planType: "CG", validity: "2 Days", userPrice: 870, agentPrice: 840 },
+  { network: "MTN", planId: "84", planCode: "84", name: "2.5GB CG (2D)", planType: "CG", validity: "2 Days", userPrice: 1050, agentPrice: 1000 },
+
+  // MTN SME & SME2
+  { network: "MTN", planId: "17", planCode: "17", name: "500.0MB SME", planType: "SME", validity: "1 Day", userPrice: 290, agentPrice: 270 },
+  { network: "MTN", planId: "112", planCode: "112", name: "1.0GB SME2", planType: "SME2", validity: "1 Day", userPrice: 270, agentPrice: 250 },
+  { network: "MTN", planId: "293", planCode: "293", name: "100MB SME", planType: "SME", validity: "1 Day", userPrice: 110, agentPrice: 95 },
+  { network: "MTN", planId: "294", planCode: "294", name: "200MB SME", planType: "SME", validity: "1 Day", userPrice: 180, agentPrice: 165 },
+
+  // MTN DATASHARE & GIFTING
+  { network: "MTN", planId: "18", planCode: "18", name: "1.5GB Gifting", planType: "GIFTING", validity: "7 Days", userPrice: 1050, agentPrice: 1000 },
+  { network: "MTN", planId: "151", planCode: "151", name: "1.0GB DataShare", planType: "DATASHARE", validity: "30 Days", userPrice: 280, agentPrice: 260 },
+  { network: "MTN", planId: "152", planCode: "152", name: "2.0GB DataShare", planType: "DATASHARE", validity: "30 Days", userPrice: 550, agentPrice: 520 },
+  { network: "MTN", planId: "153", planCode: "153", name: "3.0GB DataShare", planType: "DATASHARE", validity: "30 Days", userPrice: 820, agentPrice: 780 },
+  { network: "MTN", planId: "154", planCode: "154", name: "5.0GB DataShare", planType: "DATASHARE", validity: "30 Days", userPrice: 1350, agentPrice: 1300 },
+  { network: "MTN", planId: "187", planCode: "187", name: "11GB Gifting", planType: "GIFTING", validity: "Weekly", userPrice: 3700, agentPrice: 3550 },
+  { network: "MTN", planId: "192", planCode: "192", name: "1.5GB Gifting", planType: "GIFTING", validity: "2 Days", userPrice: 700, agentPrice: 670 },
+  { network: "MTN", planId: "284", planCode: "284", name: "18GB Gifting", planType: "GIFTING", validity: "14 Days", userPrice: 6300, agentPrice: 6100 },
+  { network: "MTN", planId: "285", planCode: "285", name: "28GB Gifting", planType: "GIFTING", validity: "14 Days", userPrice: 8500, agentPrice: 8200 },
+
+  // ================= AIRTEL DATA PLANS =================
+  // AIRTEL CG
+  { network: "AIRTEL", planId: "262", planCode: "262", name: "1.2GB CG", planType: "CG", validity: "7 Days", userPrice: 280, agentPrice: 260 },
+  { network: "AIRTEL", planId: "240", planCode: "240", name: "1.5GB CG", planType: "CG", validity: "7 Days", userPrice: 620, agentPrice: 590 },
+  { network: "AIRTEL", planId: "263", planCode: "263", name: "6.5GB CG", planType: "CG", validity: "14 Days", userPrice: 1350, agentPrice: 1280 },
+
+  // AIRTEL SME
+  { network: "AIRTEL", planId: "257", planCode: "257", name: "250MB SME", planType: "SME", validity: "1 Day", userPrice: 130, agentPrice: 115 },
+  { network: "AIRTEL", planId: "256", planCode: "256", name: "500MB SME", planType: "SME", validity: "2 Days", userPrice: 820, agentPrice: 790 },
+  { network: "AIRTEL", planId: "200", planCode: "200", name: "1.0GB SME", planType: "SME", validity: "7 Days", userPrice: 350, agentPrice: 330 },
+  { network: "AIRTEL", planId: "253", planCode: "253", name: "2.0GB SME", planType: "SME", validity: "30 Days", userPrice: 750, agentPrice: 700 },
+  { network: "AIRTEL", planId: "255", planCode: "255", name: "3.0GB SME", planType: "SME", validity: "30 Days", userPrice: 2150, agentPrice: 2050 },
+  { network: "AIRTEL", planId: "267", planCode: "267", name: "4.0GB SME", planType: "SME", validity: "7 Days", userPrice: 1650, agentPrice: 1570 },
+  { network: "AIRTEL", planId: "268", planCode: "268", name: "6.0GB SME", planType: "SME", validity: "14 Days", userPrice: 2650, agentPrice: 2550 },
+  { network: "AIRTEL", planId: "213", planCode: "213", name: "8.0GB SME", planType: "SME", validity: "30 Days", userPrice: 3250, agentPrice: 3100 },
+  { network: "AIRTEL", planId: "184", planCode: "184", name: "10GB SME", planType: "SME", validity: "30 Days", userPrice: 3200, agentPrice: 3050 },
+  { network: "AIRTEL", planId: "181", planCode: "181", name: "15GB SME", planType: "SME", validity: "30 Days", userPrice: 200, agentPrice: 150 },
+  { network: "AIRTEL", planId: "258", planCode: "258", name: "18GB SME", planType: "SME", validity: "7 Days", userPrice: 5200, agentPrice: 5000 },
+
+  // AIRTEL AWOOF
+  { network: "AIRTEL", planId: "157", planCode: "157", name: "2.0GB Awoof", planType: "AWOOF", validity: "2 Days", userPrice: 400, agentPrice: 375 },
+  { network: "AIRTEL", planId: "158", planCode: "158", name: "3.0GB Awoof", planType: "AWOOF", validity: "7 Days", userPrice: 630, agentPrice: 595 },
+  { network: "AIRTEL", planId: "159", planCode: "159", name: "4.0GB Awoof", planType: "AWOOF", validity: "30 Days", userPrice: 1200, agentPrice: 1140 },
+  { network: "AIRTEL", planId: "160", planCode: "160", name: "10GB Awoof", planType: "AWOOF", validity: "30 Days", userPrice: 2300, agentPrice: 2200 },
+  { network: "AIRTEL", planId: "161", planCode: "161", name: "15GB Awoof", planType: "AWOOF", validity: "30 Days", userPrice: 3500, agentPrice: 3380 },
+
+  // AIRTEL GIFTING
+  { network: "AIRTEL", planId: "50", planCode: "50", name: "2.0GB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 1650, agentPrice: 1580 },
+  { network: "AIRTEL", planId: "51", planCode: "51", name: "3.0GB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 2100, agentPrice: 2020 },
+  { network: "AIRTEL", planId: "266", planCode: "266", name: "4GB + 2GB YouTube", planType: "GIFTING", validity: "7 Days", userPrice: 2150, agentPrice: 2050 },
+  { network: "AIRTEL", planId: "269", planCode: "269", name: "13GB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 5250, agentPrice: 5050 },
+
+  // ================= 9MOBILE DATA PLANS =================
+  { network: "9MOBILE", planId: "45", planCode: "45", name: "500.0MB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 550, agentPrice: 510 },
+  { network: "9MOBILE", planId: "11", planCode: "11", name: "1.5GB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 1000, agentPrice: 950 },
+
+  // ================= GLO DATA PLANS =================
+  { network: "GLO", planId: "28", planCode: "28", name: "1.0GB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 480, agentPrice: 450 },
+  { network: "GLO", planId: "29", planCode: "29", name: "2.0GB Gifting", planType: "GIFTING", validity: "30 Days", userPrice: 950, agentPrice: 900 }
+];
+
 const BuyDataScreen = ({ navigation }) => {
   const [selectedNetwork, setSelectedNetwork] = useState("MTN");
   const [selectedPlanType, setSelectedPlanType] = useState("ALL");
@@ -73,9 +155,11 @@ const BuyDataScreen = ({ navigation }) => {
     return rawNet;
   };
 
-  // 1. Dauko Plans da Tace su Zalla ga Network ɗin da aka zaɓa
+  // 1. Dauko Plans da Tace su Zalla ga Network ɗin da aka zaɓa (Tare da Fallback)
   const fetchLivePlans = useCallback(async (currentNet) => {
     setLoadingPlans(true);
+    let plansArray = [];
+
     try {
       const token = await AsyncStorage.getItem("userToken");
       const config = {
@@ -99,39 +183,43 @@ const BuyDataScreen = ({ navigation }) => {
 
       if (res && res.data) {
         const rawPlans = res.data.data || res.data.plans || (Array.isArray(res.data) ? res.data : []);
-        const plansArray = Array.isArray(rawPlans) ? rawPlans : [];
-
-        // STRICT FILTER: Tace na wannan Network ɗin da aka danna KAWAI
-        const targetNetwork = String(currentNet).toUpperCase().trim();
-        const networkFiltered = plansArray.filter((p) => {
-          const planNet = resolvePlanNetwork(p);
-          return planNet === targetNetwork;
-        });
-
-        setAvailablePlans(networkFiltered);
+        if (Array.isArray(rawPlans) && rawPlans.length > 0) {
+          plansArray = rawPlans;
+        }
       }
     } catch (err) {
-      console.log("Error loading plans:", err.message);
-      setAvailablePlans([]);
-    } finally {
-      setLoadingPlans(false);
+      console.log("Error loading remote plans, using official fallback:", err.message);
     }
+
+    // Idan server ba ta kawo plans ba, ɗauko daga official Al-Ihsan Fallback
+    if (plansArray.length === 0) {
+      plansArray = FALLBACK_ALIHSAN_PLANS;
+    }
+
+    const targetNetwork = String(currentNet).toUpperCase().trim();
+    const networkFiltered = plansArray.filter((p) => {
+      const planNet = resolvePlanNetwork(p);
+      return planNet === targetNetwork;
+    });
+
+    setAvailablePlans(networkFiltered);
+    setLoadingPlans(false);
   }, []);
 
   useEffect(() => {
     fetchLivePlans(selectedNetwork);
     setSelectedPlan(null);
-    setIsDropdownOpen(false); // Rufe dropdown a duk lokacin da aka sauya Network
+    setIsDropdownOpen(false);
   }, [selectedNetwork, fetchLivePlans]);
 
-  // Tace plans dangane da Plan Type (SME, GIFTING, CG, etc.)
+  // Tace plans dangane da Plan Type (DC, CG, SME, SME2, AWOOF, etc.)
   const filteredPlans = availablePlans.filter((p) => {
     if (selectedPlanType === "ALL") return true;
-    const pType = String(p.planType || p.type || "").toUpperCase();
-    const sType = String(selectedPlanType).toUpperCase();
-    const pName = String(p.name || p.planLabel || "").toUpperCase();
+    const pType = String(p.planType || p.type || "").toUpperCase().trim();
+    const sType = String(selectedPlanType).toUpperCase().trim();
+    const pName = String(p.name || p.planLabel || "").toUpperCase().trim();
 
-    return pType.includes(sType) || pName.includes(sType);
+    return pType === sType || pType.includes(sType) || pName.includes(sType);
   });
 
   const handleInitiatePurchase = () => {
@@ -159,7 +247,10 @@ const BuyDataScreen = ({ navigation }) => {
       }
 
       const netName = selectedPlan?.networkName || selectedPlan?.network || selectedNetwork;
-      const cleanPlanCode = selectedPlan?.planCode || selectedPlan?.code || "1000";
+      
+      // Ainihin lambar Al-Ihsan ID mai tsabta
+      const cleanPlanCode = String(selectedPlan?.planId || selectedPlan?.planCode || selectedPlan?.code || "").trim();
+      
       const finalAmount =
         userRole === "agent"
           ? (selectedPlan?.agentPrice ?? selectedPlan?.price ?? selectedPlan?.userPrice ?? 0)
@@ -169,41 +260,56 @@ const BuyDataScreen = ({ navigation }) => {
         network: netName,
         networkId: selectedPlan?.networkId || null,
         planCode: cleanPlanCode,
+        plan_id: cleanPlanCode,
+        phone: phoneNumber.trim(),
         phoneNumber: phoneNumber.trim(),
         amount: Number(finalAmount),
+        planType: selectedPlan?.planType || "SME",
         validity: selectedPlan?.validity || "30 Days",
+        pin: pin.trim(),
         transactionPin: pin.trim(),
       };
 
-      const res = await axios.post(`${BASE_URL}/vtu/buy-data`, requestBody, {
+      const axiosConfig = {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
           Accept: "application/json",
         },
         timeout: 25000,
-      });
+      };
+
+      let res;
+      try {
+        res = await axios.post(`${BASE_URL}/vtu/buy-data`, requestBody, axiosConfig);
+      } catch (postErr) {
+        if (postErr.response && postErr.response.status === 404) {
+          res = await axios.post(`${BASE_URL}/data/buy`, requestBody, axiosConfig);
+        } else {
+          throw postErr;
+        }
+      }
 
       if (res.data?.success || res.data?.status === "success") {
         setPinModalVisible(false);
         setPin("");
         showAlert(
           "Purchase Successful 🎉",
-          `${selectedPlan?.name || selectedPlan?.planLabel || selectedPlan?.planCode || "Data"} dispatched to ${phoneNumber} successfully!`,
+          `${selectedPlan?.name || selectedPlan?.planLabel || `Plan ${cleanPlanCode}`} dispatched to ${phoneNumber} successfully!`,
           () => {
             setPhoneNumber("");
             setSelectedPlan(null);
           }
         );
       } else {
-        throw new Error(res.data?.message || "Transaction Error");
+        throw new Error(res.data?.message || res.data?.desc || res.data?.error || "Transaction Error");
       }
     } catch (err) {
       console.error("BUY DATA ERROR CAUGHT:", err);
 
       let errorMessage = "Network or Server Error";
       if (err.response) {
-        errorMessage = err.response.data?.message || `Server returned ${err.response.status}`;
+        errorMessage = err.response.data?.message || err.response.data?.desc || err.response.data?.error || `Server returned ${err.response.status}`;
       } else if (err.request) {
         errorMessage = "No response from server. Check your internet connection.";
       } else {
@@ -246,10 +352,10 @@ const BuyDataScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Plan Type Selector */}
+        {/* Plan Type Selector (Extended with Al-Ihsan Types) */}
         <Text style={styles.sectionLabel}>PLAN TYPE</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-          {["ALL", "SME", "GIFTING", "CG", "CORPORATE_GIFTING", "DIRECT"].map((type) => (
+          {["ALL", "DC", "CG", "SME", "SME2", "AWOOF", "GIFTING", "DATASHARE"].map((type) => (
             <TouchableOpacity
               key={type}
               style={[styles.typeChip, selectedPlanType === type && styles.typeChipActive]}
@@ -300,7 +406,7 @@ const BuyDataScreen = ({ navigation }) => {
               </Text>
               <Text style={styles.dropdownBtnSubtitle}>
                 {selectedPlan
-                  ? `Validity: ${selectedPlan.validity || "30 Days"} • Type: ${selectedPlan.planType || "SME"}`
+                  ? `Validity: ${selectedPlan.validity || "30 Days"} • Type: ${selectedPlan.planType || "SME"} • ID: ${selectedPlan.planId || selectedPlan.planCode}`
                   : `Tap to open available plans (${filteredPlans.length})`}
               </Text>
             </View>
@@ -323,25 +429,31 @@ const BuyDataScreen = ({ navigation }) => {
             ) : filteredPlans.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Feather name="wifi-off" size={26} color="#64748b" />
-                <Text style={styles.emptyText}>No active data plans found for {selectedNetwork}.</Text>
+                <Text style={styles.emptyText}>No active {selectedPlanType} plans found for {selectedNetwork}.</Text>
               </View>
             ) : (
               filteredPlans.map((plan) => {
-                const isSelected = selectedPlan?._id === plan._id;
+                const uniqueKey = plan.planId || plan.planCode || plan._id || plan.id;
+                const isSelected = selectedPlan && (
+                  (selectedPlan.planId && selectedPlan.planId === plan.planId) ||
+                  (selectedPlan.planCode && selectedPlan.planCode === plan.planCode) ||
+                  (selectedPlan._id && selectedPlan._id === plan._id)
+                );
                 const finalPrice =
                   userRole === "agent"
                     ? (plan.agentPrice ?? plan.userPrice ?? plan.price ?? 0)
                     : (plan.userPrice ?? plan.price ?? 0);
-                const planTitle = plan.name || plan.planLabel || `${plan.network || selectedNetwork} ${plan.planCode}`;
+                const planTitle = plan.name || plan.planLabel || `${plan.network || selectedNetwork} Plan ${plan.planId || plan.planCode}`;
                 const validity = plan.validity ? (String(plan.validity).includes("Day") ? plan.validity : `${plan.validity} Days`) : "30 Days";
+                const exactId = plan.planId || plan.planCode || "N/A";
 
                 return (
                   <TouchableOpacity
-                    key={plan._id || plan.planCode || Math.random().toString()}
+                    key={uniqueKey}
                     style={[styles.planCard, isSelected && styles.planCardActive]}
                     onPress={() => {
                       setSelectedPlan(plan);
-                      setIsDropdownOpen(false); // Rufe jerin nan take idan mutum ya zaɓa
+                      setIsDropdownOpen(false);
                     }}
                     activeOpacity={0.8}
                   >
@@ -351,7 +463,7 @@ const BuyDataScreen = ({ navigation }) => {
                       </Text>
                       <View style={styles.metaRow}>
                         <Text style={styles.planTypeTag}>
-                          {plan.planType || "SME"} • Code: {plan.planCode || "N/A"}
+                          {plan.planType || "SME"} • ID: {exactId}
                         </Text>
                         <Text style={styles.validityTag}>⏳ {validity}</Text>
                       </View>

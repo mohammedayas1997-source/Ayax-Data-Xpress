@@ -37,6 +37,44 @@ const ALL_NIGERIAN_STATES = [
   "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"
 ];
 
+// OFFICIAL AL-IHSAN DATA PLAN PRESETS
+const SUPERADMIN_ALIHSAN_PRESETS = {
+  MTN: [
+    { label: "1.0GB DC (30D)", id: "140", type: "DC", size: "1.0 GB", validity: "30 Days", uPrice: "230", aPrice: "210" },
+    { label: "1.5GB DC (30D)", id: "133", type: "DC", size: "1.5 GB", validity: "30 Days", uPrice: "340", aPrice: "320" },
+    { label: "2.0GB DC (30D)", id: "134", type: "DC", size: "2.0 GB", validity: "30 Days", uPrice: "440", aPrice: "415" },
+    { label: "3.0GB DC (30D)", id: "135", type: "DC", size: "3.0 GB", validity: "30 Days", uPrice: "650", aPrice: "620" },
+    { label: "5.0GB DC (30D)", id: "136", type: "DC", size: "5.0 GB", validity: "30 Days", uPrice: "1050", aPrice: "1000" },
+    { label: "500MB CG (30D)", id: "26", type: "CG", size: "500 MB", validity: "30 Days", uPrice: "350", aPrice: "330" },
+    { label: "1.0GB CG (30D)", id: "27", type: "CG", size: "1.0 GB", validity: "30 Days", uPrice: "450", aPrice: "425" },
+    { label: "2.0GB CG (30D)", id: "28", type: "CG", size: "2.0 GB", validity: "30 Days", uPrice: "900", aPrice: "860" },
+    { label: "5.0GB CG (30D)", id: "38", type: "CG", size: "5.0 GB", validity: "30 Days", uPrice: "2100", aPrice: "2000" },
+    { label: "500MB SME", id: "17", type: "SME", size: "500 MB", validity: "1 Day", uPrice: "290", aPrice: "270" },
+    { label: "1.0GB SME2", id: "112", type: "SME2", size: "1.0 GB", validity: "1 Day", uPrice: "270", aPrice: "250" },
+    { label: "1.0GB DataShare", id: "151", type: "DATASHARE", size: "1.0 GB", validity: "30 Days", uPrice: "280", aPrice: "260" }
+  ],
+  AIRTEL: [
+    { label: "1.2GB CG (7D)", id: "262", type: "CG", size: "1.2 GB", validity: "7 Days", uPrice: "280", aPrice: "260" },
+    { label: "1.5GB CG (7D)", id: "240", type: "CG", size: "1.5 GB", validity: "7 Days", uPrice: "620", aPrice: "590" },
+    { label: "6.5GB CG (14D)", id: "263", type: "CG", size: "6.5 GB", validity: "14 Days", uPrice: "1350", aPrice: "1280" },
+    { label: "1.0GB SME (7D)", id: "200", type: "SME", size: "1.0 GB", validity: "7 Days", uPrice: "350", aPrice: "330" },
+    { label: "2.0GB SME (30D)", id: "253", type: "SME", size: "2.0 GB", validity: "30 Days", uPrice: "750", aPrice: "700" },
+    { label: "3.0GB SME (30D)", id: "255", type: "SME", size: "3.0 GB", validity: "30 Days", uPrice: "2150", aPrice: "2050" },
+    { label: "2.0GB Awoof (2D)", id: "157", type: "AWOOF", size: "2.0 GB", validity: "2 Days", uPrice: "400", aPrice: "375" },
+    { label: "3.0GB Awoof (7D)", id: "158", type: "AWOOF", size: "3.0 GB", validity: "7 Days", uPrice: "630", aPrice: "595" },
+    { label: "4.0GB Awoof (30D)", id: "159", type: "AWOOF", size: "4.0 GB", validity: "30 Days", uPrice: "1200", aPrice: "1140" },
+    { label: "10GB Awoof (30D)", id: "160", type: "AWOOF", size: "10.0 GB", validity: "30 Days", uPrice: "2300", aPrice: "2200" }
+  ],
+  GLO: [
+    { label: "1.0GB Gifting", id: "28", type: "GIFTING", size: "1.0 GB", validity: "30 Days", uPrice: "480", aPrice: "450" },
+    { label: "2.0GB Gifting", id: "29", type: "GIFTING", size: "2.0 GB", validity: "30 Days", uPrice: "950", aPrice: "900" }
+  ],
+  "9MOBILE": [
+    { label: "500MB Gifting", id: "45", type: "GIFTING", size: "500 MB", validity: "30 Days", uPrice: "550", aPrice: "510" },
+    { label: "1.5GB Gifting", id: "11", type: "GIFTING", size: "1.5 GB", validity: "30 Days", uPrice: "1000", aPrice: "950" }
+  ]
+};
+
 const SuperAdminDashboard = ({ navigation }) => {
   const [stats, setStats] = useState(null);
   const [prices, setPrices] = useState({});
@@ -48,7 +86,9 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Active Tabs: 'overview' | 'pricing' | 'sm_hierarchy' | 'users' | 'refunds' | 'history'
   const [activeMainTab, setActiveMainTab] = useState("overview");
+  const [tariffNetFilter, setTariffNetFilter] = useState("ALL");
   const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [userSearchQuery, setUserSearchQuery] = useState("");
 
@@ -69,9 +109,40 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [targetModalVisible, setTargetModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Pricing & Tariffs Modals
+  const [addPlanModalVisible, setAddPlanModalVisible] = useState(false);
+  const [editPlanModalVisible, setEditPlanModalVisible] = useState(false);
+  const [selectedEditPlan, setSelectedEditPlan] = useState(null);
+
+  // Edit Plan State
+  const [editPlanForm, setEditPlanForm] = useState({
+    planId: "",
+    name: "",
+    validity: "30 Days",
+    planType: "DC",
+    customPlanType: "",
+    userPrice: "",
+    agentPrice: "",
+    status: "active",
+  });
+
+  // Create New Plan State
+  const [newPlanForm, setNewPlanForm] = useState({
+    network: "MTN",
+    planId: "140",
+    planType: "DC",
+    customPlanType: "",
+    planSize: "1.0 GB",
+    customPlanSize: "",
+    validity: "30 Days",
+    customValidity: "",
+    userPrice: "230",
+    agentPrice: "210",
+  });
+
   // Transfer Agent States
   const [transferModalVisible, setTransferModalVisible] = useState(false);
-  const [transferType, setTransferType] = useState("bulk"); // 'bulk' | 'single'
+  const [transferType, setTransferType] = useState("bulk");
   const [oldSupervisorId, setOldSupervisorId] = useState("");
   const [newSupervisorId, setNewSupervisorId] = useState("");
   const [transferAgentId, setTransferAgentId] = useState("");
@@ -105,14 +176,11 @@ const SuperAdminDashboard = ({ navigation }) => {
   const [pwdNew, setPwdNew] = useState("");
   const [pinNew, setPinNew] = useState("");
 
-  const [lockUserId, setLockUserId] = useState("");
-  const [lockReason, setLockReason] = useState("");
-
   const [targetStaffId, setTargetStaffId] = useState("");
   const [targetAgentGoal, setTargetAgentGoal] = useState("10");
   const [targetDataGoal, setTargetDataGoal] = useState("500");
   const [targetAirtimeGoal, setTargetAirtimeGoal] = useState("50000");
-  const [targetMonth, setTargetMonth] = useState("August 2026");
+  const [targetMonth, setTargetMonth] = useState("September 2026");
 
   const isMounted = useRef(true);
   useEffect(() => {
@@ -161,16 +229,15 @@ const SuperAdminDashboard = ({ navigation }) => {
 
       const headers = { Authorization: `Bearer ${token}` };
 
-      const [telemetryRes, txRes, plansRes, usersRes, refundsRes] = await Promise.all([
+      const [telemetryRes, txRes, plansRes, superPlansRes, usersRes, refundsRes] = await Promise.all([
         axios.get(`${BASE_URL}/superadmin/overview`, { headers, timeout: 15000 }).catch(() =>
           axios.get(`${BASE_URL}/superadmin/stats`, { headers, timeout: 15000 }).catch(() => ({ data: {} }))
         ),
         axios.get(`${BASE_URL}/superadmin/transactions?limit=150`, { headers, timeout: 15000 }).catch(() =>
           axios.get(`${BASE_URL}/admin/transactions?limit=150`, { headers, timeout: 15000 }).catch(() => ({ data: { transactions: [] } }))
         ),
-        axios.get(`${BASE_URL}/superadmin/plans`, { headers, timeout: 15000 }).catch(() =>
-          axios.get(`${BASE_URL}/admin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { data: [] } }))
-        ),
+        axios.get(`${BASE_URL}/data/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { plans: [] } })),
+        axios.get(`${BASE_URL}/superadmin/plans`, { headers, timeout: 15000 }).catch(() => ({ data: { plans: [] } })),
         axios.get(`${BASE_URL}/superadmin/users?limit=400`, { headers, timeout: 15000 }).catch(() =>
           axios.get(`${BASE_URL}/admin/users?limit=400`, { headers, timeout: 15000 }).catch(() => ({ data: { users: [] } }))
         ),
@@ -190,8 +257,16 @@ const SuperAdminDashboard = ({ navigation }) => {
         setRecentTx(txRes.data.transactions || txRes.data.data || []);
       }
 
-      const fetchedPlans = plansRes.data?.data || plansRes.data?.plans || [];
-      setDataPlansList(Array.isArray(fetchedPlans) ? fetchedPlans : []);
+      let loadedPlans = [];
+      if (superPlansRes.data?.plans || superPlansRes.data?.data) {
+        loadedPlans = superPlansRes.data.plans || superPlansRes.data.data;
+      } else if (plansRes.data?.plans || plansRes.data?.data) {
+        loadedPlans = plansRes.data.plans || plansRes.data.data;
+      }
+
+      if (Array.isArray(loadedPlans) && loadedPlans.length > 0) {
+        setDataPlansList(loadedPlans);
+      }
 
       if (usersRes.data?.users || usersRes.data?.data) {
         setAllUsersList(usersRes.data.users || usersRes.data.data || []);
@@ -215,7 +290,7 @@ const SuperAdminDashboard = ({ navigation }) => {
     fetchMasterTelemetry();
     const interval = setInterval(() => {
       fetchMasterTelemetry(true);
-    }, 10000);
+    }, 12000);
     return () => clearInterval(interval);
   }, [fetchMasterTelemetry]);
 
@@ -280,7 +355,6 @@ const SuperAdminDashboard = ({ navigation }) => {
           { transactionIds: selectedRefundIds },
           { headers }
         ).catch(async () => {
-          // Fallback: approve sequentially if batch endpoint not found
           const selectedItems = pendingRefundsList.filter((item) =>
             selectedRefundIds.includes(item._id || item.transactionId || item.id)
           );
@@ -411,6 +485,186 @@ const SuperAdminDashboard = ({ navigation }) => {
       }
     } catch (err) {
       showAlert("Transfer Error", err.response?.data?.message || err.message);
+    } finally {
+      if (isMounted.current) setActionLoading(false);
+    }
+  };
+
+  // TARIFF MANAGEMENT HANDLERS (EDIT & CREATE PLANS)
+  const handleOpenEditPlan = (plan) => {
+    setSelectedEditPlan(plan);
+    setEditPlanForm({
+      planId: String(plan.planId || plan.planCode || plan.id || plan._id || ""),
+      name: String(plan.plan || plan.name || ""),
+      validity: String(plan.validity || "30 Days"),
+      planType: String(plan.planType || plan.type || "DC").toUpperCase(),
+      customPlanType: "",
+      userPrice: String(plan.userPrice || plan.price || ""),
+      agentPrice: String(plan.agentPrice || plan.userPrice || plan.price || ""),
+      status: plan.status || (plan.isActive ? "active" : "disabled"),
+    });
+    setEditPlanModalVisible(true);
+  };
+
+  const handleSaveEditPlanTariff = async () => {
+    if (!editPlanForm.planId.trim() || !editPlanForm.userPrice || !editPlanForm.agentPrice) {
+      showAlert("Validation Error", "Please provide Gateway Plan ID, Customer price, and Agent price.");
+      return;
+    }
+
+    const uPrice = Number(editPlanForm.userPrice);
+    const aPrice = Number(editPlanForm.agentPrice);
+    const targetId = editPlanForm.planId.trim();
+    const finalType = editPlanForm.planType === "CUSTOM" ? editPlanForm.customPlanType.trim() : editPlanForm.planType;
+    const finalName = editPlanForm.name.trim() || selectedEditPlan?.plan || selectedEditPlan?.name;
+
+    const oldId = selectedEditPlan?.id || selectedEditPlan?._id || selectedEditPlan?.planId || selectedEditPlan?.planCode;
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const payload = {
+        id: oldId,
+        planId: targetId,
+        planCode: targetId,
+        code: targetId,
+        name: finalName,
+        plan: finalName,
+        planLabel: finalName,
+        planType: finalType,
+        validity: editPlanForm.validity,
+        userPrice: uPrice,
+        agentPrice: aPrice,
+        price: uPrice,
+        status: editPlanForm.status,
+        isActive: editPlanForm.status === "active",
+        broadcast: true,
+      };
+
+      await axios.post(`${BASE_URL}/superadmin/pricing/update-tier`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() =>
+        axios.post(`${BASE_URL}/admin/pricing/update-tier`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+
+      showAlert("Tariff Updated 🚀", `${finalName} [ID: ${targetId}] updated across all customer and agent terminals.`);
+      setEditPlanModalVisible(false);
+      fetchMasterTelemetry();
+    } catch (err) {
+      showAlert("Update Error", err.response?.data?.message || err.message);
+    } finally {
+      if (isMounted.current) setActionLoading(false);
+    }
+  };
+
+  const handleDeletePlan = async () => {
+    if (!selectedEditPlan) return;
+    const planName = selectedEditPlan.plan || selectedEditPlan.name || "this plan";
+    const targetId = selectedEditPlan.id || selectedEditPlan._id || selectedEditPlan.planId || selectedEditPlan.planCode;
+
+    const confirmDelete = async () => {
+      setActionLoading(true);
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        await axios.delete(`${BASE_URL}/superadmin/pricing/delete-plan/${targetId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() =>
+          axios.delete(`${BASE_URL}/data/plans/${targetId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        );
+
+        showAlert("Plan Removed", `"${planName}" has been permanently deleted from database.`);
+        setEditPlanModalVisible(false);
+        fetchMasterTelemetry();
+      } catch (err) {
+        showAlert("Delete Error", err.response?.data?.message || err.message);
+      } finally {
+        if (isMounted.current) setActionLoading(false);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Permanently delete "${planName}"? It will be removed from all mobile and web apps.`)) {
+        confirmDelete();
+      }
+    } else {
+      Alert.alert(
+        "Confirm Permanent Deletion",
+        `Permanently delete "${planName}"?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete Permanently", style: "destructive", onPress: confirmDelete },
+        ]
+      );
+    }
+  };
+
+  const applySuperadminPreset = (preset) => {
+    setNewPlanForm((prev) => ({
+      ...prev,
+      planId: preset.id,
+      planType: preset.type,
+      planSize: preset.size,
+      validity: preset.validity,
+      userPrice: preset.uPrice,
+      agentPrice: preset.aPrice,
+    }));
+  };
+
+  const handlePublishNewPlan = async () => {
+    const finalPlanType = newPlanForm.planType === "CUSTOM" ? newPlanForm.customPlanType.trim() : newPlanForm.planType;
+    const finalPlanSize = newPlanForm.planSize === "CUSTOM" ? newPlanForm.customPlanSize.trim() : newPlanForm.planSize;
+    const finalValidity = newPlanForm.validity === "CUSTOM" ? newPlanForm.customValidity.trim() : newPlanForm.validity;
+    const planIdVal = newPlanForm.planId.trim();
+    const uPrice = Number(newPlanForm.userPrice || 0);
+    const aPrice = Number(newPlanForm.agentPrice || uPrice);
+
+    if (!newPlanForm.network || !planIdVal || !finalPlanType || !finalPlanSize || uPrice <= 0) {
+      showAlert("Incomplete Form", "Please specify Telecom Network, Gateway Plan ID, Plan Type, Volume, and Customer Price.");
+      return;
+    }
+
+    const net = newPlanForm.network.toUpperCase();
+    const pName = `${net} ${finalPlanType} ${finalPlanSize} (${finalValidity})`;
+
+    setActionLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const payload = {
+        id: planIdVal,
+        planId: planIdVal,
+        planCode: planIdVal,
+        code: planIdVal,
+        network: net,
+        networkName: net,
+        planType: finalPlanType,
+        plan: finalPlanSize,
+        name: pName,
+        planLabel: pName,
+        validity: finalValidity,
+        userPrice: uPrice,
+        price: uPrice,
+        agentPrice: aPrice,
+        status: "active",
+        isActive: true,
+      };
+
+      await axios.post(`${BASE_URL}/superadmin/pricing/create-plan`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() =>
+        axios.post(`${BASE_URL}/admin/pricing/create-plan`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      );
+
+      showAlert("Tariff Published 🚀", `${pName} [ID: ${planIdVal}] successfully added to database & live across all terminals.`);
+      setAddPlanModalVisible(false);
+      fetchMasterTelemetry();
+    } catch (err) {
+      showAlert("Publish Error", err.response?.data?.message || err.message);
     } finally {
       if (isMounted.current) setActionLoading(false);
     }
@@ -656,6 +910,11 @@ const SuperAdminDashboard = ({ navigation }) => {
     return roleMatch && (nameMatch || phoneMatch || emailMatch || stateMatch || lgaMatch);
   });
 
+  const filteredTariffPlans = dataPlansList.filter((p) => {
+    const net = String(p.network || p.networkName || "MTN").toUpperCase();
+    return tariffNetFilter === "ALL" || net === tariffNetFilter;
+  });
+
   const nationalDirectorsList = allUsersList.filter((u) => {
     const r = (u.role || "").toLowerCase();
     return r === "national_sales_director" || r === "super_leader";
@@ -675,6 +934,9 @@ const SuperAdminDashboard = ({ navigation }) => {
   const openActionModal = (actionKey) => {
     toggleSidebar(false);
     switch (actionKey) {
+      case "add_plan":
+        setAddPlanModalVisible(true);
+        break;
       case "create_user":
         setCreateUserModalVisible(true);
         break;
@@ -733,6 +995,14 @@ const SuperAdminDashboard = ({ navigation }) => {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <TouchableOpacity
             style={[styles.avatarBtn, { marginRight: 8 }]}
+            onPress={() => setAddPlanModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="wifi" size={16} color="#00f0ff" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.avatarBtn, { marginRight: 8 }]}
             onPress={() => setTransferModalVisible(true)}
             activeOpacity={0.7}
           >
@@ -774,6 +1044,16 @@ const SuperAdminDashboard = ({ navigation }) => {
           <Feather name="grid" size={12} color={activeMainTab === "overview" ? "#00f0ff" : "#64748b"} />
           <Text style={[styles.mainNavTabText, activeMainTab === "overview" && styles.mainNavTabTextActive]}>
             Overview
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.mainNavTab, activeMainTab === "pricing" && styles.mainNavTabActive]}
+          onPress={() => setActiveMainTab("pricing")}
+        >
+          <Ionicons name="wifi" size={12} color={activeMainTab === "pricing" ? "#00f0ff" : "#64748b"} />
+          <Text style={[styles.mainNavTabText, activeMainTab === "pricing" && styles.mainNavTabTextActive]}>
+            Tariffs & Plans
           </Text>
         </TouchableOpacity>
 
@@ -1001,7 +1281,109 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 2: NATIONAL SALES DIRECTORS & STATE MANAGERS */}
+          {/* TAB 2: DATA TARIFFS & PLANS (NEW) */}
+          {activeMainTab === "pricing" && (
+            <View style={styles.tabWrapper}>
+              <View style={styles.tariffTabContainer}>
+                <View style={styles.sectionHeaderRow}>
+                  <View>
+                    <Text style={styles.sectionHeaderLabel}>DATA BUNDLE LIVE TARIFFS (CUSTOMER & AGENT)</Text>
+                    <Text style={styles.sectionHeaderSub}>Live database pricing deployed to mobile, web & agent terminals</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.addPlanHeaderBtn}
+                    onPress={() => setAddPlanModalVisible(true)}
+                  >
+                    <Ionicons name="add-circle" size={15} color="#ffffff" />
+                    <Text style={styles.addPlanHeaderText}>PUBLISH NEW PLAN</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Network Filter Tabs */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+                  {["ALL", "MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
+                    <TouchableOpacity
+                      key={net}
+                      style={[styles.categoryTab, tariffNetFilter === net && styles.categoryTabActive]}
+                      onPress={() => setTariffNetFilter(net)}
+                    >
+                      <Text style={[styles.categoryTabText, tariffNetFilter === net && styles.categoryTabTextActive]}>
+                        {net}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {filteredTariffPlans.length > 0 ? (
+                  filteredTariffPlans.map((plan) => {
+                    const planName = plan.plan || plan.name || plan.planLabel || plan.size || "Data Bundle";
+                    const netName = String(plan.network || plan.networkName || "MTN").toUpperCase();
+                    const planType = String(plan.planType || plan.type || "DC").toUpperCase();
+                    const validity = plan.validity || "30 Days";
+                    const userPrice = plan.userPrice || plan.price || 0;
+                    const agentPrice = plan.agentPrice || plan.userPrice || plan.price || 0;
+                    const status = String(plan.status || (plan.isActive ? "active" : "disabled")).toLowerCase();
+                    const planId = plan.planId || plan.planCode || plan.id || plan._id;
+
+                    return (
+                      <View key={planId} style={styles.superPlanCard}>
+                        <View style={styles.superPlanCardTop}>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.planBadgeRow}>
+                              <View style={[styles.planNetworkPill, { backgroundColor: "rgba(0, 240, 255, 0.1)" }]}>
+                                <Text style={[styles.planNetworkPillTxt, { color: "#00f0ff" }]}>{netName}</Text>
+                              </View>
+                              <View style={styles.planTypePill}>
+                                <Text style={styles.planTypePillTxt}>{planType}</Text>
+                              </View>
+                              <View style={[styles.planTypePill, { backgroundColor: "rgba(245, 158, 11, 0.15)" }]}>
+                                <Text style={[styles.planTypePillTxt, { color: "#f59e0b", fontWeight: "900" }]}>ID: {planId}</Text>
+                              </View>
+                              <View style={[styles.planStatusPill, { backgroundColor: status === "disabled" ? "#7f1d1d" : "rgba(16, 185, 129, 0.15)" }]}>
+                                <Text style={[styles.planStatusPillTxt, { color: status === "disabled" ? "#fca5a5" : "#10b981" }]}>
+                                  {status.toUpperCase()}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={styles.superPlanTitle}>{netName} {planName} ({validity})</Text>
+                          </View>
+
+                          <TouchableOpacity
+                            style={styles.superPlanEditBtn}
+                            onPress={() => handleOpenEditPlan(plan)}
+                          >
+                            <Feather name="sliders" size={14} color="#00f0ff" />
+                            <Text style={styles.superPlanEditText}>Edit Tariff</Text>
+                          </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.cleanPricingRow}>
+                          <View style={styles.cleanPriceBox}>
+                            <Text style={styles.cleanPriceLabel}>Customer Price</Text>
+                            <Text style={styles.cleanPriceValue}>₦{Number(userPrice).toLocaleString()}</Text>
+                          </View>
+                          <View style={styles.cleanPriceDivider} />
+                          <View style={styles.cleanPriceBox}>
+                            <Text style={styles.cleanPriceLabel}>Agent Wholesale</Text>
+                            <Text style={[styles.cleanPriceValue, { color: "#00f0ff" }]}>₦{Number(agentPrice).toLocaleString()}</Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptyFeed}>
+                    <Ionicons name="wifi-outline" size={36} color="#475569" />
+                    <Text style={{ color: "#64748b", fontSize: 13, marginTop: 8 }}>
+                      No data tariffs found for {tariffNetFilter}. Tap "PUBLISH NEW PLAN" to add.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* TAB 3: NATIONAL SALES DIRECTORS & STATE MANAGERS */}
           {activeMainTab === "sm_hierarchy" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
@@ -1123,7 +1505,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 3: DIRECTORY */}
+          {/* TAB 4: DIRECTORY */}
           {activeMainTab === "users" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
@@ -1243,7 +1625,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 4: BATCH REFUND QUEUE */}
+          {/* TAB 5: BATCH REFUND QUEUE */}
           {activeMainTab === "refunds" && (
             <View style={styles.tabWrapper}>
               <View style={styles.tariffTabContainer}>
@@ -1365,7 +1747,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             </View>
           )}
 
-          {/* TAB 5: AUDIT LOG */}
+          {/* TAB 6: AUDIT LOG */}
           {activeMainTab === "history" && (
             <View style={styles.tabWrapper}>
               <View style={styles.historyTabContainer}>
@@ -1443,6 +1825,343 @@ const SuperAdminDashboard = ({ navigation }) => {
           )}
         </View>
       </ScrollView>
+
+      {/* MODAL: EDIT DATA TARIFF (WITH GATEWAY PLAN ID & VALIDITY) */}
+      <Modal visible={editPlanModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: 540, maxHeight: "90%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Edit Data Plan Tariff</Text>
+                {selectedEditPlan && (
+                  <Text style={styles.modalCardSubtitle}>
+                    {selectedEditPlan.network} - {selectedEditPlan.plan || selectedEditPlan.name}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setEditPlanModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              <Text style={styles.formFieldLabel}>PLAN ACTIVE STATUS</Text>
+              <View style={styles.toggleRowContainer}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, editPlanForm.status === "active" && styles.creditActiveToggle]}
+                  onPress={() => setEditPlanForm({ ...editPlanForm, status: "active" })}
+                >
+                  <Text style={[styles.toggleBtnText, editPlanForm.status === "active" && styles.activeToggleText]}>
+                    ACTIVE
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, editPlanForm.status === "disabled" && styles.debitActiveToggle]}
+                  onPress={() => setEditPlanForm({ ...editPlanForm, status: "disabled" })}
+                >
+                  <Text style={[styles.toggleBtnText, editPlanForm.status === "disabled" && styles.activeToggleText]}>
+                    DISABLED
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.formFieldLabel}>PROVIDER GATEWAY PLAN ID (AL-IHSAN ID) *</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                value={editPlanForm.planId}
+                onChangeText={(t) => setEditPlanForm({ ...editPlanForm, planId: t })}
+                placeholder="e.g. 140, 27, 262"
+                placeholderTextColor="#64748b"
+              />
+
+              <Text style={styles.formFieldLabel}>PLAN CATEGORY / TYPE</Text>
+              <View style={styles.pillGrid}>
+                {["DC", "CG", "SME", "SME2", "GIFTING", "AWOOF", "DATASHARE", "CUSTOM"].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.pillBtn, editPlanForm.planType === t && styles.activePillBtn]}
+                    onPress={() => setEditPlanForm({ ...editPlanForm, planType: t })}
+                  >
+                    <Text style={[styles.pillBtnText, editPlanForm.planType === t && styles.activePillBtnText]}>
+                      {t}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {editPlanForm.planType === "CUSTOM" && (
+                <TextInput
+                  style={[styles.textInputStyle, { borderColor: "#00f0ff" }]}
+                  value={editPlanForm.customPlanType}
+                  onChangeText={(t) => setEditPlanForm({ ...editPlanForm, customPlanType: t })}
+                  placeholder="Type custom plan category..."
+                  placeholderTextColor="#64748b"
+                />
+              )}
+
+              <Text style={styles.formFieldLabel}>PLAN DISPLAY NAME / VOLUME *</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                value={editPlanForm.name}
+                onChangeText={(t) => setEditPlanForm({ ...editPlanForm, name: t })}
+                placeholder="e.g. 1.0 GB / 2.0 GB"
+                placeholderTextColor="#64748b"
+              />
+
+              <Text style={styles.formFieldLabel}>VALIDITY (DURATION)</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                value={editPlanForm.validity}
+                onChangeText={(t) => setEditPlanForm({ ...editPlanForm, validity: t })}
+                placeholder="e.g. 30 Days, 7 Days"
+                placeholderTextColor="#64748b"
+              />
+
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formFieldLabel}>CUSTOMER PRICE (₦) *</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    value={editPlanForm.userPrice}
+                    onChangeText={(t) => setEditPlanForm({ ...editPlanForm, userPrice: t })}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formFieldLabel}>AGENT WHOLESALE (₦) *</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    value={editPlanForm.agentPrice}
+                    onChangeText={(t) => setEditPlanForm({ ...editPlanForm, agentPrice: t })}
+                    keyboardType="numeric"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handleSaveEditPlanTariff}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>SAVE & DEPLOY DATA TARIFF</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: "rgba(239, 68, 68, 0.15)",
+                  borderColor: "#ef4444",
+                  borderWidth: 1,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  marginTop: 10,
+                }}
+                onPress={handleDeletePlan}
+                disabled={actionLoading}
+              >
+                <Text style={{ color: "#f87171", fontSize: 12, fontWeight: "900" }}>
+                  DELETE PLAN PERMANENTLY
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL: PUBLISH NEW DATA TARIFF (WITH PRESETS & MANUAL) */}
+      <Modal visible={addPlanModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxWidth: 540, maxHeight: "90%" }]}>
+            <View style={styles.modalHeaderRow}>
+              <View>
+                <Text style={styles.modalCardTitle}>Publish New Data Tariff</Text>
+                <Text style={styles.modalCardSubtitle}>Automatic Fast Presets or Manual Configuration</Text>
+              </View>
+              <TouchableOpacity onPress={() => setAddPlanModalVisible(false)}>
+                <Ionicons name="close" size={24} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
+              {/* 1. Telecom Network */}
+              <Text style={styles.formFieldLabel}>1. SELECT TELECOM NETWORK</Text>
+              <View style={styles.pillGrid}>
+                {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
+                  <TouchableOpacity
+                    key={net}
+                    style={[styles.pillBtn, newPlanForm.network === net && styles.activePillBtn]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, network: net })}
+                  >
+                    <Text style={[styles.pillBtnText, newPlanForm.network === net && styles.activePillBtnText]}>
+                      {net}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 2. Quick Presets from Al-Ihsan */}
+              <View style={{ backgroundColor: "#0f2a24", borderWidth: 1, borderColor: "#059669", borderRadius: 12, padding: 10, marginVertical: 8 }}>
+                <Text style={{ color: "#34d399", fontSize: 10, fontWeight: "900", letterSpacing: 0.5 }}>
+                  ⚡ AUTOMATIC PRESET (Tap to auto-fill details)
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
+                  {(SUPERADMIN_ALIHSAN_PRESETS[newPlanForm.network] || []).map((preset, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{
+                        backgroundColor: "rgba(16, 185, 129, 0.2)",
+                        borderColor: "#059669",
+                        borderWidth: 1,
+                        borderRadius: 8,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        marginRight: 6,
+                      }}
+                      onPress={() => applySuperadminPreset(preset)}
+                    >
+                      <Text style={{ color: "#34d399", fontSize: 11, fontWeight: "800" }}>
+                        ⚡ {preset.label} (ID: {preset.id})
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* 3. Gateway Plan ID */}
+              <Text style={styles.formFieldLabel}>2. GATEWAY PLAN ID (AL-IHSAN PROVIDER ID) *</Text>
+              <TextInput
+                style={styles.textInputStyle}
+                value={newPlanForm.planId}
+                onChangeText={(t) => setNewPlanForm({ ...newPlanForm, planId: t })}
+                placeholder="e.g. 140 (MTN DC 1GB), 27 (MTN CG 1GB), 262 (Airtel CG)"
+                placeholderTextColor="#64748b"
+              />
+
+              {/* 4. Plan Category */}
+              <Text style={styles.formFieldLabel}>3. PLAN CATEGORY / TYPE</Text>
+              <View style={styles.pillGrid}>
+                {["DC", "CG", "SME", "SME2", "GIFTING", "AWOOF", "DATASHARE", "CUSTOM"].map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[styles.pillBtn, newPlanForm.planType === t && styles.activePillBtn]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, planType: t })}
+                  >
+                    <Text style={[styles.pillBtnText, newPlanForm.planType === t && styles.activePillBtnText]}>
+                      {t}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {newPlanForm.planType === "CUSTOM" && (
+                <TextInput
+                  style={[styles.textInputStyle, { borderColor: "#00f0ff" }]}
+                  value={newPlanForm.customPlanType}
+                  onChangeText={(t) => setNewPlanForm({ ...newPlanForm, customPlanType: t })}
+                  placeholder="Type custom plan category (e.g. Night Boost)..."
+                  placeholderTextColor="#64748b"
+                />
+              )}
+
+              {/* 5. Plan Volume / Size */}
+              <Text style={styles.formFieldLabel}>4. PLAN VOLUME (SIZE)</Text>
+              <View style={styles.pillGrid}>
+                {["500 MB", "1.0 GB", "1.5 GB", "2.0 GB", "3.0 GB", "5.0 GB", "10.0 GB", "CUSTOM"].map((s) => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.pillBtn, newPlanForm.planSize === s && styles.activePillBtn]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, planSize: s })}
+                  >
+                    <Text style={[styles.pillBtnText, newPlanForm.planSize === s && styles.activePillBtnText]}>
+                      {s}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {newPlanForm.planSize === "CUSTOM" && (
+                <TextInput
+                  style={[styles.textInputStyle, { borderColor: "#00f0ff" }]}
+                  value={newPlanForm.customPlanSize}
+                  onChangeText={(t) => setNewPlanForm({ ...newPlanForm, customPlanSize: t })}
+                  placeholder="Type custom volume (e.g. 750 MB, 15.0 GB)..."
+                  placeholderTextColor="#64748b"
+                />
+              )}
+
+              {/* 6. Validity Duration */}
+              <Text style={styles.formFieldLabel}>5. VALIDITY DURATION</Text>
+              <View style={styles.pillGrid}>
+                {["1 Day", "2 Days", "7 Days", "14 Days", "30 Days", "CUSTOM"].map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    style={[styles.pillBtn, newPlanForm.validity === v && styles.activePillBtn]}
+                    onPress={() => setNewPlanForm({ ...newPlanForm, validity: v })}
+                  >
+                    <Text style={[styles.pillBtnText, newPlanForm.validity === v && styles.activePillBtnText]}>
+                      {v}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {newPlanForm.validity === "CUSTOM" && (
+                <TextInput
+                  style={[styles.textInputStyle, { borderColor: "#00f0ff" }]}
+                  value={newPlanForm.customValidity}
+                  onChangeText={(t) => setNewPlanForm({ ...newPlanForm, customValidity: t })}
+                  placeholder="Type custom validity (e.g. 60 Days / 90 Days)..."
+                  placeholderTextColor="#64748b"
+                />
+              )}
+
+              {/* 7. Pricing */}
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formFieldLabel}>CUSTOMER PRICE (₦) *</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    value={newPlanForm.userPrice}
+                    onChangeText={(t) => setNewPlanForm({ ...newPlanForm, userPrice: t })}
+                    keyboardType="numeric"
+                    placeholder="e.g. 230"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formFieldLabel}>AGENT PRICE (₦) *</Text>
+                  <TextInput
+                    style={styles.textInputStyle}
+                    value={newPlanForm.agentPrice}
+                    onChangeText={(t) => setNewPlanForm({ ...newPlanForm, agentPrice: t })}
+                    keyboardType="numeric"
+                    placeholder="e.g. 210"
+                    placeholderTextColor="#64748b"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryActionBtn, { opacity: actionLoading ? 0.7 : 1 }]}
+                onPress={handlePublishNewPlan}
+                disabled={actionLoading}
+              >
+                {actionLoading ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.primaryActionBtnText}>PUBLISH TARIFF TO DATABASE & APP</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* INSPECTOR MODAL */}
       <Modal visible={inspectorModalVisible} transparent animationType="slide">
@@ -1739,6 +2458,21 @@ const SuperAdminDashboard = ({ navigation }) => {
               </TouchableOpacity>
 
               <TouchableOpacity
+                style={[styles.navItem, activeMainTab === "pricing" && styles.navItemActive]}
+                onPress={() => {
+                  toggleSidebar(false);
+                  setActiveMainTab("pricing");
+                }}
+              >
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(2, 132, 199, 0.2)" }]}>
+                  <Ionicons name="wifi" size={18} color="#38bdf8" />
+                </View>
+                <Text style={[styles.navItemText, activeMainTab === "pricing" && { color: "#00f0ff" }]}>
+                  Data Tariff Manager
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.navItem, activeMainTab === "sm_hierarchy" && styles.navItemActive]}
                 onPress={() => {
                   toggleSidebar(false);
@@ -1784,6 +2518,13 @@ const SuperAdminDashboard = ({ navigation }) => {
               </TouchableOpacity>
 
               <Text style={styles.sidebarCategory}>CREATION & REASSIGNMENT</Text>
+
+              <TouchableOpacity style={styles.navItem} onPress={() => openActionModal("add_plan")}>
+                <View style={[styles.navIconBox, { backgroundColor: "rgba(16, 185, 129, 0.15)" }]}>
+                  <Ionicons name="add-circle" size={18} color="#10b981" />
+                </View>
+                <Text style={[styles.navItemText, { color: "#10b981" }]}>Publish Data Tariff</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity style={styles.navItem} onPress={() => openActionModal("transfer")}>
                 <View style={[styles.navIconBox, { backgroundColor: "rgba(0, 240, 255, 0.15)" }]}>
@@ -2056,7 +2797,7 @@ const SuperAdminDashboard = ({ navigation }) => {
             <Text style={styles.formFieldLabel}>TARGET MONTH</Text>
             <TextInput
               style={styles.textInputStyle}
-              placeholder="August 2026"
+              placeholder="September 2026"
               placeholderTextColor="#64748b"
               value={targetMonth}
               onChangeText={setTargetMonth}
@@ -2628,6 +3369,56 @@ const styles = StyleSheet.create({
   categoryTabActive: { backgroundColor: "#0284c7", borderColor: "#00f0ff" },
   categoryTabText: { color: "#94a3b8", fontSize: 11, fontWeight: "700" },
   categoryTabTextActive: { color: "#ffffff" },
+
+  // DATA TARIFF SUPER PLAN CARD STYLES
+  superPlanCard: {
+    backgroundColor: "#0f172a",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    elevation: 2,
+  },
+  superPlanCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 10,
+  },
+  planBadgeRow: { flexDirection: "row", gap: 6, alignItems: "center", marginBottom: 4, flexWrap: "wrap" },
+  planNetworkPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  planNetworkPillTxt: { fontSize: 10, fontWeight: "900" },
+  planTypePill: { backgroundColor: "#1e293b", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  planTypePillTxt: { color: "#cbd5e1", fontSize: 9.5, fontWeight: "700" },
+  planStatusPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  planStatusPillTxt: { fontSize: 9, fontWeight: "900" },
+  superPlanTitle: { color: "#f8fafc", fontSize: 13.5, fontWeight: "900", marginTop: 2 },
+  superPlanEditBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 240, 255, 0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(0, 240, 255, 0.3)",
+    gap: 4,
+  },
+  superPlanEditText: { color: "#00f0ff", fontSize: 11, fontWeight: "800" },
+  cleanPricingRow: {
+    flexDirection: "row",
+    backgroundColor: "#1e293b",
+    borderRadius: 10,
+    padding: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  cleanPriceBox: { flex: 1, alignItems: "center" },
+  cleanPriceLabel: { color: "#64748b", fontSize: 10, fontWeight: "700" },
+  cleanPriceValue: { color: "#f8fafc", fontSize: 14, fontWeight: "900", marginTop: 2 },
+  cleanPriceDivider: { width: 1, height: 28, backgroundColor: "#334155" },
 
   // BULK REFUND TOOLBAR STYLES
   bulkRefundToolbar: {
