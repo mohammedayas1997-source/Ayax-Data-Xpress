@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -34,18 +34,12 @@ const LoginScreen = ({ navigation }) => {
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  useEffect(() => {
-    checkBiometricStatus();
-  }, []);
-
-  // Safe Navigation Dispatcher
-  const routeUserByRole = (rawRole, rawIdentifier = "") => {
+  const routeUserByRole = useCallback((rawRole, rawIdentifier = "") => {
     if (!navigation || typeof navigation.reset !== "function") return;
 
     const role = String(rawRole || "").trim().toLowerCase();
     const identifier = String(rawIdentifier || identifierInput || "").trim().toLowerCase();
 
-    // 1. SuperAdmin
     if (
       role === "superadmin" ||
       identifier === "mohammed.ayas@ayaxdata.online" ||
@@ -55,7 +49,6 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 2. Operations Admin
     if (
       role === "admin" ||
       identifier === "mohammed@ayaxdata.online" ||
@@ -66,7 +59,6 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 3. National Sales Director
     if (
       role === "national_sales_director" ||
       role === "super_leader" ||
@@ -77,19 +69,16 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 4. State Manager
     if (role === "state_manager" || role === "leader") {
       navigation.reset({ index: 0, routes: [{ name: "LeaderDashboard" }] });
       return;
     }
 
-    // 5. Field Supervisor
     if (role === "supervisor" || role === "field_supervisor") {
       navigation.reset({ index: 0, routes: [{ name: "SupervisorDashboard" }] });
       return;
     }
 
-    // 6. Retail Agent
     if (role === "agent") {
       navigation.reset({
         index: 0,
@@ -98,7 +87,6 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 7. Support Desk
     if (
       role === "support" ||
       role === "customer_service" ||
@@ -110,72 +98,123 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    // 8. Normal Customer
     navigation.reset({ index: 0, routes: [{ name: "Main" }] });
-  };
+  }, [identifierInput, navigation]);
 
-  const checkBiometricStatus = async () => {
+  const executeDirectBiometricLogin = useCallback(async () => {
     try {
       if (Platform.OS === "web") return;
-      const isEnabled = await AsyncStorage.getItem("useBiometricLogin");
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      if (isEnabled === "true" && hasHardware && isEnrolled) {
-        setIsBiometricEnabled(true);
-        // Cika filayen idan akwai bayanan da aka ajiye
+      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
+      const savedPassword = await AsyncStorage.getItem("savedPassword");
+
+      if (!savedIdentifier || !savedPassword) {
+        setErrorMessage("Da farko shiga da password domin ajiye asusunka.");
+        return;
+      }
+
+      setIdentifierInput(savedIdentifier);
+
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Yi amfani da Fingerprint don shiga Ayax Xpress",
+        fallbackLabel: "Sanya Password",
+        disableDeviceFallback: false,
+      });
+
+      if (!result.success) return;
+
+      setLoading(true);
+      setErrorMessage("");
+
+      const response = await axios.post(
+        `${BASE_URL}/auth/login`,
+        {
+          identifier: savedIdentifier.trim(),
+          email: savedIdentifier.trim(),
+          phone: savedIdentifier.trim(),
+          username: savedIdentifier.trim(),
+          password: savedPassword.trim(),
+        },
+        {
+          headers: { "Content-Type": "application/json" },
+          timeout: 25000,
+        }
+      );
+
+      const resData = response.data || {};
+      const token = resData.token || resData.accessToken || resData.data?.token || "";
+      const userPayload = resData.user || resData.data?.user || resData.data || {};
+
+      let userRole = (
+        userPayload?.role ||
+        resData.role ||
+        resData.data?.role ||
+        "user"
+      )
+        .trim()
+        .toLowerCase();
+
+      const cleanLower = savedIdentifier.toLowerCase();
+      if (cleanLower === "mohammed.ayas@ayaxdata.online" || cleanLower === "09033738409") {
+        userRole = "superadmin";
+      } else if (
+        cleanLower === "mohammed@ayaxdata.online" ||
+        cleanLower === "admin@ayaxdata.online" ||
+        cleanLower === "08011112222"
+      ) {
+        userRole = "admin";
+      } else if (cleanLower === "support@ayaxdata.online" || cleanLower === "08077778888") {
+        userRole = "support";
+      }
+
+      if (!token) {
+        setErrorMessage("Matsalar tantancewa daga uwar garke.");
+        setLoading(false);
+        return;
+      }
+
+      await AsyncStorage.setItem("userToken", token);
+      await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
+
+      routeUserByRole(userRole, savedIdentifier);
+    } catch (err) {
+      console.log("Biometric Login Failure:", err?.response?.data || err.message);
+      setErrorMessage("Fingerprint bai yi aiki ba. Shigar da password.");
+    } finally {
+      setLoading(false);
+    }
+  }, [routeUserByRole]);
+
+  useEffect(() => {
+    const checkAndTriggerBiometric = async () => {
+      try {
         const savedId = await AsyncStorage.getItem("savedIdentifier");
         if (savedId) {
           setIdentifierInput(savedId);
         }
-        // Fito da katin yatsa kai tsaye a shigowa
-        triggerAutoBiometrics();
-      }
-    } catch (e) {
-      console.log("Biometric check skipped:", e?.message);
-    }
-  };
 
-  const triggerAutoBiometrics = async () => {
-    try {
-      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
-      const savedPassword = await AsyncStorage.getItem("savedPassword");
+        if (Platform.OS === "web") return;
 
-      if (!savedIdentifier || !savedPassword) return;
+        const isEnabled = await AsyncStorage.getItem("useBiometricLogin");
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Login to Ayax Xpress with Biometrics",
-        fallbackLabel: "Use Password",
-        disableDeviceFallback: false,
-      });
-
-      if (result.success) {
-        setLoading(true);
-        const response = await axios.post(`${BASE_URL}/auth/login`, {
-          identifier: savedIdentifier,
-          email: savedIdentifier,
-          phone: savedIdentifier,
-          username: savedIdentifier,
-          password: savedPassword,
-        });
-
-        const resData = response.data || {};
-        const token = resData.token || resData.accessToken || resData.data?.token || "";
-        const userPayload = resData.user || resData.data?.user || resData.data || {};
-        const userRole = (userPayload?.role || resData.role || "user").trim().toLowerCase();
-
-        if (token) {
-          await AsyncStorage.setItem("userToken", token);
-          await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
-          routeUserByRole(userRole, savedIdentifier);
+        if (isEnabled === "true" && hasHardware && isEnrolled) {
+          setIsBiometricEnabled(true);
+          const savedPass = await AsyncStorage.getItem("savedPassword");
+          if (savedId && savedPass) {
+            setTimeout(() => {
+              executeDirectBiometricLogin();
+            }, 300);
+          }
         }
+      } catch (e) {
+        console.log("Biometric auto check error:", e?.message);
       }
-    } catch (err) {
-      console.log("Auto biometric prompt skipped:", err?.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    checkAndTriggerBiometric();
+  }, [executeDirectBiometricLogin]);
 
   const openWhatsApp = () => {
     Linking.openURL("whatsapp://send?phone=+2349061244444&text=Hello Ayax Xpress Support").catch(() => {
@@ -276,52 +315,6 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
-  const handleBiometricLogin = async () => {
-    try {
-      if (Platform.OS === "web") return;
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Authenticate to Ayax Xpress",
-        fallbackLabel: "Use Password",
-        disableDeviceFallback: false,
-      });
-
-      if (!result.success) return;
-
-      const savedIdentifier = await AsyncStorage.getItem("savedIdentifier");
-      const savedPassword = await AsyncStorage.getItem("savedPassword");
-
-      if (!savedIdentifier || !savedPassword) {
-        setErrorMessage("Please login with password once first.");
-        return;
-      }
-
-      setLoading(true);
-
-      const response = await axios.post(`${BASE_URL}/auth/login`, {
-        identifier: savedIdentifier,
-        email: savedIdentifier,
-        phone: savedIdentifier,
-        username: savedIdentifier,
-        password: savedPassword,
-      });
-
-      const resData = response.data || {};
-      const token = resData.token || resData.accessToken || resData.data?.token || "";
-      const userPayload = resData.user || resData.data?.user || resData.data || {};
-      const userRole = (userPayload?.role || resData.role || "user").trim().toLowerCase();
-
-      if (token) {
-        await AsyncStorage.setItem("userToken", token);
-        await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
-        routeUserByRole(userRole, savedIdentifier);
-      }
-    } catch (error) {
-      setErrorMessage("Biometric authentication failed. Please enter password.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -410,19 +403,20 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.actionRow}>
-              {isBiometricEnabled && (
+              {isBiometricEnabled ? (
                 <TouchableOpacity
                   style={styles.biometricBtn}
-                  onPress={handleBiometricLogin}
+                  onPress={executeDirectBiometricLogin}
+                  activeOpacity={0.7}
                 >
                   <MaterialCommunityIcons
                     name="fingerprint"
-                    size={35}
-                    color="#0a1d37"
+                    size={38}
+                    color="#0284c7"
                   />
-                  <Text style={styles.biometricText}>Touch ID</Text>
+                  <Text style={styles.biometricText}>Login da Fingerprint</Text>
                 </TouchableOpacity>
-              )}
+              ) : null}
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => {
@@ -509,7 +503,6 @@ const LoginScreen = ({ navigation }) => {
             <Text style={styles.phoneNumber}>+234 906 124 4444</Text>
           </View>
 
-          {/* DEVELOPER APIS LINK BUTTON A KASAN LAMBAR WAYA */}
           <TouchableOpacity
             style={styles.developerApiBtn}
             onPress={openDeveloperApis}
@@ -607,12 +600,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 25,
   },
-  biometricBtn: { alignItems: "center" },
+  biometricBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#e0f2fe",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+    gap: 6,
+  },
   biometricText: {
-    fontSize: 10,
-    color: "#0a1d37",
+    fontSize: 12,
+    color: "#0284c7",
     fontWeight: "bold",
-    marginTop: 2,
   },
   forgotBtn: { alignSelf: "center", marginLeft: "auto" },
   forgotText: { color: "#0a1d37", fontSize: 14, fontWeight: "600" },
