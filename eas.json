@@ -1,14 +1,9 @@
 {
   "cli": {
-    "version": ">= 14.0.0"
+    "version": ">= 10.0.0"
   },
   "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
     "preview": {
-      "distribution": "internal",
       "android": {
         "buildType": "apk"
       }
@@ -16,10 +11,10 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
       }
     }
-  },
-  "submit": {
-    "production": {}
   }
 }

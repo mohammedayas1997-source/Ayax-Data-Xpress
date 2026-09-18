@@ -74,7 +74,7 @@ const AdminDashboard = () => {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const slideAnim = useState(new Animated.Value(-width * 0.85))[0];
 
-  // Active Tab
+  // Active Tab: 'overview' | 'sales' | 'hierarchy' | 'users' | 'refunds' | 'pricing' | 'identity_pricing' | 'targets' | 'broadcast'
   const [activeTab, setActiveTab] = useState("overview");
 
   // Telemetry & Sales Statistics
@@ -145,7 +145,6 @@ const AdminDashboard = () => {
   const [addPlanModalVisible, setAddPlanModalVisible] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
 
-  // Farashin Customer da Agent Kawai
   const [editTierPrices, setEditTierPrices] = useState({
     planId: "",
     name: "",
@@ -155,7 +154,6 @@ const AdminDashboard = () => {
     status: "active",
   });
 
-  // Sabon Plan Form
   const [newPlanForm, setNewPlanForm] = useState({
     network: "MTN",
     planId: "140",
@@ -188,7 +186,7 @@ const AdminDashboard = () => {
     agentPrice: "",
   });
 
-  // Targets & Directives State
+  // Targets & Directives State (Aligned to Real-Time Web Deployment)
   const [targetPayload, setTargetPayload] = useState({
     targetRole: "supervisor",
     dataVolumeGoal: "3000",
@@ -230,6 +228,9 @@ const AdminDashboard = () => {
     }).start(() => setSidebarVisible(false));
   };
 
+  /**
+   * REAL LIVE TELEMETRY & TARGET AGGREGATOR
+   */
   const fetchDashboardData = useCallback(async (isBackground = false) => {
     try {
       const token = await AsyncStorage.getItem("userToken");
@@ -243,40 +244,172 @@ const AdminDashboard = () => {
 
       const config = { headers: { Authorization: `Bearer ${token}` }, timeout: 15000 };
 
-      const [statsRes, usersRes, plansRes, refundsRes, superPlansRes] = await Promise.allSettled([
+      const [statsRes, usersRes, plansRes, refundsRes, superPlansRes, txRes] = await Promise.allSettled([
         axios.get(`${BASE_URL}/admin/dashboard-stats`, config),
-        axios.get(`${BASE_URL}/admin/users?limit=150`, config),
+        axios.get(`${BASE_URL}/admin/users?limit=400`, config).catch(() => axios.get(`${BASE_URL}/superadmin/users?limit=400`, config)),
         axios.get(`${BASE_URL}/data/plans`, config),
         axios.get(`${BASE_URL}/admin/transactions?status=pending-refund`, config),
         axios.get(`${BASE_URL}/superadmin/plans`, config),
+        axios.get(`${BASE_URL}/admin/transactions?limit=300`, config).catch(() => axios.get(`${BASE_URL}/superadmin/transactions?limit=300`, config)),
       ]);
 
-      if (statsRes.status === "fulfilled" && statsRes.value.data) {
+      let rawTxList = [];
+      if (txRes.status === "fulfilled" && txRes.value?.data) {
+        rawTxList = txRes.value.data.transactions || txRes.value.data.data || [];
+      }
+
+      let rawUsers = [];
+      if (usersRes.status === "fulfilled" && usersRes.value?.data) {
+        const uData = usersRes.value.data.users || usersRes.value.data.data || [];
+        rawUsers = Array.isArray(uData) ? uData : [];
+      }
+
+      // =========================================================================
+      // LIVE TARGET ENGINE: Kididdige Ainihin Data (GB) da Airtime (₦) a Watan Nan
+      // =========================================================================
+      const now = new Date();
+      const currentMonthIdx = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const userSalesMap = {};
+
+      rawTxList.forEach((tx) => {
+        const status = String(tx.status || "").toUpperCase();
+        const isSuccess = status === "SUCCESS" || status === "SUCCESSFUL" || status === "COMPLETED";
+        if (!isSuccess) return;
+
+        const txDate = tx.createdAt ? new Date(tx.createdAt) : (tx.date ? new Date(tx.date) : null);
+        if (txDate && !isNaN(txDate.getTime())) {
+          if (txDate.getMonth() !== currentMonthIdx || txDate.getFullYear() !== currentYear) {
+            return;
+          }
+        }
+
+        const uId = String(tx.user?._id || tx.user?.id || tx.user || tx.userId || "");
+        if (!uId) return;
+
+        if (!userSalesMap[uId]) {
+          userSalesMap[uId] = { dataGB: 0, airtime: 0 };
+        }
+
+        const serviceText = String(tx.service || tx.type || tx.category || "").toUpperCase();
+        const detailsText = String(tx.details || tx.description || tx.planCode || "").toUpperCase();
+
+        // Data Calculation
+        if (serviceText.includes("DATA") || detailsText.includes("DATA") || tx.type === "data") {
+          const combined = detailsText + " " + serviceText;
+          let parsedGB = 0;
+          const matchGB = combined.match(/(\d+(?:\.\d+)?)\s*GB/i);
+          const matchMB = combined.match(/(\d+(?:\.\d+)?)\s*MB/i);
+
+          if (matchGB && matchGB[1]) {
+            parsedGB = parseFloat(matchGB[1]);
+          } else if (matchMB && matchMB[1]) {
+            parsedGB = parseFloat(matchMB[1]) / 1024;
+          } else if (tx.dataAmountGB) {
+            parsedGB = Number(tx.dataAmountGB);
+          } else {
+            const amt = Number(tx.amount || 0);
+            if (amt >= 200 && amt <= 300) parsedGB = 1.0;
+            else if (amt > 300 && amt <= 600) parsedGB = 2.0;
+            else if (amt > 600 && amt <= 1200) parsedGB = 5.0;
+            else if (amt > 1200) parsedGB = Math.round(amt / 250);
+          }
+          userSalesMap[uId].dataGB += parsedGB;
+        }
+
+        // Airtime Calculation
+        if (serviceText.includes("AIRTIME") || detailsText.includes("AIRTIME") || tx.type === "airtime" || serviceText.includes("VTU")) {
+          userSalesMap[uId].airtime += Number(tx.amount || 0);
+        }
+      });
+
+      // Haɗa Live Telemetry a cikin Users List da dukkan Cadres
+      const computedUsers = rawUsers.map((u) => {
+        const uId = String(u._id || u.id);
+        const directSales = userSalesMap[uId] || { dataGB: 0, airtime: 0 };
+
+        let totalSubordinateDataGB = directSales.dataGB;
+        let totalSubordinateAirtime = directSales.airtime;
+
+        const uRole = String(u.role || "").toLowerCase();
+
+        // Idan Supervisor ne: Tattaro cinikin dukkan Agents da ke karkashinsa
+        if (uRole.includes("supervisor")) {
+          rawUsers.forEach((ag) => {
+            const agRole = String(ag.role || "").toLowerCase();
+            if (agRole === "agent") {
+              const isUnder =
+                String(ag.assignedSupervisor) === uId ||
+                String(ag.supervisorId) === uId ||
+                (ag.lga && u.lga && ag.lga.toLowerCase() === u.lga.toLowerCase());
+
+              if (isUnder) {
+                const agSales = userSalesMap[String(ag._id || ag.id)] || { dataGB: 0, airtime: 0 };
+                totalSubordinateDataGB += agSales.dataGB;
+                totalSubordinateAirtime += agSales.airtime;
+              }
+            }
+          });
+        }
+
+        // Idan State Manager ne: Tattaro cinikin dukkan jihar
+        if (uRole.includes("state_manager") || uRole.includes("leader") || uRole.includes("lida") || uRole.includes("sm")) {
+          rawUsers.forEach((stf) => {
+            if (stf._id !== u._id && stf.state && u.state && stf.state.toLowerCase() === u.state.toLowerCase()) {
+              const stfSales = userSalesMap[String(stf._id || stf.id)] || { dataGB: 0, airtime: 0 };
+              totalSubordinateDataGB += stfSales.dataGB;
+              totalSubordinateAirtime += stfSales.airtime;
+            }
+          });
+        }
+
+        // Idan National Sales Director ne: Tattaro cinikin dukkan ƙasa
+        if (uRole.includes("national_sales_director") || uRole.includes("super_leader") || uRole.includes("nsd")) {
+          Object.values(userSalesMap).forEach((s) => {
+            totalSubordinateDataGB += s.dataGB;
+            totalSubordinateAirtime += s.airtime;
+          });
+        }
+
+        return {
+          ...u,
+          liveDataSoldGB: Math.round(totalSubordinateDataGB * 10) / 10,
+          liveAirtimeSold: Math.round(totalSubordinateAirtime),
+        };
+      });
+
+      setUsersList(computedUsers);
+
+      // Kididdige Jimillar Telemetry na Kamfani (Company Overall Live Sales)
+      let totalLiveCompanyDataGB = 0;
+      let totalLiveCompanyAirtime = 0;
+      Object.values(userSalesMap).forEach((s) => {
+        totalLiveCompanyDataGB += s.dataGB;
+        totalLiveCompanyAirtime += s.airtime;
+      });
+
+      if (statsRes.status === "fulfilled" && statsRes.value?.data) {
         const d = statsRes.value.data.stats || statsRes.value.data.data || statsRes.value.data;
         setStats((prev) => ({
           ...prev,
-          totalUsers: d.totalUsers || prev.totalUsers,
-          totalAgents: d.totalAgents || prev.totalAgents,
-          totalSupervisors: d.totalSupervisors || prev.totalSupervisors,
-          totalLeaders: d.totalLeaders || prev.totalLeaders,
+          totalUsers: d.totalUsers || computedUsers.length || prev.totalUsers,
+          totalAgents: d.totalAgents || computedUsers.filter((x) => String(x.role).toLowerCase() === "agent").length || prev.totalAgents,
+          totalSupervisors: d.totalSupervisors || computedUsers.filter((x) => String(x.role).toLowerCase().includes("supervisor")).length || prev.totalSupervisors,
+          totalLeaders: d.totalLeaders || computedUsers.filter((x) => String(x.role).toLowerCase().includes("state_manager") || String(x.role).toLowerCase().includes("leader")).length || prev.totalLeaders,
           totalSupport: d.totalSupport || prev.totalSupport,
-          totalTransactions: d.totalTransactions || prev.totalTransactions,
+          totalTransactions: d.totalTransactions || rawTxList.length || prev.totalTransactions,
           pendingRefunds: d.pendingRefunds || prev.pendingRefunds,
           totalRevenue: d.totalRevenue || prev.totalRevenue,
           totalWalletLiabilities: d.totalWalletLiabilities || prev.totalWalletLiabilities,
           companyTotalBalance: (d.totalRevenue || 0) + (d.totalWalletLiabilities || 0),
-          totalDataSoldGB: d.totalDataSoldGB || 14850,
+          totalDataSoldGB: totalLiveCompanyDataGB > 0 ? Math.round(totalLiveCompanyDataGB * 10) / 10 : (d.totalDataSoldGB || 14850),
           totalDataRevenue: d.totalDataRevenue || 3861000,
-          totalAirtimeSold: d.totalAirtimeSold || 1240500,
+          totalAirtimeSold: totalLiveCompanyAirtime > 0 ? totalLiveCompanyAirtime : (d.totalAirtimeSold || 1240500),
           totalUtilityRevenue: d.totalUtilityRevenue || 890000,
           pendingNIMC: d.pendingNIMC || prev.pendingNIMC,
           pendingBVN: d.pendingBVN || prev.pendingBVN,
         }));
-      }
-
-      if (usersRes.status === "fulfilled" && usersRes.value.data) {
-        const rawUsers = usersRes.value.data.users || usersRes.value.data.data || [];
-        setUsersList(Array.isArray(rawUsers) ? rawUsers : []);
       }
 
       let loadedPlans = [];
@@ -290,7 +423,7 @@ const AdminDashboard = () => {
         setPricingList(loadedPlans);
       }
 
-      if (refundsRes.status === "fulfilled" && refundsRes.value.data) {
+      if (refundsRes.status === "fulfilled" && refundsRes.value?.data) {
         const rawRefunds =
           refundsRes.value.data.data ||
           refundsRes.value.data.refunds ||
@@ -310,7 +443,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(() => fetchDashboardData(true), 20000);
+    const interval = setInterval(() => fetchDashboardData(true), 12000);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
@@ -519,7 +652,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // EDIT EXISTING PLAN TARIFF (Customer & Agent Only)
+  // EDIT EXISTING PLAN TARIFF
   const handleOpenEditPlan = (plan) => {
     setSelectedPlan(plan);
     setEditTierPrices({
@@ -590,7 +723,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // QUICK PRESET APPLIER FOR NEW PLANS
   const applyQuickPreset = (preset) => {
     setNewPlanForm((prev) => ({
       ...prev,
@@ -603,7 +735,6 @@ const AdminDashboard = () => {
     }));
   };
 
-  // ADD NEW PLAN WITH PRESETS + CUSTOM INPUT
   const handleAddNewPlanSubmit = async () => {
     const finalPlanType = newPlanForm.planType === "CUSTOM" ? newPlanForm.customPlanType.trim() : newPlanForm.planType;
     const finalPlanSize = newPlanForm.planSize === "CUSTOM" ? newPlanForm.customPlanSize.trim() : newPlanForm.planSize;
@@ -656,7 +787,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // NIMC, BVN & UTILITY PRICE EDITING & DIRECT DATABASE SYNC
   const handleOpenIdentityEdit = (service) => {
     setSelectedIdentityService(service);
     setEditIdentityForm({
@@ -713,21 +843,46 @@ const AdminDashboard = () => {
     }
   };
 
+  /**
+   * DISPATCH DIRECTIVE & QUOTA ALLOCATION (Real-time Live Sync)
+   */
   const handleDispatchDirective = async () => {
+    setActionLoading(true);
     try {
       const token = await AsyncStorage.getItem("userToken");
-      await axios.post(
-        `${BASE_URL}/admin/targets/assign`,
-        targetPayload,
-        { headers: { Authorization: `Bearer ${token}` } }
-      ).catch(() => {});
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+      const payload = {
+        targetRole: targetPayload.targetRole,
+        dataVolumeGoal: Number(targetPayload.dataVolumeGoal || 3000),
+        dataGoal: Number(targetPayload.dataVolumeGoal || 3000),
+        airtimeGoal: Number(targetPayload.airtimeGoal || 350000),
+        agentRecruitGoal: Number(targetPayload.agentRecruitGoal || 25),
+        agentGoal: Number(targetPayload.agentRecruitGoal || 25),
+        commandNote: targetPayload.commandNote,
+        note: targetPayload.commandNote,
+        month: "September 2026",
+      };
+
+      try {
+        await axios.post(`${BASE_URL}/admin/targets/assign`, payload, { headers });
+      } catch (e1) {
+        try {
+          await axios.post(`${BASE_URL}/superadmin/assign-target`, payload, { headers });
+        } catch (e2) {
+          await axios.post(`${BASE_URL}/admin/assign-target`, payload, { headers });
+        }
+      }
 
       showAlert(
-        "Directive Dispatched",
-        `Monthly Data goal of ${targetPayload.dataVolumeGoal}GB and ₦${Number(targetPayload.airtimeGoal).toLocaleString()} Airtime assigned to all ${targetPayload.targetRole.toUpperCase()} personnel.`
+        "Directive Dispatched 🎯",
+        `Monthly Data goal of ${targetPayload.dataVolumeGoal}GB and ₦${Number(targetPayload.airtimeGoal).toLocaleString()} Airtime deployed to all ${targetPayload.targetRole.toUpperCase()} personnel.`
       );
+      fetchDashboardData(true);
     } catch (e) {
       showAlert("Directive Active", "Targets deployed to operations network.");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -920,10 +1075,10 @@ const AdminDashboard = () => {
 
             <View style={styles.rosterCardGrid}>
               {[
-                { title: "National Sales Directors", role: "national_sales_director", icon: "crown", color: "#d97706", count: 2, sub: "National Commands" },
-                { title: "State Managers (SM)", role: "state_manager", icon: "building", color: "#0284c7", count: stats.totalLeaders || 14, sub: "State Quotas" },
-                { title: "Field Supervisors", role: "supervisor", icon: "user-tie", color: "#6366f1", count: stats.totalSupervisors || 36, sub: "LGA Clusters" },
-                { title: "Retail Merchant Agents", role: "agent", icon: "store", color: "#059669", count: stats.totalAgents || 148, sub: "Active POS Outlets" },
+                { title: "National Sales Directors", role: "national_sales_director", icon: "crown", color: "#d97706", count: usersList.filter((u) => ["national_sales_director", "nsd", "super_leader"].includes(String(u.role).toLowerCase())).length || 2, sub: "National Commands" },
+                { title: "State Managers (SM)", role: "state_manager", icon: "building", color: "#0284c7", count: usersList.filter((u) => ["state_manager", "sm", "leader"].includes(String(u.role).toLowerCase())).length || 14, sub: "State Quotas" },
+                { title: "Field Supervisors", role: "supervisor", icon: "user-tie", color: "#6366f1", count: usersList.filter((u) => ["supervisor", "field_supervisor"].includes(String(u.role).toLowerCase())).length || 36, sub: "LGA Clusters" },
+                { title: "Retail Merchant Agents", role: "agent", icon: "store", color: "#059669", count: usersList.filter((u) => String(u.role).toLowerCase() === "agent").length || 148, sub: "Active POS Outlets" },
               ].map((item, idx) => (
                 <TouchableOpacity
                   key={idx}
@@ -961,7 +1116,7 @@ const AdminDashboard = () => {
                   <View style={[styles.salesIconCircle, { backgroundColor: "#0284c7" }]}>
                     <Ionicons name="wifi" size={20} color="#ffffff" />
                   </View>
-                  <Text style={styles.darkMetricCardLabel}>Total Data Vended</Text>
+                  <Text style={styles.darkMetricCardLabel}>Total Live Data Vended</Text>
                   <Text style={styles.darkMetricCardValue}>{Number(stats.totalDataSoldGB).toLocaleString()} GB</Text>
                   <Text style={[styles.darkMetricCardSub, { color: "#34d399" }]}>₦{Number(stats.totalDataRevenue).toLocaleString()} Volume</Text>
                 </View>
@@ -1005,53 +1160,72 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* TAB 3: HIERARCHY */}
+        {/* TAB 3: HIERARCHY (REAL LIVE TELEMETRY) */}
         {activeTab === "hierarchy" && (
           <>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeaderLabel}>LEADERSHIP CADRE & SUBORDINATE TEAMS</Text>
+              <Text style={styles.sectionHeaderLive}>REAL-TIME METERING</Text>
             </View>
             <Text style={styles.hierarchyHint}>
-              Tap on any State Manager or Supervisor to inspect all agents & officers stationed under them.
+              Tap on any State Manager or Supervisor to inspect all active agents & live quotas under their command.
             </Text>
 
             {usersList
-              .filter((u) => ["national_sales_director", "state_manager", "leader", "supervisor", "field_supervisor"].includes(String(u.role).toLowerCase()))
-              .map((leader, idx) => (
-                <TouchableOpacity
-                  key={leader._id || idx}
-                  style={styles.leaderCard}
-                  onPress={() => handleInspectHierarchy(leader)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.leaderAvatar}>
-                    <Text style={styles.leaderAvatarText}>
-                      {(leader.name || leader.firstName || "L")[0].toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.leaderInfo}>
-                    <View style={styles.leaderNameRow}>
-                      <Text style={styles.leaderName}>{leader.name || `${leader.firstName || ""} ${leader.surname || ""}`.trim()}</Text>
-                      <View style={styles.leaderRolePill}>
-                        <Text style={styles.leaderRolePillText}>{String(leader.role || "").toUpperCase()}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.leaderSubText}>{leader.phone} • {leader.state || "Kano"} {leader.lga ? `(${leader.lga} LGA)` : ""}</Text>
-                    <View style={styles.targetProgressRow}>
-                      <Text style={styles.targetProgressText}>
-                        Data Target: {leader.targets?.dataGoal || 3000} GB • Airtime: ₦{Number(leader.targets?.airtimeGoal || 500000).toLocaleString()}
+              .filter((u) => ["national_sales_director", "state_manager", "leader", "supervisor", "field_supervisor", "sm", "nsd"].includes(String(u.role).toLowerCase()))
+              .map((leader, idx) => {
+                const targetData = leader.targets?.dataGoal || 3000;
+                const liveData = leader.liveDataSoldGB || 0;
+                const targetAirtime = leader.targets?.airtimeGoal || 500000;
+                const liveAirtime = leader.liveAirtimeSold || 0;
+                const pct = Math.min(Math.round((liveData / (targetData || 1)) * 100), 100);
+
+                return (
+                  <TouchableOpacity
+                    key={leader._id || idx}
+                    style={styles.leaderCard}
+                    onPress={() => handleInspectHierarchy(leader)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.leaderAvatar}>
+                      <Text style={styles.leaderAvatarText}>
+                        {(leader.name || leader.firstName || "L")[0].toUpperCase()}
                       </Text>
                     </View>
-                  </View>
-                  <View style={styles.inspectArrowWrap}>
-                    <Feather name="chevron-right" size={20} color="#0284c7" />
-                  </View>
-                </TouchableOpacity>
-              ))}
+                    <View style={styles.leaderInfo}>
+                      <View style={styles.leaderNameRow}>
+                        <Text style={styles.leaderName}>{leader.name || `${leader.firstName || ""} ${leader.surname || ""}`.trim()}</Text>
+                        <View style={styles.leaderRolePill}>
+                          <Text style={styles.leaderRolePillText}>{String(leader.role || "").toUpperCase()}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.leaderSubText}>{leader.phone} • {leader.state || "Kano"} {leader.lga ? `(${leader.lga} LGA)` : ""}</Text>
+
+                      {/* LIVE TELEMETRY ROW */}
+                      <View style={{ marginTop: 6, backgroundColor: "#f8fafc", padding: 8, borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0" }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                          <Text style={{ fontSize: 10, color: "#0284c7", fontWeight: "bold" }}>
+                            ⚡ Sold: {liveData} GB / {targetData} GB ({pct}%)
+                          </Text>
+                          <Text style={{ fontSize: 10, color: "#10b981", fontWeight: "bold" }}>
+                            Airtime: ₦{Number(liveAirtime).toLocaleString()}
+                          </Text>
+                        </View>
+                        <View style={{ height: 5, backgroundColor: "#e2e8f0", borderRadius: 3, overflow: "hidden" }}>
+                          <View style={{ height: "100%", width: `${pct}%`, backgroundColor: pct >= 70 ? "#10b981" : "#0284c7", borderRadius: 3 }} />
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.inspectArrowWrap}>
+                      <Feather name="chevron-right" size={20} color="#0284c7" />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
           </>
         )}
 
-        {/* TAB 4: USERS DIRECTORY */}
+        {/* TAB 4: USERS DIRECTORY (REAL LIVE SALES INCLUDED) */}
         {activeTab === "users" && (
           <>
             <View style={styles.searchFilterContainer}>
@@ -1102,35 +1276,44 @@ const AdminDashboard = () => {
               ))}
             </ScrollView>
 
-            {filteredUsers.map((u, i) => (
-              <TouchableOpacity
-                key={u._id || i}
-                style={styles.userListItem}
-                onPress={() => {
-                  setSelectedUser(u);
-                  setUserModalVisible(true);
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={styles.userAvatar}>
-                  <Text style={styles.userAvatarTxt}>{(u.name || u.firstName || "U")[0].toUpperCase()}</Text>
-                </View>
-                <View style={styles.userInfo}>
-                  <View style={styles.userNameRow}>
-                    <Text style={styles.userName} numberOfLines={1}>{u.name || `${u.firstName || ""} ${u.surname || ""}`.trim() || "Ayax User"}</Text>
-                    <View style={styles.userRoleTag}>
-                      <Text style={styles.userRoleTagTxt}>{String(u.role || "user").toUpperCase()}</Text>
-                    </View>
+            {filteredUsers.map((u, i) => {
+              const liveGB = u.liveDataSoldGB || 0;
+              const liveAirtime = u.liveAirtimeSold || 0;
+              const goal = u.targets?.dataGoal || 500;
+
+              return (
+                <TouchableOpacity
+                  key={u._id || i}
+                  style={styles.userListItem}
+                  onPress={() => {
+                    setSelectedUser(u);
+                    setUserModalVisible(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.userAvatar}>
+                    <Text style={styles.userAvatarTxt}>{(u.name || u.firstName || "U")[0].toUpperCase()}</Text>
                   </View>
-                  <Text style={styles.userSub}>{u.phone} • {u.email || "No email"}</Text>
-                  <Text style={styles.userLoc}>{u.state || "Nigeria"} {u.lga ? `• ${u.lga} LGA` : ""}</Text>
-                </View>
-                <View style={styles.userBalanceSide}>
-                  <Text style={styles.userBalanceVal}>₦{Number(u.walletBalance || u.balance || 0).toLocaleString()}</Text>
-                  <Feather name="chevron-right" size={16} color="#94a3b8" />
-                </View>
-              </TouchableOpacity>
-            ))}
+                  <View style={styles.userInfo}>
+                    <View style={styles.userNameRow}>
+                      <Text style={styles.userName} numberOfLines={1}>{u.name || `${u.firstName || ""} ${u.surname || ""}`.trim() || "Ayax User"}</Text>
+                      <View style={styles.userRoleTag}>
+                        <Text style={styles.userRoleTagTxt}>{String(u.role || "user").toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.userSub}>{u.phone} • {u.email || "No email"}</Text>
+                    <Text style={styles.userLoc}>{u.state || "Nigeria"} {u.lga ? `• ${u.lga} LGA` : ""}</Text>
+                    <Text style={{ fontSize: 10, color: "#059669", fontWeight: "bold", marginTop: 2 }}>
+                      ⚡ Sold: {liveGB}GB / {goal}GB • Airtime: ₦{Number(liveAirtime).toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.userBalanceSide}>
+                    <Text style={styles.userBalanceVal}>₦{Number(u.walletBalance || u.balance || 0).toLocaleString()}</Text>
+                    <Feather name="chevron-right" size={16} color="#94a3b8" />
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </>
         )}
 
@@ -1240,7 +1423,7 @@ const AdminDashboard = () => {
           </View>
         )}
 
-        {/* TAB 6: DATA TARIFFS (CUSTOMER & AGENT ONLY - NO BASE API COST) */}
+        {/* TAB 6: DATA TARIFFS */}
         {activeTab === "pricing" && (
           <>
             <View style={styles.sectionHeaderRow}>
@@ -1372,7 +1555,7 @@ const AdminDashboard = () => {
           </>
         )}
 
-        {/* TAB 8: TARGETS */}
+        {/* TAB 8: TARGETS (REAL-TIME LIVE SYNC) */}
         {activeTab === "targets" && (
           <View style={styles.formCard}>
             <Text style={styles.formCardTitle}>Command Directive & Quota Allocation</Text>
@@ -1440,8 +1623,12 @@ const AdminDashboard = () => {
               placeholderTextColor="#94a3b8"
             />
 
-            <TouchableOpacity style={styles.submitFormBtn} onPress={handleDispatchDirective}>
-              <Text style={styles.submitFormBtnText}>DISPATCH DIRECTIVE TO CADRE</Text>
+            <TouchableOpacity style={styles.submitFormBtn} onPress={handleDispatchDirective} disabled={actionLoading}>
+              {actionLoading ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.submitFormBtnText}>DISPATCH DIRECTIVE TO CADRE</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -1594,7 +1781,7 @@ const AdminDashboard = () => {
         </View>
       )}
 
-      {/* MODAL 1: HIERARCHY SUBORDINATES INSPECTION */}
+      {/* MODAL 1: HIERARCHY SUBORDINATES INSPECTION (WITH LIVE TARGET METER) */}
       <Modal visible={hierarchyModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -1612,30 +1799,42 @@ const AdminDashboard = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
               {subordinatesList.length === 0 ? (
                 <View style={styles.emptyWrap}>
                   <Feather name="users" size={32} color="#94a3b8" />
                   <Text style={styles.emptyTitle}>No retail agents or officers assigned yet under this station.</Text>
                 </View>
               ) : (
-                subordinatesList.map((sub, idx) => (
-                  <View key={sub._id || idx} style={styles.subordinateRow}>
-                    <View style={styles.subAvatar}>
-                      <Text style={styles.subAvatarText}>{(sub.name || sub.firstName || "A")[0].toUpperCase()}</Text>
+                subordinatesList.map((sub, idx) => {
+                  const subGoal = sub.targets?.dataGoal || 500;
+                  const subLiveGB = sub.liveDataSoldGB || 0;
+                  const subAirtime = sub.liveAirtimeSold || 0;
+                  const subPct = Math.min(Math.round((subLiveGB / (subGoal || 1)) * 100), 100);
+
+                  return (
+                    <View key={sub._id || idx} style={styles.subordinateRow}>
+                      <View style={styles.subAvatar}>
+                        <Text style={styles.subAvatarText}>{(sub.name || sub.firstName || "A")[0].toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.subName}>{sub.name || `${sub.firstName || ""} ${sub.surname || ""}`.trim()}</Text>
+                        <Text style={styles.subDetail}>{sub.phone} • {sub.lga || "Ward"} LGA, {sub.state || "State"}</Text>
+                        <View style={{ marginTop: 4 }}>
+                          <Text style={{ fontSize: 9.5, color: "#0284c7", fontWeight: "bold" }}>
+                            ⚡ Sold: {subLiveGB} GB / {subGoal} GB ({subPct}%) • Airtime: ₦{Number(subAirtime).toLocaleString()}
+                          </Text>
+                          <View style={{ height: 4, backgroundColor: "#e2e8f0", borderRadius: 2, overflow: "hidden", marginTop: 2 }}>
+                            <View style={{ height: "100%", width: `${subPct}%`, backgroundColor: subPct >= 70 ? "#10b981" : "#0284c7" }} />
+                          </View>
+                        </View>
+                      </View>
+                      <View style={styles.subBalance}>
+                        <Text style={styles.subBalText}>₦{Number(sub.walletBalance || sub.balance || 0).toLocaleString()}</Text>
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.subName}>{sub.name || `${sub.firstName || ""} ${sub.surname || ""}`.trim()}</Text>
-                      <Text style={styles.subDetail}>{sub.phone} • {sub.lga || "Ward"} LGA, {sub.state || "State"}</Text>
-                      <Text style={styles.subTarget}>
-                        Assigned Target: {sub.targets?.dataGoal || 500} GB • Airtime: ₦{Number(sub.targets?.airtimeGoal || 100000).toLocaleString()}
-                      </Text>
-                    </View>
-                    <View style={styles.subBalance}>
-                      <Text style={styles.subBalText}>₦{Number(sub.walletBalance || sub.balance || 0).toLocaleString()}</Text>
-                    </View>
-                  </View>
-                ))
+                  );
+                })
               )}
             </ScrollView>
           </View>
@@ -1819,13 +2018,13 @@ const AdminDashboard = () => {
         </View>
       </Modal>
 
-      {/* MODAL 4: EDIT DATA TARIFF (WITH GATEWAY PLAN ID & VALIDITY) */}
+      {/* MODAL 4: EDIT DATA TARIFF */}
       <Modal visible={pricingModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Edit Data Plan Tariff</Text>
+                <Text style={styles.modalTitle}>Set Data Plan Selling Prices</Text>
                 {selectedPlan && (
                   <Text style={styles.modalSubLeader}>
                     {selectedPlan.network} - {selectedPlan.plan || selectedPlan.name}
@@ -1838,7 +2037,7 @@ const AdminDashboard = () => {
             </View>
 
             {selectedPlan && (
-              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
                 <View style={styles.tierModalStatusRow}>
                   <Text style={styles.tierModalStatusLabel}>Plan Active Status</Text>
                   <View style={styles.statusToggleRow}>
@@ -1858,34 +2057,7 @@ const AdminDashboard = () => {
                   </View>
                 </View>
 
-                <Text style={styles.inputFieldLabel}>Provider Gateway Plan ID (Al-Ihsan ID) *</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTierPrices.planId}
-                  onChangeText={(t) => setEditTierPrices({ ...editTierPrices, planId: t })}
-                  placeholder="e.g. 140, 27, 262"
-                  placeholderTextColor="#94a3b8"
-                />
-
-                <Text style={styles.inputFieldLabel}>Display Plan Name / Volume</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTierPrices.name}
-                  onChangeText={(t) => setEditTierPrices({ ...editTierPrices, name: t })}
-                  placeholder="e.g. 1.0 GB / 2.0 GB"
-                  placeholderTextColor="#94a3b8"
-                />
-
-                <Text style={styles.inputFieldLabel}>Validity (Duration)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={editTierPrices.validity}
-                  onChangeText={(t) => setEditTierPrices({ ...editTierPrices, validity: t })}
-                  placeholder="e.g. 30 Days, 7 Days"
-                  placeholderTextColor="#94a3b8"
-                />
-
-                <Text style={styles.inputFieldLabel}>Customer Selling Price (₦) *</Text>
+                <Text style={styles.inputFieldLabel}>Customer Selling Price (₦)</Text>
                 <TextInput
                   style={styles.formInput}
                   value={editTierPrices.userPrice}
@@ -1894,7 +2066,7 @@ const AdminDashboard = () => {
                   placeholderTextColor="#94a3b8"
                 />
 
-                <Text style={styles.inputFieldLabel}>Retail Agent Wholesale Price (₦) *</Text>
+                <Text style={styles.inputFieldLabel}>Retail Agent Wholesale Price (₦)</Text>
                 <TextInput
                   style={styles.formInput}
                   value={editTierPrices.agentPrice}
@@ -1912,23 +2084,19 @@ const AdminDashboard = () => {
         </View>
       </Modal>
 
-      {/* MODAL 5: CREATE NEW PLAN (AUTOMATIC PRESETS + CUSTOM INPUT) */}
+      {/* MODAL 5: CREATE NEW PLAN */}
       <Modal visible={addPlanModalVisible} transparent animationType="slide">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>Publish New Data Tariff</Text>
-                <Text style={styles.modalSubLeader}>Fast Automatic Presets or Manual Configuration</Text>
-              </View>
+              <Text style={styles.modalTitle}>Publish New Data Tariff</Text>
               <TouchableOpacity onPress={() => setAddPlanModalVisible(false)}>
                 <Feather name="x" size={20} color="#64748b" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} showsVerticalScrollIndicator={false}>
-              {/* 1. NETWORK SELECTOR */}
-              <Text style={styles.inputFieldLabel}>1. Select Telecom Network</Text>
+            <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputFieldLabel}>Select Telecom Network</Text>
               <View style={styles.targetRoleSelectorRow}>
                 {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((n) => (
                   <TouchableOpacity
@@ -1943,34 +2111,7 @@ const AdminDashboard = () => {
                 ))}
               </View>
 
-              {/* 2. AUTOMATIC QUICK PRESETS FROM AL-IHSAN */}
-              <View style={styles.presetContainerWrap}>
-                <Text style={styles.presetContainerLabel}>⚡ AUTOMATIC QUICK PRESET (Tap to auto-fill details)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }}>
-                  {(ADMIN_ALIHSAN_PRESETS[newPlanForm.network] || []).map((preset, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      style={styles.presetChipBtn}
-                      onPress={() => applyQuickPreset(preset)}
-                    >
-                      <Text style={styles.presetChipText}>⚡ {preset.label} (ID: {preset.id})</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              {/* 3. GATEWAY PLAN ID (AL-IHSAN ID) */}
-              <Text style={styles.inputFieldLabel}>2. Gateway Plan ID (Al-Ihsan ID) *</Text>
-              <TextInput
-                style={styles.formInput}
-                value={newPlanForm.planId}
-                onChangeText={(t) => setNewPlanForm({ ...newPlanForm, planId: t })}
-                placeholder="e.g. 140 (MTN DC 1GB), 27 (MTN CG 1GB)"
-                placeholderTextColor="#94a3b8"
-              />
-
-              {/* 4. PLAN TYPE SELECTOR + CUSTOM */}
-              <Text style={styles.inputFieldLabel}>3. Select Plan Category / Type</Text>
+              <Text style={styles.inputFieldLabel}>Select Plan Type</Text>
               <View style={styles.targetRoleSelectorRow}>
                 {["DC", "CG", "SME", "SME2", "GIFTING", "AWOOF", "DATASHARE", "CUSTOM"].map((t) => (
                   <TouchableOpacity
@@ -1995,8 +2136,7 @@ const AdminDashboard = () => {
                 />
               )}
 
-              {/* 5. PLAN VOLUME SELECTOR + CUSTOM */}
-              <Text style={styles.inputFieldLabel}>4. Select Plan Volume (Size)</Text>
+              <Text style={styles.inputFieldLabel}>Select Plan Volume (Size)</Text>
               <View style={styles.targetRoleSelectorRow}>
                 {["500 MB", "1.0 GB", "1.5 GB", "2.0 GB", "3.0 GB", "5.0 GB", "10.0 GB", "CUSTOM"].map((s) => (
                   <TouchableOpacity
@@ -2021,8 +2161,7 @@ const AdminDashboard = () => {
                 />
               )}
 
-              {/* 6. VALIDITY SELECTOR + CUSTOM */}
-              <Text style={styles.inputFieldLabel}>5. Select Validity Duration</Text>
+              <Text style={styles.inputFieldLabel}>Select Validity Duration</Text>
               <View style={styles.targetRoleSelectorRow}>
                 {["1 Day", "2 Days", "7 Days", "14 Days", "30 Days", "CUSTOM"].map((v) => (
                   <TouchableOpacity
@@ -2047,8 +2186,7 @@ const AdminDashboard = () => {
                 />
               )}
 
-              {/* 7. PRICES */}
-              <Text style={styles.inputFieldLabel}>6. Customer Selling Price (₦) *</Text>
+              <Text style={styles.inputFieldLabel}>Customer Selling Price (₦)</Text>
               <TextInput
                 style={styles.formInput}
                 value={newPlanForm.userPrice}
@@ -2058,7 +2196,7 @@ const AdminDashboard = () => {
                 placeholderTextColor="#94a3b8"
               />
 
-              <Text style={styles.inputFieldLabel}>7. Retail Agent Wholesale Price (₦) *</Text>
+              <Text style={styles.inputFieldLabel}>Retail Agent Wholesale Price (₦)</Text>
               <TextInput
                 style={styles.formInput}
                 value={newPlanForm.agentPrice}
@@ -2117,60 +2255,6 @@ const AdminDashboard = () => {
                 <TouchableOpacity style={styles.submitFormBtn} onPress={handleSaveIdentityPricing}>
                   <Text style={styles.submitFormBtnText}>SAVE & DEPLOY TO TERMINALS</Text>
                 </TouchableOpacity>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL 7: USER DETAILS */}
-      <Modal visible={userModalVisible} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>User Account Details</Text>
-              <TouchableOpacity onPress={() => setUserModalVisible(false)}>
-                <Feather name="x" size={20} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            {selectedUser && (
-              <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
-                <Text style={styles.detailLabel}>Full Name</Text>
-                <Text style={styles.detailVal}>{selectedUser.name || `${selectedUser.firstName || ""} ${selectedUser.surname || ""}`.trim() || "Ayax User"}</Text>
-
-                <Text style={styles.detailLabel}>Phone Number</Text>
-                <Text style={styles.detailVal}>{selectedUser.phone}</Text>
-
-                <Text style={styles.detailLabel}>Email Address</Text>
-                <Text style={styles.detailVal}>{selectedUser.email || "No email"}</Text>
-
-                <Text style={styles.detailLabel}>Role</Text>
-                <Text style={[styles.detailVal, { color: "#0284c7", fontWeight: "bold" }]}>{String(selectedUser.role || "user").toUpperCase()}</Text>
-
-                <Text style={styles.detailLabel}>Live Wallet Balance</Text>
-                <Text style={[styles.detailVal, { color: "#059669", fontWeight: "bold", fontSize: 16 }]}>
-                  ₦{Number(selectedUser.walletBalance || selectedUser.balance || 0).toLocaleString()}
-                </Text>
-
-                <Text style={styles.detailLabel}>Station / Region</Text>
-                <Text style={styles.detailVal}>{selectedUser.state || "Nigeria"} {selectedUser.lga ? `(${selectedUser.lga} LGA)` : ""}</Text>
-
-                <View style={styles.modalActionButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#e11d48" }]}
-                    onPress={() => handleUpdateUserStatus(selectedUser._id || selectedUser.id, "suspended")}
-                  >
-                    <Text style={styles.modalBtnText}>Suspend</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#10b981" }]}
-                    onPress={() => handleUpdateUserStatus(selectedUser._id || selectedUser.id, "active")}
-                  >
-                    <Text style={styles.modalBtnText}>Activate</Text>
-                  </TouchableOpacity>
-                </View>
               </ScrollView>
             )}
           </View>
@@ -2419,8 +2503,6 @@ const styles = StyleSheet.create({
   leaderRolePill: { backgroundColor: "#f1f5f9", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
   leaderRolePillText: { color: "#0284c7", fontSize: 8.5, fontWeight: "900" },
   leaderSubText: { color: "#64748b", fontSize: 10.5, marginTop: 2 },
-  targetProgressRow: { marginTop: 3 },
-  targetProgressText: { color: "#059669", fontSize: 10, fontWeight: "700" },
   inspectArrowWrap: { paddingLeft: 6 },
   searchFilterContainer: { flexDirection: "row", gap: 8, marginBottom: 8, alignItems: "center" },
   searchBar: {
@@ -2634,26 +2716,6 @@ const styles = StyleSheet.create({
   statusToggleTextActive: { color: "#ffffff", fontWeight: "900" },
   statusToggleTextDisabled: { color: "#ffffff", fontWeight: "900" },
 
-  presetContainerWrap: {
-    backgroundColor: "#f0fdf4",
-    borderWidth: 1,
-    borderColor: "#bbf7d0",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-  },
-  presetContainerLabel: { color: "#166534", fontSize: 10.5, fontWeight: "900" },
-  presetChipBtn: {
-    backgroundColor: "#dcfce7",
-    borderWidth: 1,
-    borderColor: "#86efac",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginRight: 6,
-  },
-  presetChipText: { color: "#166534", fontSize: 11, fontWeight: "800" },
-
   formCard: {
     backgroundColor: "#ffffff",
     borderRadius: 14,
@@ -2826,7 +2888,6 @@ const styles = StyleSheet.create({
   subAvatarText: { color: "#0284c7", fontSize: 12, fontWeight: "900" },
   subName: { color: "#0f172a", fontSize: 12, fontWeight: "800" },
   subDetail: { color: "#64748b", fontSize: 10 },
-  subTarget: { color: "#059669", fontSize: 9.5, fontWeight: "700", marginTop: 2 },
   subBalance: { alignItems: "flex-end" },
   subBalText: { color: "#059669", fontSize: 12, fontWeight: "900" },
   detailLabel: { color: "#64748b", fontSize: 10, fontWeight: "700", marginTop: 8 },

@@ -109,7 +109,7 @@ const BuyDataScreen = ({ navigation }) => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [userRole, setUserRole] = useState("user");
 
-  // State na buɗe da rufe dropdown ɗin Data Plans
+  // State don bude da rufe zabin bundle
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // PIN Modal
@@ -155,7 +155,7 @@ const BuyDataScreen = ({ navigation }) => {
     return rawNet;
   };
 
-  // 1. Dauko Plans da Tace su Zalla ga Network ɗin da aka zaɓa (Tare da Fallback)
+  // 1. Dauko Plans da Tace su ga Network din da aka zaba
   const fetchLivePlans = useCallback(async (currentNet) => {
     setLoadingPlans(true);
     let plansArray = [];
@@ -188,10 +188,9 @@ const BuyDataScreen = ({ navigation }) => {
         }
       }
     } catch (err) {
-      console.log("Error loading remote plans, using official fallback:", err.message);
+      console.log("Remote plans fetch notice, using fallback database:", err.message);
     }
 
-    // Idan server ba ta kawo plans ba, ɗauko daga official Al-Ihsan Fallback
     if (plansArray.length === 0) {
       plansArray = FALLBACK_ALIHSAN_PLANS;
     }
@@ -212,7 +211,7 @@ const BuyDataScreen = ({ navigation }) => {
     setIsDropdownOpen(false);
   }, [selectedNetwork, fetchLivePlans]);
 
-  // Tace plans dangane da Plan Type (DC, CG, SME, SME2, AWOOF, etc.)
+  // Tace plans dangane da nau'in bundle (DC, CG, SME, da sauransu)
   const filteredPlans = availablePlans.filter((p) => {
     if (selectedPlanType === "ALL") return true;
     const pType = String(p.planType || p.type || "").toUpperCase().trim();
@@ -224,17 +223,17 @@ const BuyDataScreen = ({ navigation }) => {
 
   const handleInitiatePurchase = () => {
     if (!phoneNumber || phoneNumber.trim().length < 11) {
-      return showAlert("Error", "Please enter a valid 11-digit recipient phone number.");
+      return showAlert("Kuskure", "Shigar da lambar waya mai lamba 11 daidai.");
     }
     if (!selectedPlan) {
-      return showAlert("Error", "Please tap on the Select Data Bundle button to choose a plan.");
+      return showAlert("Kuskure", "Da fatan za a zabi bundle din data da kake son saye.");
     }
     setPinModalVisible(true);
   };
 
   const handleExecutePurchase = async () => {
     if (!pin || pin.length < 4) {
-      return showAlert("Error", "Please enter your 4-digit Transaction PIN.");
+      return showAlert("Kuskure", "Da fatan za a shigar da lambar PIN mai lamba 4.");
     }
 
     setPurchasing(true);
@@ -242,13 +241,13 @@ const BuyDataScreen = ({ navigation }) => {
       const token = await AsyncStorage.getItem("userToken");
       if (!token) {
         setPinModalVisible(false);
-        showAlert("Auth Error", "No login token found. Please login again.");
+        showAlert("Matsalar Shiga", "Ba a samu damar shiga ba. Da fatan za a sake shiga.");
         return navigation.reset({ index: 0, routes: [{ name: "Login" }] });
       }
 
       const netName = selectedPlan?.networkName || selectedPlan?.network || selectedNetwork;
       
-      // Ainihin lambar Al-Ihsan ID mai tsabta
+      // Ainihin lambar ID ta Al-Ihsan Datasub mai tsabta
       const cleanPlanCode = String(selectedPlan?.planId || selectedPlan?.planCode || selectedPlan?.code || "").trim();
       
       const finalAmount =
@@ -293,30 +292,44 @@ const BuyDataScreen = ({ navigation }) => {
       if (res.data?.success || res.data?.status === "success") {
         setPinModalVisible(false);
         setPin("");
+
+        // Sabunta bayanan wallet a waya idan server ta dawo da sabon balance
+        if (res.data?.newBalance !== undefined) {
+          const stored = await AsyncStorage.getItem("userData");
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              parsed.walletBalance = res.data.newBalance;
+              parsed.balance = res.data.newBalance;
+              await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+            } catch (e) {}
+          }
+        }
+
         showAlert(
-          "Purchase Successful 🎉",
-          `${selectedPlan?.name || selectedPlan?.planLabel || `Plan ${cleanPlanCode}`} dispatched to ${phoneNumber} successfully!`,
+          "An Sayi Data Cikin Nasara 🎉",
+          `An tura ${selectedPlan?.name || selectedPlan?.planLabel || `Plan ${cleanPlanCode}`} zuwa ga ${phoneNumber} cikin nasara!`,
           () => {
             setPhoneNumber("");
             setSelectedPlan(null);
           }
         );
       } else {
-        throw new Error(res.data?.message || res.data?.desc || res.data?.error || "Transaction Error");
+        throw new Error(res.data?.message || res.data?.desc || res.data?.error || "An samu matsalar saye");
       }
     } catch (err) {
       console.error("BUY DATA ERROR CAUGHT:", err);
 
-      let errorMessage = "Network or Server Error";
+      let errorMessage = "An samu matsalar hanyar sadarwa ko uwar garke.";
       if (err.response) {
-        errorMessage = err.response.data?.message || err.response.data?.desc || err.response.data?.error || `Server returned ${err.response.status}`;
+        errorMessage = err.response.data?.message || err.response.data?.desc || err.response.data?.error || `Server ta mayar da kuskure: ${err.response.status}`;
       } else if (err.request) {
-        errorMessage = "No response from server. Check your internet connection.";
+        errorMessage = "Babu amsa daga uwar garke. Da fatan za a duba intanet dinka.";
       } else {
         errorMessage = err.message;
       }
 
-      showAlert("Transaction Failed", errorMessage);
+      showAlert("Cinikin Bai Yi Nasara Ba", errorMessage);
     } finally {
       setPurchasing(false);
     }
@@ -331,13 +344,13 @@ const BuyDataScreen = ({ navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#f8fafc" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Buy Data Bundles</Text>
+        <Text style={styles.headerTitle}>Sayen Data Bundles</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
         {/* Network Selector */}
-        <Text style={styles.sectionLabel}>SELECT NETWORK</Text>
+        <Text style={styles.sectionLabel}>ZABI HANYAR SADARWA (NETWORK)</Text>
         <View style={styles.networkGrid}>
           {["MTN", "AIRTEL", "GLO", "9MOBILE"].map((net) => (
             <TouchableOpacity
@@ -352,8 +365,8 @@ const BuyDataScreen = ({ navigation }) => {
           ))}
         </View>
 
-        {/* Plan Type Selector (Extended with Al-Ihsan Types) */}
-        <Text style={styles.sectionLabel}>PLAN TYPE</Text>
+        {/* Plan Type Selector */}
+        <Text style={styles.sectionLabel}>NAU'IN BUNDLE (PLAN TYPE)</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
           {["ALL", "DC", "CG", "SME", "SME2", "AWOOF", "GIFTING", "DATASHARE"].map((type) => (
             <TouchableOpacity
@@ -369,10 +382,10 @@ const BuyDataScreen = ({ navigation }) => {
         </ScrollView>
 
         {/* Phone Input */}
-        <Text style={styles.sectionLabel}>RECIPIENT PHONE NUMBER</Text>
+        <Text style={styles.sectionLabel}>LAMBAR WAYAR DA ZA A TURA WA</Text>
         <TextInput
           style={styles.input}
-          placeholder="e.g. 08012345678"
+          placeholder="Misali: 08012345678"
           placeholderTextColor="#64748b"
           keyboardType="numeric"
           maxLength={11}
@@ -380,8 +393,8 @@ const BuyDataScreen = ({ navigation }) => {
           onChangeText={setPhoneNumber}
         />
 
-        {/* MABALLIN SELECT DATA BUNDLE (DROPDOWN TOGGLE) */}
-        <Text style={styles.sectionLabel}>DATA BUNDLE PACKAGE</Text>
+        {/* Maballin Zaɓen Bundle (Dropdown) */}
+        <Text style={styles.sectionLabel}>KUNSHIN DATA (DATA BUNDLE)</Text>
         <TouchableOpacity
           style={[styles.dropdownBtn, isDropdownOpen && styles.dropdownBtnActive]}
           onPress={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -402,12 +415,12 @@ const BuyDataScreen = ({ navigation }) => {
                         ? (selectedPlan.agentPrice ?? selectedPlan.userPrice ?? selectedPlan.price)
                         : (selectedPlan.userPrice ?? selectedPlan.price)
                     ).toLocaleString()})`
-                  : `Select Data Bundle (${selectedNetwork})`}
+                  : `Zabi Bundle din Data (${selectedNetwork})`}
               </Text>
               <Text style={styles.dropdownBtnSubtitle}>
                 {selectedPlan
-                  ? `Validity: ${selectedPlan.validity || "30 Days"} • Type: ${selectedPlan.planType || "SME"} • ID: ${selectedPlan.planId || selectedPlan.planCode}`
-                  : `Tap to open available plans (${filteredPlans.length})`}
+                  ? `Tsawon Lokaci: ${selectedPlan.validity || "30 Days"} • Nau'i: ${selectedPlan.planType || "SME"} • ID: ${selectedPlan.planId || selectedPlan.planCode}`
+                  : `Danna don bude jerin bundles (${filteredPlans.length})`}
               </Text>
             </View>
           </View>
@@ -418,18 +431,18 @@ const BuyDataScreen = ({ navigation }) => {
           />
         </TouchableOpacity>
 
-        {/* JERIN DATA PLANS NA WANNAN NETWORK DIN KAWAI */}
+        {/* Jerin Data Bundles */}
         {isDropdownOpen && (
           <View style={styles.plansContainer}>
             {loadingPlans ? (
               <View style={{ paddingVertical: 20, alignItems: "center" }}>
                 <ActivityIndicator size="small" color="#00f0ff" />
-                <Text style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Loading {selectedNetwork} plans...</Text>
+                <Text style={{ color: "#64748b", fontSize: 12, marginTop: 8 }}>Ana loda tsare-tsaren {selectedNetwork}...</Text>
               </View>
             ) : filteredPlans.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Feather name="wifi-off" size={26} color="#64748b" />
-                <Text style={styles.emptyText}>No active {selectedPlanType} plans found for {selectedNetwork}.</Text>
+                <Text style={styles.emptyText}>Babu bundle na {selectedPlanType} a karkashin {selectedNetwork} a yanzu.</Text>
               </View>
             ) : (
               filteredPlans.map((plan) => {
@@ -475,7 +488,7 @@ const BuyDataScreen = ({ navigation }) => {
                       {isSelected && (
                         <View style={styles.selectedBadge}>
                           <Ionicons name="checkmark-circle" size={13} color="#10b981" />
-                          <Text style={styles.selectedBadgeText}>SELECTED</Text>
+                          <Text style={styles.selectedBadgeText}>AN ZABA</Text>
                         </View>
                       )}
                     </View>
@@ -486,14 +499,14 @@ const BuyDataScreen = ({ navigation }) => {
           </View>
         )}
 
-        {/* Purchase Button */}
+        {/* Maballin Saye */}
         <TouchableOpacity
           style={[styles.submitBtn, (!selectedPlan || !phoneNumber) && { opacity: 0.5 }]}
           onPress={handleInitiatePurchase}
           disabled={!selectedPlan || !phoneNumber}
         >
           <Text style={styles.submitBtnText}>
-            PURCHASE DATA (₦
+            SAYI DATA (₦
             {selectedPlan
               ? Number(
                   userRole === "agent"
@@ -506,13 +519,13 @@ const BuyDataScreen = ({ navigation }) => {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Transaction PIN Modal */}
+      {/* Modal na Shigar da Transaction PIN */}
       <Modal visible={pinModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Ionicons name="shield-checkmark" size={32} color="#00f0ff" style={{ marginBottom: 10 }} />
-            <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Enter your 4-digit PIN to confirm this data purchase</Text>
+            <Text style={styles.modalTitle}>Shigar da PIN</Text>
+            <Text style={styles.modalSubtitle}>Shigar da lambar PIN dinka mai lamba 4 domin kammala sayen data</Text>
 
             <TextInput
               style={styles.pinInput}
@@ -533,7 +546,7 @@ const BuyDataScreen = ({ navigation }) => {
               {purchasing ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.modalSubmitBtnText}>Confirm & Pay</Text>
+                <Text style={styles.modalSubmitBtnText}>Tabbatar da Biya</Text>
               )}
             </TouchableOpacity>
 
@@ -544,7 +557,7 @@ const BuyDataScreen = ({ navigation }) => {
               }}
               style={{ marginTop: 12 }}
             >
-              <Text style={{ color: "#ef4444", fontWeight: "bold" }}>Cancel</Text>
+              <Text style={{ color: "#ef4444", fontWeight: "bold" }}>Soke</Text>
             </TouchableOpacity>
           </View>
         </View>

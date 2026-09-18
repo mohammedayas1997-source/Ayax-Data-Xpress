@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useContext } from "react";
+import React, { useEffect, useState, useCallback, useContext, useRef } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,10 @@ import {
   RefreshControl,
   StatusBar,
   Platform,
+  AppState,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { ThemeContext } from "../context/ThemeContext";
@@ -22,7 +24,12 @@ const NotificationScreen = ({ navigation }) => {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const pollingTimerRef = useRef(null);
 
+  /**
+   * Tattaro duk sanarwa (Live Aggregator)
+   * Yana hado kiran /notifications, /user/profile da Transactions
+   */
   const fetchNotifications = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
@@ -34,24 +41,80 @@ const NotificationScreen = ({ navigation }) => {
         return;
       }
 
-      const res = await axios.get(`${BASE_URL}/notifications`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 15000,
-      });
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      };
 
-      const dataList =
-        res.data.notifications ||
-        res.data.data ||
-        res.data.messages ||
-        (Array.isArray(res.data) ? res.data : []);
+      // Kiran APIs daban-daban a lokaci guda don tabbatar da babu sanarwar da ta salwanta
+      const [notifRes, profileRes] = await Promise.allSettled([
+        axios.get(`${BASE_URL}/notifications`, { headers, timeout: 15000 }),
+        axios.get(`${BASE_URL}/user/profile`, { headers, timeout: 15000 }),
+      ]);
 
-      setNotifications(dataList);
+      let combinedNotifications = [];
+
+      // 1. Sanarwa daga ainihin /notifications endpoint
+      if (notifRes.status === "fulfilled" && notifRes.value?.data) {
+        const d = notifRes.value.data;
+        const list =
+          d.notifications ||
+          d.data ||
+          d.messages ||
+          (Array.isArray(d) ? d : []);
+        if (Array.isArray(list)) {
+          combinedNotifications.push(...list);
+        }
+      }
+
+      // 2. Sanarwa da aka ajiye a cikin User Profile (user.notifications)
+      if (profileRes.status === "fulfilled" && profileRes.value?.data) {
+        const u = profileRes.value.data.user || profileRes.value.data.data || {};
+        if (Array.isArray(u.notifications) && u.notifications.length > 0) {
+          combinedNotifications.push(...u.notifications);
+        }
+      }
+
+      // 3. Cire duplicates dangane da ID ko title + message + date
+      const seenIds = new Set();
+      const uniqueList = [];
+
+      for (const item of combinedNotifications) {
+        const key =
+          item._id ||
+          item.id ||
+          `${item.title}_${item.message || item.body}_${item.createdAt || item.date}`;
+
+        if (!seenIds.has(key)) {
+          seenIds.add(key);
+          uniqueList.push({
+            ...item,
+            _id: key,
+            createdAt: item.createdAt || item.date || new Date().toISOString(),
+          });
+        }
+      }
+
+      // Tsara su daga wanda ya fi kusa (Latest First)
+      uniqueList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+      setNotifications(uniqueList);
+
+      // Ajiye a cache don amfanin offline
+      await AsyncStorage.setItem("cachedNotifications", JSON.stringify(uniqueList));
     } catch (err) {
       if (err.response && err.response.status === 401) {
         await AsyncStorage.clear();
         navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
       } else {
-        console.error("Fetch Notifications Error:", err.message);
+        console.log("Fetch Notifications Warning:", err.message);
+        // Load cache idan babu network
+        const cached = await AsyncStorage.getItem("cachedNotifications");
+        if (cached) {
+          try {
+            setNotifications(JSON.parse(cached));
+          } catch (e) {}
+        }
       }
     } finally {
       setLoading(false);
@@ -59,8 +122,31 @@ const NotificationScreen = ({ navigation }) => {
     }
   }, [navigation]);
 
+  // Sabuntawa a duk lokacin da aka dawo kan Screen din
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications(false);
+
+      // Fara real-time live polling (Kowace dakika 8)
+      pollingTimerRef.current = setInterval(() => {
+        fetchNotifications(true);
+      }, 8000);
+
+      return () => {
+        if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+      };
+    }, [fetchNotifications])
+  );
+
+  // Duba AppState (idan an rage app aka dawo ciki)
   useEffect(() => {
-    fetchNotifications();
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        fetchNotifications(true);
+      }
+    });
+
+    return () => subscription.remove();
   }, [fetchNotifications]);
 
   const onRefresh = () => {
@@ -68,12 +154,59 @@ const NotificationScreen = ({ navigation }) => {
     fetchNotifications(true);
   };
 
+  // Mark all as read
+  const handleMarkAllAsRead = async () => {
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const updated = notifications.map((n) => ({ ...n, isRead: true, read: true }));
+      setNotifications(updated);
+
+      if (token) {
+        await axios.put(
+          `${BASE_URL}/notifications/mark-read`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        ).catch(() => {});
+      }
+    } catch (e) {
+      console.log("Mark as read notice:", e.message);
+    }
+  };
+
   const getNotificationVisuals = (item) => {
     const rawCategory = String(item.category || item.type || "").toUpperCase();
     const rawTitle = String(item.title || "").toUpperCase();
     const rawMsg = String(item.message || item.body || "").toUpperCase();
 
-    // 1. Account Creation & Virtual Account Assignment
+    // 1. Data Delivery
+    if (
+      rawCategory.includes("DATA") ||
+      rawTitle.includes("DATA") ||
+      rawMsg.includes("DATA BUNDLE")
+    ) {
+      return {
+        icon: "wifi",
+        color: "#0284c7",
+        bg: "rgba(2, 132, 199, 0.14)",
+        typeLabel: "Data Delivery",
+      };
+    }
+
+    // 2. Airtime & VTU
+    if (
+      rawCategory.includes("AIRTIME") ||
+      rawTitle.includes("AIRTIME") ||
+      rawMsg.includes("RECHARGE")
+    ) {
+      return {
+        icon: "phone-portrait",
+        color: "#16a34a",
+        bg: "rgba(22, 163, 74, 0.14)",
+        typeLabel: "Airtime VTU",
+      };
+    }
+
+    // 3. Account Creation & Virtual Account Assignment
     if (
       rawCategory.includes("ACCOUNT") ||
       rawCategory.includes("WELCOME") ||
@@ -89,7 +222,7 @@ const NotificationScreen = ({ navigation }) => {
       };
     }
 
-    // 2. Wallet Funding & Deposits
+    // 4. Wallet Funding & Deposits
     if (
       rawCategory.includes("CREDIT") ||
       rawCategory.includes("FUND") ||
@@ -106,7 +239,7 @@ const NotificationScreen = ({ navigation }) => {
       };
     }
 
-    // 3. Automated Refunds
+    // 5. Automated Refunds & Reversals
     if (
       rawCategory.includes("REFUND") ||
       rawTitle.includes("REFUND") ||
@@ -121,7 +254,22 @@ const NotificationScreen = ({ navigation }) => {
       };
     }
 
-    // 4. Admin Broadcast & Customer Service Direct Messages
+    // 6. Directives, Quotas & Command
+    if (
+      rawCategory.includes("DIRECTIVE") ||
+      rawCategory.includes("TARGET") ||
+      rawTitle.includes("DIRECTIVE") ||
+      rawTitle.includes("QUOTA")
+    ) {
+      return {
+        icon: "flag",
+        color: "#8b5cf6",
+        bg: "rgba(139, 92, 246, 0.14)",
+        typeLabel: "Executive Directive",
+      };
+    }
+
+    // 7. Admin Broadcast & Push Alerts
     if (
       rawCategory.includes("BROADCAST") ||
       rawCategory.includes("ADMIN") ||
@@ -138,7 +286,7 @@ const NotificationScreen = ({ navigation }) => {
       };
     }
 
-    // 5. Default General Notifications
+    // 8. Default System Alert
     return {
       icon: "notifications",
       color: "#64748b",
@@ -149,6 +297,8 @@ const NotificationScreen = ({ navigation }) => {
 
   const renderItem = ({ item }) => {
     const meta = getNotificationVisuals(item);
+    const isUnread = item.isRead === false || item.read === false;
+
     const dateFormatted = item.createdAt
       ? new Date(item.createdAt).toLocaleDateString("en-GB", {
           day: "2-digit",
@@ -165,7 +315,12 @@ const NotificationScreen = ({ navigation }) => {
           styles.card,
           {
             backgroundColor: isDarkMode ? "#0b1120" : "#ffffff",
-            borderColor: isDarkMode ? "#1e293b" : "#e2e8f0",
+            borderColor: isUnread
+              ? meta.color
+              : isDarkMode
+              ? "#1e293b"
+              : "#e2e8f0",
+            borderLeftWidth: isUnread ? 4 : 1,
           },
         ]}
       >
@@ -179,6 +334,7 @@ const NotificationScreen = ({ navigation }) => {
                 style={[
                   styles.title,
                   { color: isDarkMode ? "#f8fafc" : "#0f172a" },
+                  isUnread && { fontWeight: "900" },
                 ]}
                 numberOfLines={1}
               >
@@ -190,14 +346,17 @@ const NotificationScreen = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            <Text style={styles.timeText}>{dateFormatted}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 2 }}>
+              <Text style={styles.timeText}>{dateFormatted}</Text>
+              {isUnread && <View style={styles.unreadDot} />}
+            </View>
           </View>
         </View>
 
         <Text
           style={[
             styles.message,
-            { color: isDarkMode ? "#94a3b8" : "#475569" },
+            { color: isDarkMode ? "#cbd5e1" : "#334155" },
           ]}
         >
           {item.message || item.body || "No details provided."}
@@ -205,6 +364,10 @@ const NotificationScreen = ({ navigation }) => {
       </View>
     );
   };
+
+  const unreadCount = notifications.filter(
+    (n) => n.isRead === false || n.read === false
+  ).length;
 
   return (
     <View
@@ -218,6 +381,7 @@ const NotificationScreen = ({ navigation }) => {
         backgroundColor={isDarkMode ? "#050811" : "#f8fafc"}
       />
 
+      {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text
@@ -233,21 +397,35 @@ const NotificationScreen = ({ navigation }) => {
               <Text style={styles.countBadgeText}>{notifications.length}</Text>
             </View>
           )}
+          {unreadCount > 0 && (
+            <View style={[styles.countBadge, { backgroundColor: "#e11d48", marginLeft: 4 }]}>
+              <Text style={styles.countBadgeText}>{unreadCount} NEW</Text>
+            </View>
+          )}
         </View>
 
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.closeBtn}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="close"
-            size={22}
-            color={isDarkMode ? "#94a3b8" : "#64748b"}
-          />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          {unreadCount > 0 && (
+            <TouchableOpacity onPress={handleMarkAllAsRead} style={styles.markReadBtn}>
+              <Feather name="check-circle" size={14} color="#0284c7" />
+              <Text style={styles.markReadText}>Mark Read</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.closeBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="close"
+              size={22}
+              color={isDarkMode ? "#94a3b8" : "#64748b"}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* Loading Indicator */}
       {loading && !refreshing ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#0284c7" />
@@ -257,7 +435,7 @@ const NotificationScreen = ({ navigation }) => {
               { color: isDarkMode ? "#94a3b8" : "#64748b" },
             ]}
           >
-            Syncing notifications...
+            Syncing live notifications...
           </Text>
         </View>
       ) : (
@@ -300,7 +478,7 @@ const NotificationScreen = ({ navigation }) => {
                 No Notifications Yet
               </Text>
               <Text style={styles.emptySub}>
-                Updates on wallet deposits, account activations, refunds, and support broadcasts will show up here.
+                Real-time updates on your data purchases, wallet credits, automated refunds, and supervisor directives will arrive here live.
               </Text>
             </View>
           }
@@ -328,7 +506,17 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginLeft: 8,
   },
-  countBadgeText: { color: "#ffffff", fontSize: 11, fontWeight: "900" },
+  countBadgeText: { color: "#ffffff", fontSize: 10, fontWeight: "900" },
+  markReadBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(2, 132, 199, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  markReadText: { color: "#0284c7", fontSize: 11, fontWeight: "800" },
   closeBtn: {
     width: 36,
     height: 36,
@@ -374,8 +562,15 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeText: { fontSize: 9.5, fontWeight: "900", letterSpacing: 0.3 },
-  timeText: { fontSize: 10.5, color: "#64748b", marginTop: 2, fontWeight: "500" },
-  message: { fontSize: 12, lineHeight: 18, fontWeight: "500", marginTop: 2 },
+  timeText: { fontSize: 10.5, color: "#64748b", fontWeight: "500" },
+  unreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#e11d48",
+    marginLeft: 6,
+  },
+  message: { fontSize: 12.5, lineHeight: 18, fontWeight: "500", marginTop: 2 },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
