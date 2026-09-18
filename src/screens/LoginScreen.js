@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -33,6 +33,7 @@ const LoginScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const autoBiometricTriggered = useRef(false);
 
   const routeUserByRole = useCallback((rawRole, rawIdentifier = "") => {
     if (!navigation || typeof navigation.reset !== "function") return;
@@ -109,20 +110,19 @@ const LoginScreen = ({ navigation }) => {
       const savedPassword = await AsyncStorage.getItem("savedPassword");
 
       if (!savedIdentifier || !savedPassword) {
-        setErrorMessage("Da farko shiga da password domin ajiye asusunka.");
+        setErrorMessage("Da farko shiga da sabon email da password domin ajiye asusunka.");
         return;
       }
 
-      setIdentifierInput(savedIdentifier);
-
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Yi amfani da Fingerprint don shiga Ayax Xpress",
-        fallbackLabel: "Sanya Password",
+        promptMessage: `Login to Ayax (${savedIdentifier})`,
+        fallbackLabel: "Sanya Password da Hannu",
         disableDeviceFallback: false,
       });
 
       if (!result.success) return;
 
+      setIdentifierInput(savedIdentifier);
       setLoading(true);
       setErrorMessage("");
 
@@ -179,7 +179,7 @@ const LoginScreen = ({ navigation }) => {
       routeUserByRole(userRole, savedIdentifier);
     } catch (err) {
       console.log("Biometric Login Failure:", err?.response?.data || err.message);
-      setErrorMessage("Fingerprint bai yi aiki ba. Shigar da password.");
+      setErrorMessage("Fingerprint bai yi aiki ba. Shigar da password da hannu.");
     } finally {
       setLoading(false);
     }
@@ -202,10 +202,12 @@ const LoginScreen = ({ navigation }) => {
         if (isEnabled === "true" && hasHardware && isEnrolled) {
           setIsBiometricEnabled(true);
           const savedPass = await AsyncStorage.getItem("savedPassword");
-          if (savedId && savedPass) {
+          
+          if (savedId && savedPass && !autoBiometricTriggered.current) {
+            autoBiometricTriggered.current = true;
             setTimeout(() => {
               executeDirectBiometricLogin();
-            }, 300);
+            }, 350);
           }
         }
       } catch (e) {
@@ -215,6 +217,12 @@ const LoginScreen = ({ navigation }) => {
 
     checkAndTriggerBiometric();
   }, [executeDirectBiometricLogin]);
+
+  const handleClearIdentifier = () => {
+    setIdentifierInput("");
+    setPassword("");
+    setErrorMessage("");
+  };
 
   const openWhatsApp = () => {
     Linking.openURL("whatsapp://send?phone=+2349061244444&text=Hello Ayax Xpress Support").catch(() => {
@@ -294,6 +302,7 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
+      // Adana sabon email da password nan take domin gaba
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
       await AsyncStorage.setItem("savedIdentifier", cleanInput);
@@ -346,7 +355,15 @@ const LoginScreen = ({ navigation }) => {
               </View>
             ) : null}
 
-            <Text style={styles.label}>Email Address or Phone Number</Text>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>Email Address or Phone Number</Text>
+              {identifierInput ? (
+                <TouchableOpacity onPress={handleClearIdentifier} style={styles.switchAccountBtn}>
+                  <Text style={styles.switchAccountText}>Canza Asusu (Clear)</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
             <View style={styles.inputContainer}>
               <Ionicons
                 name="person-outline"
@@ -369,6 +386,11 @@ const LoginScreen = ({ navigation }) => {
                 textContentType="username"
                 importantForAutofill="yes"
               />
+              {identifierInput ? (
+                <TouchableOpacity onPress={handleClearIdentifier} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle" size={18} color="#94a3b8" />
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             <Text style={styles.label}>Password</Text>
@@ -411,10 +433,10 @@ const LoginScreen = ({ navigation }) => {
                 >
                   <MaterialCommunityIcons
                     name="fingerprint"
-                    size={38}
+                    size={34}
                     color="#0284c7"
                   />
-                  <Text style={styles.biometricText}>Login da Fingerprint</Text>
+                  <Text style={styles.biometricText}>Login da Yatsa</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -564,7 +586,15 @@ const styles = StyleSheet.create({
   appName: { fontSize: 28, fontWeight: "bold", color: "#0f172a" },
   tagline: { fontSize: 14, color: "#64748b", marginTop: 5 },
   formSection: { width: "100%" },
-  label: { color: "#475569", fontSize: 14, marginBottom: 8, fontWeight: "600" },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  label: { color: "#475569", fontSize: 14, fontWeight: "600" },
+  switchAccountBtn: { paddingVertical: 2, paddingHorizontal: 6 },
+  switchAccountText: { color: "#0284c7", fontSize: 12, fontWeight: "700" },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
