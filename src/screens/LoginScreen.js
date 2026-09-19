@@ -13,6 +13,8 @@ import {
   Linking,
   Dimensions,
   StatusBar,
+  Modal,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -34,6 +36,23 @@ const LoginScreen = ({ navigation }) => {
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const autoBiometricTriggered = useRef(false);
+
+  // First Login PIN Setup States
+  const [showPinSetupModal, setShowPinSetupModal] = useState(false);
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [savingPin, setSavingPin] = useState(false);
+  const [pendingToken, setPendingToken] = useState("");
+  const [pendingUserRole, setPendingUserRole] = useState("");
+
+  const showAlert = (title, message, onPressCallback) => {
+    if (Platform.OS === "web") {
+      window.alert(`${title}: ${message}`);
+      if (onPressCallback) onPressCallback();
+    } else {
+      Alert.alert(title, message, [{ text: "OK", onPress: onPressCallback }]);
+    }
+  };
 
   const routeUserByRole = useCallback((rawRole, rawIdentifier = "") => {
     if (!navigation || typeof navigation.reset !== "function") return;
@@ -110,13 +129,13 @@ const LoginScreen = ({ navigation }) => {
       const savedPassword = await AsyncStorage.getItem("savedPassword");
 
       if (!savedIdentifier || !savedPassword) {
-        setErrorMessage("Da farko shiga da sabon email da password domin ajiye asusunka.");
+        setErrorMessage("Please login with email and password first to enable quick access.");
         return;
       }
 
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage: `Login to Ayax (${savedIdentifier})`,
-        fallbackLabel: "Sanya Password da Hannu",
+        fallbackLabel: "Enter Password Manually",
         disableDeviceFallback: false,
       });
 
@@ -168,7 +187,7 @@ const LoginScreen = ({ navigation }) => {
       }
 
       if (!token) {
-        setErrorMessage("Matsalar tantancewa daga uwar garke.");
+        setErrorMessage("Authentication token missing from server response.");
         setLoading(false);
         return;
       }
@@ -176,10 +195,19 @@ const LoginScreen = ({ navigation }) => {
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
 
+      // Check first-time PIN configuration requirement
+      const isPinSet = Boolean(userPayload.isPinSet ?? resData.isPinSet);
+      if ((userRole === "user" || userRole === "agent") && !isPinSet) {
+        setPendingToken(token);
+        setPendingUserRole(userRole);
+        setShowPinSetupModal(true);
+        return;
+      }
+
       routeUserByRole(userRole, savedIdentifier);
     } catch (err) {
       console.log("Biometric Login Failure:", err?.response?.data || err.message);
-      setErrorMessage("Fingerprint bai yi aiki ba. Shigar da password da hannu.");
+      setErrorMessage("Biometric verification failed. Please enter password.");
     } finally {
       setLoading(false);
     }
@@ -302,11 +330,19 @@ const LoginScreen = ({ navigation }) => {
         return;
       }
 
-      // Adana sabon email da password nan take domin gaba
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userData", JSON.stringify({ ...userPayload, role: userRole }));
       await AsyncStorage.setItem("savedIdentifier", cleanInput);
       await AsyncStorage.setItem("savedPassword", cleanPassword);
+
+      // Check first-time PIN configuration requirement
+      const isPinSet = Boolean(userPayload.isPinSet ?? resData.isPinSet);
+      if ((userRole === "user" || userRole === "agent") && !isPinSet) {
+        setPendingToken(token);
+        setPendingUserRole(userRole);
+        setShowPinSetupModal(true);
+        return;
+      }
 
       routeUserByRole(userRole, cleanInput);
     } catch (error) {
@@ -321,6 +357,57 @@ const LoginScreen = ({ navigation }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveFirstPin = async () => {
+    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+      return showAlert("Invalid PIN", "PIN must be exactly 4 numeric digits.");
+    }
+
+    if (newPin !== confirmPin) {
+      return showAlert("Mismatch", "The entered PINs do not match. Please verify.");
+    }
+
+    setSavingPin(true);
+    try {
+      const response = await axios.post(
+        `${BASE_URL}/user/setup-first-pin`,
+        { pin: newPin, confirmPin },
+        {
+          headers: {
+            Authorization: `Bearer ${pendingToken}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 20000,
+        }
+      );
+
+      if (response.data?.success) {
+        const storedUserData = await AsyncStorage.getItem("userData");
+        if (storedUserData) {
+          const parsed = JSON.parse(storedUserData);
+          parsed.isPinSet = true;
+          await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+        }
+
+        showAlert("Success", "Transaction PIN created successfully!", () => {
+          setShowPinSetupModal(false);
+          setNewPin("");
+          setConfirmPin("");
+          routeUserByRole(pendingUserRole, identifierInput);
+        });
+      } else {
+        showAlert("Error", response.data?.message || "Failed to configure PIN.");
+      }
+    } catch (err) {
+      const errorMsg =
+        err.response?.data?.message ||
+        err.message ||
+        "Could not save PIN. Please try again.";
+      showAlert("Error", errorMsg);
+    } finally {
+      setSavingPin(false);
     }
   };
 
@@ -359,7 +446,7 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.label}>Email Address or Phone Number</Text>
               {identifierInput ? (
                 <TouchableOpacity onPress={handleClearIdentifier} style={styles.switchAccountBtn}>
-                  <Text style={styles.switchAccountText}>Canza Asusu (Clear)</Text>
+                  <Text style={styles.switchAccountText}>Clear</Text>
                 </TouchableOpacity>
               ) : null}
             </View>
@@ -433,10 +520,10 @@ const LoginScreen = ({ navigation }) => {
                 >
                   <MaterialCommunityIcons
                     name="fingerprint"
-                    size={34}
+                    size={30}
                     color="#0284c7"
                   />
-                  <Text style={styles.biometricText}>Login da Yatsa</Text>
+                  <Text style={styles.biometricText}>Biometric Login</Text>
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
@@ -546,6 +633,59 @@ const LoginScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* FIRST LOGIN PIN SETUP MODAL */}
+      <Modal visible={showPinSetupModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="lock-closed" size={28} color="#00f0ff" />
+            </View>
+
+            <Text style={styles.modalTitle}>Set Transaction PIN</Text>
+            <Text style={styles.modalSubtitle}>
+              Welcome! As a new user, you must set a secure 4-digit PIN to authorize
+              all wallet and data transactions.
+            </Text>
+
+            <Text style={styles.inputLabel}>CREATE 4-DIGIT PIN</Text>
+            <TextInput
+              style={styles.pinInput}
+              placeholder="••••"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={4}
+              value={newPin}
+              onChangeText={setNewPin}
+            />
+
+            <Text style={styles.inputLabel}>CONFIRM 4-DIGIT PIN</Text>
+            <TextInput
+              style={styles.pinInput}
+              placeholder="••••"
+              placeholderTextColor="#64748b"
+              keyboardType="numeric"
+              secureTextEntry
+              maxLength={4}
+              value={confirmPin}
+              onChangeText={setConfirmPin}
+            />
+
+            <TouchableOpacity
+              style={[styles.submitButton, savingPin && { opacity: 0.7 }]}
+              onPress={handleSaveFirstPin}
+              disabled={savingPin}
+            >
+              {savingPin ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.submitButtonText}>SAVE PIN & PROCEED</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -735,6 +875,88 @@ const styles = StyleSheet.create({
     height: 14,
     backgroundColor: "#cbd5e1",
     marginHorizontal: 8,
+  },
+  // PIN Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(5, 8, 17, 0.94)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#0b1120",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(2, 132, 199, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  modalTitle: {
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    color: "#94a3b8",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    marginBottom: 18,
+  },
+  inputLabel: {
+    width: "100%",
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "800",
+    marginBottom: 6,
+    textAlign: "left",
+  },
+  pinInput: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#050811",
+    borderWidth: 1,
+    borderColor: "#1e293b",
+    borderRadius: 12,
+    textAlign: "center",
+    fontSize: 22,
+    letterSpacing: 8,
+    color: "#f8fafc",
+    fontWeight: "bold",
+    marginBottom: 14,
+  },
+  submitButton: {
+    width: "100%",
+    height: 48,
+    backgroundColor: "#0284c7",
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  submitButtonText: {
+    color: "#ffffff",
+    fontWeight: "900",
+    fontSize: 13,
+    letterSpacing: 0.5,
   },
 });
 
