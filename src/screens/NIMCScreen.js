@@ -75,7 +75,7 @@ const searchOptions = [
     placeholder: "Enter 11-digit NIN",
     icon: "print",
     length: 11,
-    desc: "Concise confirmation paper format slip",
+    desc: "Official regular slip with Tracking ID and residential address",
   },
 ];
 
@@ -85,9 +85,9 @@ const NIMCScreen = ({ navigation }) => {
   const [searchValue, setSearchValue] = useState("");
 
   const [prices, setPrices] = useState({
-    nin: 100,
-    phone: 150,
-    trackingId: 100,
+    nin: 150,
+    phone: 200,
+    trackingId: 150,
     standardSlip: 200,
     premiumCard: 300,
     basicSlip: 100,
@@ -104,6 +104,7 @@ const NIMCScreen = ({ navigation }) => {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [userData, setUserData] = useState(null);
+  const [returnedBase64Pdf, setReturnedBase64Pdf] = useState(null);
 
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
@@ -144,7 +145,7 @@ const NIMCScreen = ({ navigation }) => {
         const stored = await AsyncStorage.getItem("userData");
         if (stored) {
           const parsed = JSON.parse(stored);
-          setIsAdmin(parsed.role === "admin" || parsed.isAdmin === true);
+          setIsAdmin(parsed.role === "admin" || parsed.isAdmin === true || parsed.role === "superadmin");
         }
       } catch (e) {}
     };
@@ -216,7 +217,7 @@ const NIMCScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem("userToken");
+      const token = (await AsyncStorage.getItem("userToken")) || (await AsyncStorage.getItem("token"));
       if (!token) {
         setPinModalVisible(false);
         return showAlert("Session Expired", "Please login again.", () => {
@@ -225,12 +226,12 @@ const NIMCScreen = ({ navigation }) => {
       }
 
       const serviceId = selectedSearch?.id || "nin";
-      const activeAmount = prices[serviceId] || 100;
+      const activeAmount = prices[serviceId] || 150;
 
       let cleanInput = searchValue.trim();
       let payload = {
         serviceType: serviceId,
-        searchType: serviceId,
+        type: serviceId,
         amount: activeAmount,
         pin: pin.trim(),
         transactionPin: pin.trim(),
@@ -257,24 +258,36 @@ const NIMCScreen = ({ navigation }) => {
         payload.searchValue = cleanInput;
       }
 
-      const res = await axios.post(
-        `${BASE_URL}/nimc/submit-request`,
-        payload,
-        {
+      let res;
+      try {
+        res = await axios.post(`${BASE_URL}/nimc/submit`, payload, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
           timeout: 55000,
+        });
+      } catch (routeErr) {
+        if (routeErr.response?.status === 404) {
+          res = await axios.post(`${BASE_URL}/nimc/submit-request`, payload, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 55000,
+          });
+        } else {
+          throw routeErr;
         }
-      );
+      }
 
       const result = res.data;
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        const parsedData = result.data || result;
+        const parsedData = result.data || result.user_data || result;
         setUserData(parsedData);
+        setReturnedBase64Pdf(result.pdf_base64 || parsedData.pdf_base64 || null);
         setView("result");
       } else {
         throw new Error(result.message || "Verification failed. Check your input.");
@@ -291,6 +304,35 @@ const NIMCScreen = ({ navigation }) => {
   };
 
   const handleDownloadPDF = async () => {
+    if (returnedBase64Pdf) {
+      try {
+        let base64String = returnedBase64Pdf;
+        if (base64String.startsWith("data:application/pdf;base64,")) {
+          base64String = base64String.replace("data:application/pdf;base64,", "");
+        }
+
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          const byteCharacters = atob(base64String);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: "application/pdf" });
+
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = `NIN_Slip_${userData?.nin || Date.now()}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          return;
+        }
+      } catch (e) {
+        console.warn("Base64 decoding failed:", e);
+      }
+    }
+
     const directPdf =
       userData?.pdfUrl ||
       userData?.slipUrl ||
@@ -315,265 +357,37 @@ const NIMCScreen = ({ navigation }) => {
     ).trim();
 
     const nameParts = rawFullName.split(/\s+/).filter(Boolean);
-    const surname = (userData?.surname || nameParts[0] || "MOHAMMED").toUpperCase();
-    const firstName = (userData?.firstName || userData?.firstname || nameParts[1] || "ABDULRAHMAN").toUpperCase();
-    const middleName = (userData?.middleName || userData?.middlename || nameParts.slice(2).join(" ") || "AYAS").toUpperCase();
-    const givenNames = `${firstName}, ${middleName}`.replace(/,\s*$/, "");
+    const surname = (userData?.surname || userData?.last_name || nameParts[0] || "CITIZEN").toUpperCase();
+    const firstName = (userData?.firstName || userData?.firstname || nameParts[1] || "").toUpperCase();
+    const middleName = (userData?.middleName || userData?.middlename || nameParts.slice(2).join(" ") || "").toUpperCase();
 
     const rawNin = String(
       userData?.nin || userData?.ninNumber || userData?.idNumber || searchValue || ""
     ).replace(/\D/g, "");
-    const nin = rawNin.length === 11 ? rawNin : "68609193060";
-    const formattedNin = `${nin.slice(0, 4)} ${nin.slice(4, 7)} ${nin.slice(7)}`;
+    const nin = rawNin.length === 11 ? rawNin : "00000000000";
 
-    const trackingId = (userData?.trackingId || userData?.tracking_id || "TRK" + nin.slice(-8)).toUpperCase();
-
-    let rawDob = userData?.birthdate || userData?.dob || "1997-07-02";
-    let formattedDob = "02 JUL 1997";
-    try {
-      const d = new Date(rawDob);
-      if (!isNaN(d.getTime())) {
-        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-        formattedDob = `${String(d.getDate()).padStart(2, "0")} ${months[d.getMonth()]} ${d.getFullYear()}`;
-      }
-    } catch (_) {}
+    const trackingId = String(
+      userData?.trackingId ||
+      userData?.tracking_id ||
+      userData?.trackingID ||
+      userData?.trackingNo ||
+      "TRK" + nin.slice(-8)
+    ).toUpperCase();
 
     const gender = (userData?.gender || "MALE").toUpperCase();
-    const phone = userData?.telephoneno || userData?.phone || "09066160989";
-
-    const residence = (userData?.residence_address || userData?.address || "NO 37 BELLO AHMAD ROAD").toUpperCase();
-    const town = (userData?.residence_town || userData?.city || "JIMETA").toUpperCase();
-    const lga = (userData?.residence_lga || userData?.lga || "YOLA NORTH").toUpperCase();
-    const state = (userData?.residence_state || userData?.state || "ADAMAWA").toUpperCase();
-
-    const today = new Date();
-    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    const issueDate = `${String(today.getDate()).padStart(2, "0")} ${months[today.getMonth()]} ${today.getFullYear()}`;
+    const address = String(
+      userData?.address ||
+      userData?.residence_address ||
+      userData?.residence_AdressLine1 ||
+      [userData?.residence_town, userData?.lga, userData?.state].filter(Boolean).join(", ") ||
+      "N/A"
+    ).toUpperCase();
 
     const userPhoto = userData?.photo || userData?.image
       ? (String(userData.photo || userData.image).startsWith("data:image")
           ? (userData.photo || userData.image)
           : `data:image/jpeg;base64,${userData.photo || userData.image}`)
       : "https://via.placeholder.com/150";
-
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-      `NIN:${nin}|SURNAME:${surname}|GIVEN:${givenNames}|DOB:${formattedDob}|SEX:${gender}`
-    )}`;
-
-    const selectedType = selectedSearch?.id || "standardSlip";
-
-    const greenWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='70' viewBox='0 0 140 70'><text x='5' y='30' fill='%2315803d' opacity='0.16' font-size='10' font-family='monospace' font-weight='bold' transform='rotate(-22 70 35)'>${nin}</text><text x='15' y='60' fill='%2315803d' opacity='0.10' font-size='8' font-family='monospace' transform='rotate(-22 70 35)'>${phone}</text></svg>`;
-    const cardWatermarkBg = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='60' viewBox='0 0 120 60'><text x='5' y='28' fill='%23475569' opacity='0.15' font-size='9.5' font-family='monospace' font-weight='bold' transform='rotate(-22 60 30)'>${nin}</text></svg>`;
-
-    let slipHtmlContent = "";
-
-    if (selectedType === "basicSlip") {
-      slipHtmlContent = `
-        <div class="sheet">
-          <div class="regular-card">
-            <div class="regular-header">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 55px;" />
-              <div class="text-center">
-                <div style="font-size: 16px; font-weight: bold; letter-spacing: 0.5px;">National Identity Management System</div>
-                <div style="font-size: 13px;">Federal Republic of Nigeria</div>
-                <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">National Identification Number Slip (NINS)</div>
-              </div>
-              <img src="https://nimc.gov.ng/wp-content/uploads/2020/07/nimc-logo.png" style="height: 46px;" />
-            </div>
-
-            <table class="regular-table">
-              <tr>
-                <td style="width: 14%; font-weight: bold;">Tracking ID:</td>
-                <td style="width: 22%;">${trackingId}</td>
-                <td style="width: 14%; font-weight: bold;">Surname:</td>
-                <td style="width: 20%; font-weight: bold;">${surname}</td>
-                <td style="width: 14%; font-weight: bold;">Address:</td>
-                <td rowspan="5" style="width: 16%; text-align: center; vertical-align: middle; padding: 4px;">
-                  <img src="${userPhoto}" style="width: 105px; height: 125px; border: 1px solid #000; object-fit: cover; display: block; margin: 0 auto;" />
-                </td>
-              </tr>
-              <tr>
-                <td style="font-weight: bold;">NIN:</td>
-                <td style="font-weight: bold; font-size: 13px;">${nin}</td>
-                <td style="font-weight: bold;">First Name:</td>
-                <td style="font-weight: bold;">${firstName}</td>
-                <td rowspan="4" style="vertical-align: top; line-height: 15px; font-size: 10px;">
-                  ${residence}<br/>
-                  ${town}<br/>
-                  ${lga}<br/>
-                  ${state}
-                </td>
-              </tr>
-              <tr>
-                <td></td>
-                <td></td>
-                <td style="font-weight: bold;">Middle Name:</td>
-                <td>${middleName}</td>
-              </tr>
-              <tr>
-                <td></td>
-                <td></td>
-                <td style="font-weight: bold;">Gender:</td>
-                <td>${gender}</td>
-              </tr>
-              <tr>
-                <td></td>
-                <td></td>
-                <td></td>
-                <td></td>
-              </tr>
-            </table>
-
-            <div class="regular-disclaimer">
-              <strong>Note:</strong> The National Identification Number (NIN) is your identity. It is confidential and may only be released for legitimate transactions.<br/>
-              You will be notified when your National Identity Card is ready (For any enquiries, please contact)
-            </div>
-
-            <div class="regular-footer">
-              <div>✉ helpdesk@nimc.gov.ng</div>
-              <div>🌐 www.nimc.gov.ng</div>
-              <div>📞 0700-CALL-NIMC</div>
-              <div style="text-align: right;">
-                <strong>National Identity Management Commission</strong><br/>
-                <span style="font-size: 7.5px; color: #555;">11 Sokode Crescent, Off Dalaba Street, Zone 5, Wuse, Abuja Nigeria</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    } else if (selectedType === "premiumCard") {
-      slipHtmlContent = `
-        <div class="sheet">
-          <div class="premium-box">
-            <div class="prem-front" style="background-image: url('${greenWatermarkBg}');">
-              <div class="prem-center-coat"></div>
-
-              <div style="position: relative; z-index: 5;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                  <div>
-                    <div style="color: #15803d; font-size: 12px; font-weight: 900; letter-spacing: 0.3px;">FEDERAL REPUBLIC OF NIGERIA</div>
-                    <div style="color: #166534; font-size: 9px; font-weight: 800; margin-bottom: 8px;">DIGITAL NIN SLIP</div>
-                  </div>
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 28px;" />
-                </div>
-
-                <div style="display: flex; align-items: flex-start; margin-top: 2px;">
-                  <img src="${userPhoto}" style="width: 86px; height: 104px; border: 1.5px solid #16a34a; object-fit: cover; border-radius: 2px;" />
-
-                  <div style="margin-left: 10px; flex: 1;">
-                    <div class="lbl">SURNAME/NOM</div>
-                    <div class="val-bold" style="font-size: 12px;">${surname}</div>
-
-                    <div class="lbl">GIVEN NAMES/PRÉNOMS</div>
-                    <div class="val-bold" style="font-size: 10.5px;">${givenNames}</div>
-
-                    <div style="display: flex; gap: 14px; margin-top: 3px;">
-                      <div>
-                        <div class="lbl">DATE OF BIRTH</div>
-                        <div class="val-sm">${formattedDob}</div>
-                      </div>
-                      <div>
-                        <div class="lbl">SEX/SEXE</div>
-                        <div class="val-sm">${gender}</div>
-                      </div>
-                    </div>
-
-                    <div style="margin-top: 3px;">
-                      <div class="lbl">ISSUE DATE</div>
-                      <div class="val-sm">${issueDate}</div>
-                    </div>
-                  </div>
-
-                  <div style="text-align: center; margin-left: 6px;">
-                    <img src="${qrCodeUrl}" style="width: 78px; height: 78px; border: 1px solid #16a34a; padding: 1px; background: #fff;" />
-                    <div style="font-weight: 900; font-size: 13px; color: #000; margin-top: 1px; letter-spacing: 0.5px;">NGA</div>
-                  </div>
-                </div>
-
-                <div style="margin-top: 6px; text-align: center; border-top: 1.5px solid #86efac; padding-top: 2px;">
-                  <div style="font-size: 8.5px; color: #166534; font-weight: bold;">National Identification Number (NIN)</div>
-                  <div style="font-size: 24px; font-weight: 900; letter-spacing: 3px; color: #022c22; font-family: monospace;">${formattedNin}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="prem-back">
-              <div class="disc-header">DISCLAIMER</div>
-              <div class="disc-sub">Trust, but verify</div>
-              <div class="disc-txt">
-                Kindly ensure each time this ID is presented, that you verify the credentials using a Government APPROVED verification resource. The details on the front of this NIN Slip must EXACTLY match the verification result.
-              </div>
-              <div class="disc-caution">CAUTION!</div>
-              <div class="disc-txt">
-                If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein. You are only permitted to scan the barcode for the purpose of identity verification.
-              </div>
-              <div class="disc-txt" style="color: #444; font-size: 7px; margin-top: 4px;">
-                The FEDERAL GOVERNMENT of NIGERIA assumes no responsibility if you accept any variance on the scan result or do not scan the 2D barcode overleaf.
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    } else {
-      slipHtmlContent = `
-        <div class="sheet">
-          <div class="card-deck">
-            <div class="std-card" style="background-image: url('${cardWatermarkBg}');">
-              <div class="std-center-coat"></div>
-
-              <div style="position: relative; z-index: 5;">
-                <div style="text-align: center; margin-bottom: 2px;">
-                  <div style="color: #15803d; font-size: 9px; font-weight: 900; letter-spacing: 0.3px;">FEDERAL REPUBLIC OF NIGERIA</div>
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 30px; margin-top: 1px;" />
-                </div>
-
-                <div style="display: flex; margin-top: 2px;">
-                  <img src="${userPhoto}" style="width: 80px; height: 96px; border: 1px solid #555; object-fit: cover; border-radius: 2px;" />
-
-                  <div style="margin-left: 8px; flex: 1;">
-                    <div class="lbl">Surname/Nom</div>
-                    <div class="val-bold" style="font-size: 11px;">${surname}</div>
-
-                    <div class="lbl" style="margin-top: 2px;">Given Names/Prénoms</div>
-                    <div class="val-bold" style="font-size: 10px;">${givenNames}</div>
-
-                    <div class="lbl" style="margin-top: 2px;">Date of Birth</div>
-                    <div class="val-sm">${formattedDob}</div>
-                  </div>
-
-                  <div style="text-align: center; margin-left: 4px;">
-                    <div style="font-weight: 900; font-size: 12px; color: #000;">NGA</div>
-                    <div style="font-size: 7.5px; color: #475569; margin-bottom: 2px; font-family: monospace;">${phone}</div>
-                    <img src="${qrCodeUrl}" style="width: 68px; height: 68px; border: 1px solid #ccc;" />
-                  </div>
-                </div>
-
-                <div style="margin-top: 5px; text-align: center; border-top: 1px solid #cbd5e1; padding-top: 2px;">
-                  <div style="font-size: 7px; color: #222; font-weight: bold;">National Identification Number (NIN)</div>
-                  <div style="font-size: 18px; font-weight: 900; letter-spacing: 2px; color: #000; font-family: monospace;">${formattedNin}</div>
-                  <div style="font-size: 5.5px; color: #555; font-style: italic;">Kindly ensure you scan the barcode to verify the credentials.</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="std-card" style="padding: 14px 18px; display: flex; flex-direction: column; justify-content: center; text-align: center;">
-              <div class="disc-header" style="font-size: 12px;">DISCLAIMER</div>
-              <div class="disc-sub" style="font-size: 8.5px; margin-bottom: 5px;">Trust, but verify</div>
-              <div class="disc-txt" style="font-size: 7px; line-height: 9.5px;">
-                Kindly ensure each time this ID is presented, that you verify the credentials using a Government APPROVED verification resource. The details on the front of this NIN Slip must EXACTLY match the verification result.
-              </div>
-              <div class="disc-caution" style="font-size: 9px; margin: 3px 0 2px;">CAUTION!</div>
-              <div class="disc-txt" style="font-size: 6.8px; line-height: 9px;">
-                If this NIN was not issued to the person on the front of this document, please DO NOT attempt to scan, photocopy or replicate the personal data contained herein. You are only permitted to scan the barcode for the purpose of identity verification.
-              </div>
-              <div class="disc-txt" style="font-size: 6.2px; line-height: 8.5px; color: #555; margin-top: 3px;">
-                The FEDERAL GOVERNMENT of NIGERIA assumes no responsibility if you accept any variance on the scan result or do not scan the 2D barcode overleaf.
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    }
 
     if (Platform.OS === "web" && typeof window !== "undefined") {
       const printWindow = window.open("", "_blank");
@@ -582,46 +396,76 @@ const NIMCScreen = ({ navigation }) => {
           <!DOCTYPE html>
           <html>
             <head>
-              <title>NIMC Official Document - ${nin}</title>
+              <title>NIMC Basic Regular Slip - ${nin}</title>
               <style>
                 * { box-sizing: border-box; margin: 0; padding: 0; }
-                body { font-family: Arial, Helvetica, sans-serif; background: #cbd5e1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                .sheet { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-                
-                .regular-card { width: 780px; background: #fff; border: 2px solid #000; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                body { font-family: Arial, Helvetica, sans-serif; background: #fff; padding: 20px; }
+                .regular-card { width: 780px; margin: 0 auto; background: #fff; border: 2px solid #000; }
                 .regular-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 18px; border-bottom: 2px solid #000; }
-                .regular-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-                .regular-table td { border: 1px solid #000; padding: 5px 7px; }
-                .regular-disclaimer { padding: 6px 10px; font-size: 8.5px; border-bottom: 2px solid #000; line-height: 13px; }
-                .regular-footer { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; font-size: 9px; }
-
-                .premium-box { width: 840px; height: 260px; display: flex; border: 1.5px solid #000; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-                .prem-front { flex: 1.18; padding: 12px 14px; border-right: 1.5px solid #000; background-color: #f1fbf4; position: relative; overflow: hidden; background-repeat: repeat; }
-                .prem-back { flex: 0.82; padding: 14px 18px; display: flex; flex-direction: column; justify-content: center; text-align: center; background: #fff; }
-                .prem-center-coat { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; background: url('https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg') no-repeat center; background-size: contain; opacity: 0.08; pointer-events: none; z-index: 1; }
-
-                .card-deck { display: flex; gap: 20px; }
-                .std-card { width: 345px; height: 215px; border: 1.5px solid #222; border-radius: 6px; background-color: #fff; padding: 8px 12px; position: relative; overflow: hidden; background-repeat: repeat; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-                .std-center-coat { position: absolute; top: 25px; left: 50%; transform: translateX(-50%); width: 110px; height: 110px; background: url('https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg') no-repeat center; background-size: contain; opacity: 0.12; pointer-events: none; z-index: 1; }
-
-                .lbl { color: #64748b; font-size: 7px; font-weight: bold; }
-                .val-bold { font-weight: 900; color: #000; }
-                .val-sm { font-weight: bold; font-size: 9.5px; color: #000; }
-
-                .disc-header { font-weight: 900; font-size: 13px; letter-spacing: 0.5px; color: #000; }
-                .disc-sub { font-style: italic; font-size: 9px; color: #333; margin: 1px 0 6px; font-family: 'Georgia', serif; }
-                .disc-caution { font-weight: bold; font-size: 10px; color: #000; margin: 3px 0 1px; }
-                .disc-txt { font-size: 7.2px; line-height: 10.5px; text-align: justify; color: #111; }
-
-                @media print {
-                  body { background: #fff; }
-                  .sheet { padding: 0; min-height: auto; }
-                  @page { size: auto; margin: 6mm; }
-                }
+                .regular-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                .regular-table td { border: 1px solid #000; padding: 6px 8px; }
+                .regular-disclaimer { padding: 8px 10px; font-size: 9px; border-bottom: 2px solid #000; line-height: 14px; }
+                .regular-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; font-size: 9px; }
+                @media print { body { padding: 0; } @page { size: auto; margin: 5mm; } }
               </style>
             </head>
             <body onload="setTimeout(function(){ window.print(); }, 400);">
-              ${slipHtmlContent}
+              <div class="regular-card">
+                <div class="regular-header">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/b/bc/Coat_of_arms_of_Nigeria.svg" style="height: 55px;" />
+                  <div style="text-align: center;">
+                    <div style="font-size: 16px; font-weight: bold;">National Identity Management System</div>
+                    <div style="font-size: 13px;">Federal Republic of Nigeria</div>
+                    <div style="font-size: 11px; font-weight: bold; margin-top: 2px;">National Identification Number Slip (NINS)</div>
+                  </div>
+                  <img src="https://nimc.gov.ng/wp-content/uploads/2020/07/nimc-logo.png" style="height: 46px;" />
+                </div>
+                <table class="regular-table">
+                  <tr>
+                    <td style="width: 15%; font-weight: bold;">Tracking ID:</td>
+                    <td style="width: 25%; font-weight: bold; color: #000;">${trackingId}</td>
+                    <td style="width: 15%; font-weight: bold;">Surname:</td>
+                    <td style="width: 20%; font-weight: bold;">${surname}</td>
+                    <td style="width: 10%; font-weight: bold;">Address:</td>
+                    <td rowspan="4" style="width: 15%; text-align: center; vertical-align: middle; padding: 4px;">
+                      <img src="${userPhoto}" style="width: 105px; height: 125px; border: 1px solid #000; object-fit: cover; display: block; margin: 0 auto;" />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight: bold;">NIN:</td>
+                    <td style="font-weight: bold; font-size: 13px;">${nin}</td>
+                    <td style="font-weight: bold;">First Name:</td>
+                    <td style="font-weight: bold;">${firstName}</td>
+                    <td rowspan="3" style="vertical-align: top; line-height: 14px; font-size: 10px;">
+                      ${address}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td style="font-weight: bold;">Middle Name:</td>
+                    <td>${middleName}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td></td>
+                    <td style="font-weight: bold;">Gender:</td>
+                    <td>${gender}</td>
+                  </tr>
+                </table>
+                <div class="regular-disclaimer">
+                  <strong>Note:</strong> The National Identification Number (NIN) is your identity. It is confidential and may only be released for legitimate transactions.<br/>
+                  You will be notified when your National Identity Card is ready.
+                </div>
+                <div class="regular-footer">
+                  <div>✉ helpdesk@nimc.gov.ng</div>
+                  <div>🌐 www.nimc.gov.ng</div>
+                  <div>📞 0700-CALL-NIMC</div>
+                  <div style="text-align: right;">
+                    <strong>National Identity Management Commission</strong>
+                  </div>
+                </div>
+              </div>
             </body>
           </html>
         `);
@@ -640,6 +484,22 @@ const NIMCScreen = ({ navigation }) => {
     showAlert("Copied", `${label || "Value"} copied to clipboard.`);
   };
 
+  const resolvedAddress = String(
+    userData?.address ||
+    userData?.residence_address ||
+    userData?.residence_AdressLine1 ||
+    [userData?.residence_town, userData?.lga, userData?.state].filter(Boolean).join(", ") ||
+    "N/A"
+  ).trim();
+
+  const trackingIdValue = String(
+    userData?.trackingId ||
+    userData?.tracking_id ||
+    userData?.trackingID ||
+    userData?.trackingNo ||
+    "N/A"
+  ).trim();
+
   if (view === "main" && !selectedSearch) {
     return (
       <View style={styles.container}>
@@ -648,7 +508,7 @@ const NIMCScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#f8fafc" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>NIMC Slip Services</Text>
+          <Text style={styles.headerTitle}>NIMC Verification Desk</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -663,18 +523,23 @@ const NIMCScreen = ({ navigation }) => {
               <MaterialCommunityIcons name="printer-check" size={32} color="#00f0ff" />
             </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.bannerTitle}>NIMC Slip Printing</Text>
+              <Text style={styles.bannerTitle}>NIMC Verification & Slip Printing</Text>
               <Text style={styles.bannerSub}>
-                Instant verified reprint using NIN, Phone number, or Tracking ID.
+                Verify identity records and reprint official Standard, Premium, or Regular slips instantly.
               </Text>
             </View>
           </LinearGradient>
 
-          <Text style={styles.sectionHeading}>SELECT VERIFICATION CHANNEL</Text>
+          <View style={styles.sectionHeadingRow}>
+            <Text style={styles.sectionHeading}>VERIFICATION & REPRINT CHANNELS</Text>
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeCountText}>6 Channels</Text>
+            </View>
+          </View>
 
           <View style={styles.gridContainer}>
             {searchOptions.map((opt) => {
-              const currentPrice = prices[opt.id] || 100;
+              const currentPrice = prices[opt.id] || 150;
               return (
                 <TouchableOpacity
                   key={opt.id}
@@ -686,20 +551,24 @@ const NIMCScreen = ({ navigation }) => {
                     <View style={styles.iconCircle}>
                       <FontAwesome5 name={opt.icon} size={18} color="#00f0ff" />
                     </View>
-                    {isAdmin && (
-                      <TouchableOpacity
-                        style={styles.adminEditPill}
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          setEditingService(opt);
-                          setNewPriceInput(String(currentPrice));
-                          setAdminPriceModal(true);
-                        }}
-                      >
-                        <Ionicons name="pencil" size={11} color="#f59e0b" />
-                        <Text style={styles.adminEditText}>Edit</Text>
-                      </TouchableOpacity>
-                    )}
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={styles.categoryTag}>
+                        <Text style={styles.categoryTagText}>SLIP PRINT</Text>
+                      </View>
+                      {isAdmin && (
+                        <TouchableOpacity
+                          style={styles.adminEditPill}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            setEditingService(opt);
+                            setNewPriceInput(String(currentPrice));
+                            setAdminPriceModal(true);
+                          }}
+                        >
+                          <Ionicons name="pencil" size={11} color="#f59e0b" />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
 
                   <Text style={styles.boxTitle}>{opt.name}</Text>
@@ -715,21 +584,6 @@ const NIMCScreen = ({ navigation }) => {
               );
             })}
           </View>
-
-          <TouchableOpacity
-            style={styles.modCard}
-            onPress={() => navigation.navigate("NIMCModification")}
-            activeOpacity={0.85}
-          >
-            <View style={styles.modIconWrap}>
-              <FontAwesome5 name="user-edit" size={18} color="#0284c7" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.modTitle}>NIMC Data Modifications</Text>
-              <Text style={styles.modSub}>Update Date of Birth, Name, or Phone Number</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#64748b" />
-          </TouchableOpacity>
         </ScrollView>
 
         <Modal visible={adminPriceModal} transparent animationType="slide">
@@ -776,7 +630,7 @@ const NIMCScreen = ({ navigation }) => {
   }
 
   if (view === "main" && selectedSearch) {
-    const activePrice = prices[selectedSearch.id] || 100;
+    const activePrice = prices[selectedSearch.id] || 150;
 
     return (
       <View style={styles.container}>
@@ -804,11 +658,15 @@ const NIMCScreen = ({ navigation }) => {
 
             <View style={styles.feeBreakdownBox}>
               <View style={styles.feeRow}>
-                <Text style={styles.feeRowLabel}>Service Type</Text>
+                <Text style={styles.feeRowLabel}>Category Desk</Text>
+                <Text style={[styles.feeRowVal, { color: "#38bdf8" }]}>SLIP REPRINT & VERIFICATION</Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeRowLabel}>Service Channel</Text>
                 <Text style={styles.feeRowVal}>{selectedSearch.name}</Text>
               </View>
               <View style={styles.feeRow}>
-                <Text style={styles.feeRowLabel}>Portal Printing Fee</Text>
+                <Text style={styles.feeRowLabel}>Official Portal Fee</Text>
                 <Text style={[styles.feeRowVal, { color: "#10b981" }]}>
                   ₦{Number(activePrice).toLocaleString()}
                 </Text>
@@ -896,6 +754,7 @@ const NIMCScreen = ({ navigation }) => {
       userData?.idNumber ||
       userData?.details?.nin ||
       userData?.details?.data?.nin ||
+      searchValue ||
       "N/A";
 
     return (
@@ -907,6 +766,7 @@ const NIMCScreen = ({ navigation }) => {
               setView("main");
               setSelectedSearch(null);
               setSearchValue("");
+              setReturnedBase64Pdf(null);
             }}
             style={styles.backBtn}
           >
@@ -940,7 +800,7 @@ const NIMCScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.detailsList}>
-              <ResultRow label="Full Name" value={fullName} />
+              <ResultRow label="Full Legal Name" value={fullName} />
               <ResultRow
                 label="National Identity Number (NIN)"
                 value={resolvedNin}
@@ -948,21 +808,20 @@ const NIMCScreen = ({ navigation }) => {
                 onCopy={() => copyToClipboard(resolvedNin, "NIN")}
               />
               <ResultRow
-                label="Tracking ID"
-                value={userData?.trackingId || userData?.tracking_id || "N/A"}
+                label="NIMC Tracking ID"
+                value={trackingIdValue}
                 copyable
-                onCopy={() => copyToClipboard(userData?.trackingId || userData?.tracking_id, "Tracking ID")}
+                highlight
+                onCopy={() => copyToClipboard(trackingIdValue, "Tracking ID")}
               />
-              <ResultRow label="Phone Number" value={userData?.telephoneno || userData?.phone || "N/A"} />
               <ResultRow label="Date of Birth" value={userData?.birthdate || userData?.dob || "N/A"} />
-              <ResultRow label="Gender" value={userData?.gender || "N/A"} />
-              <ResultRow label="State of Origin" value={userData?.state || userData?.stateOfOrigin || "N/A"} />
-              <ResultRow label="LGA of Origin" value={userData?.lga || userData?.lgaOfOrigin || "N/A"} />
+              <ResultRow label="Gender" value={(userData?.gender || "N/A").toUpperCase()} />
+              <ResultRow label="Residential Address" value={resolvedAddress} />
             </View>
 
             <TouchableOpacity style={styles.downloadPdfBtn} onPress={handleDownloadPDF} activeOpacity={0.85}>
-              <MaterialCommunityIcons name="file-pdf-box" size={22} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.downloadPdfBtnText}>DOWNLOAD PRINTABLE SLIP (PDF)</Text>
+              <MaterialCommunityIcons name="file-download-outline" size={20} color="#fff" style={{ marginRight: 6 }} />
+              <Text style={styles.downloadPdfBtnText}>DOWNLOAD OFFICIAL SLIP (PDF)</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -973,11 +832,11 @@ const NIMCScreen = ({ navigation }) => {
   return null;
 };
 
-const ResultRow = ({ label, value, copyable, onCopy }) => (
+const ResultRow = ({ label, value, copyable, highlight, onCopy }) => (
   <View style={styles.resultRowContainer}>
     <View style={{ flex: 1 }}>
       <Text style={styles.resultLabel}>{label}</Text>
-      <Text style={styles.resultValue}>{value}</Text>
+      <Text style={[styles.resultValue, highlight && { color: "#00f0ff", fontWeight: "900" }]}>{value}</Text>
     </View>
     {copyable && value !== "N/A" && (
       <TouchableOpacity onPress={onCopy} style={styles.copySmallBtn}>
@@ -1003,7 +862,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 18,
     borderRadius: 18,
-    marginBottom: 18,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: "#00f0ff",
   },
@@ -1015,14 +874,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  bannerTitle: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  bannerTitle: { color: "#fff", fontSize: 15.5, fontWeight: "900" },
   bannerSub: { color: "#cbd5e1", fontSize: 11, marginTop: 3, lineHeight: 16 },
+  sectionHeadingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+    marginBottom: 12,
+  },
   sectionHeading: {
     color: "#64748b",
     fontSize: 11,
     fontWeight: "900",
     letterSpacing: 0.8,
-    marginBottom: 12,
+  },
+  badgeCount: {
+    backgroundColor: "#1e293b",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeCountText: {
+    color: "#38bdf8",
+    fontSize: 10,
+    fontWeight: "900",
   },
   gridContainer: {
     flexDirection: "row",
@@ -1031,7 +907,7 @@ const styles = StyleSheet.create({
   },
   serviceBox: {
     backgroundColor: "#0b1120",
-    width: (width - 40) / 2,
+    width: (width - 44) / 2,
     padding: 14,
     borderRadius: 16,
     marginBottom: 12,
@@ -1047,55 +923,45 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 12,
     backgroundColor: "#071328",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(0, 240, 255, 0.2)",
   },
+  categoryTag: {
+    backgroundColor: "rgba(2, 132, 199, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 5,
+    marginRight: 4,
+  },
+  categoryTagText: {
+    color: "#38bdf8",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
   adminEditPill: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "rgba(245, 158, 11, 0.15)",
     paddingHorizontal: 6,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  adminEditText: { color: "#f59e0b", fontSize: 10, fontWeight: "800", marginLeft: 2 },
   boxTitle: { color: "#f8fafc", fontSize: 13, fontWeight: "800" },
-  boxDesc: { color: "#64748b", fontSize: 10, marginTop: 4, lineHeight: 14, minHeight: 28 },
+  boxDesc: { color: "#64748b", fontSize: 10.5, marginTop: 4, lineHeight: 14, minHeight: 28 },
   priceContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 10,
+    marginTop: 12,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: "rgba(255, 255, 255, 0.05)",
   },
   priceLabel: { color: "#64748b", fontSize: 11, fontWeight: "600" },
-  priceValue: { color: "#10b981", fontSize: 13, fontWeight: "900" },
-  modCard: {
-    backgroundColor: "#0b1120",
-    flexDirection: "row",
-    padding: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    marginTop: 4,
-    borderWidth: 1,
-    borderColor: "#1e293b",
-  },
-  modIconWrap: {
-    width: 42,
-    height: 42,
-    backgroundColor: "#071328",
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modTitle: { fontWeight: "800", color: "#f8fafc", fontSize: 13 },
-  modSub: { fontSize: 11, color: "#64748b", marginTop: 2 },
+  priceValue: { color: "#10b981", fontSize: 13.5, fontWeight: "900" },
   formCard: {
     backgroundColor: "#0b1120",
     padding: 18,
@@ -1133,7 +999,7 @@ const styles = StyleSheet.create({
   feeRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginVertical: 3,
+    marginVertical: 4,
   },
   feeRowLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
   feeRowVal: { color: "#fff", fontSize: 12, fontWeight: "800" },
@@ -1156,15 +1022,15 @@ const styles = StyleSheet.create({
   photoContainer: { alignItems: "center", marginBottom: 16 },
   userPhoto: {
     width: 110,
-    height: 110,
-    borderRadius: 16,
+    height: 125,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "#00f0ff",
   },
   photoPlaceholder: {
     width: 110,
-    height: 110,
-    borderRadius: 16,
+    height: 125,
+    borderRadius: 14,
     backgroundColor: "#071328",
     justifyContent: "center",
     alignItems: "center",
@@ -1191,11 +1057,11 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(255,255,255,0.05)",
   },
   resultLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "700", textTransform: "uppercase" },
-  resultValue: { color: "#f8fafc", fontSize: 13, fontWeight: "800", marginTop: 2 },
-  copySmallBtn: { padding: 6, backgroundColor: "rgba(0, 240, 255, 0.1)", borderRadius: 6 },
+  resultValue: { color: "#f8fafc", fontSize: 13, fontWeight: "800", marginTop: 2, textAlign: "right" },
+  copySmallBtn: { padding: 6, backgroundColor: "rgba(0, 240, 255, 0.1)", borderRadius: 6, marginLeft: 8 },
   downloadPdfBtn: {
     width: "100%",
-    backgroundColor: "#dc2626",
+    backgroundColor: "#16a34a",
     flexDirection: "row",
     paddingVertical: 15,
     borderRadius: 14,
@@ -1214,7 +1080,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "100%",
-    maxWidth: 320,
+    maxWidth: 340,
     backgroundColor: "#0b1120",
     borderRadius: 20,
     padding: 22,

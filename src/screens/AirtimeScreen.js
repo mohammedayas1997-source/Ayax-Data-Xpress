@@ -19,23 +19,21 @@ import { Ionicons } from "@expo/vector-icons";
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
 const networks = [
-  { id: "01", name: "MTN", color: "#FFCC00" },
-  { id: "02", name: "GLO", color: "#2ecc71" },
-  { id: "04", name: "Airtel", color: "#e74c3c" },
-  { id: "03", name: "9Mobile", color: "#006600" },
+  { id: "MTN", networkId: "1", name: "MTN", color: "#FFCC00" },
+  { id: "AIRTEL", networkId: "2", name: "Airtel", color: "#e74c3c" },
+  { id: "9MOBILE", networkId: "3", name: "9Mobile", color: "#006600" },
+  { id: "GLO", networkId: "4", name: "GLO", color: "#2ecc71" },
 ];
 
 const AirtimeScreen = ({ navigation }) => {
-  const [selectedNet, setSelectedNet] = useState("01");
+  const [selectedNet, setSelectedNet] = useState("MTN");
   const [phone, setPhone] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
 
-  // Helper don nuna popup a Web da Mobile
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
       window.alert(`${title}: ${message}`);
@@ -52,7 +50,6 @@ const AirtimeScreen = ({ navigation }) => {
     }
   };
 
-  // Bincika bayanan farko kafin a bude PIN Modal
   const handleInitiatePurchase = () => {
     if (!phone.trim() || !amount.trim()) {
       return showAlert("Error", "Please fill in recipient phone number and amount.");
@@ -70,15 +67,17 @@ const AirtimeScreen = ({ navigation }) => {
     setPinModalVisible(true);
   };
 
-  // Tura bayanan da PIN zuwa Server
   const handleAirtimePurchase = async () => {
-    if (!pin || pin.length < 4) {
+    if (!pin || pin.trim().length !== 4) {
       return showAlert("Error", "Enter your valid 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem("userToken");
+      const token =
+        (await AsyncStorage.getItem("userToken")) ||
+        (await AsyncStorage.getItem("token"));
+
       if (!token) {
         setPinModalVisible(false);
         showAlert("Session Expired", "Please login again.", () => {
@@ -88,41 +87,50 @@ const AirtimeScreen = ({ navigation }) => {
       }
 
       const numericAmount = parseFloat(amount);
+      const activeNetworkObj = networks.find((n) => n.id === selectedNet) || networks[0];
 
-      const response = await axios.post(
-        `${BASE_URL}/vtu/buy-airtime`,
-        {
-          network: selectedNet,
-          phoneNumber: phone.trim(),
-          amount: numericAmount,
-          transactionPin: pin.trim(),
-          pin: pin.trim(), // Added backup pin field to ensure backend picks it up
+      const payload = {
+        network: activeNetworkObj.id,
+        networkId: activeNetworkObj.networkId,
+        airtime_type: "VTU",
+        phone: phone.trim(),
+        phoneNumber: phone.trim(),
+        phoneNo: phone.trim(),
+        amount: numericAmount,
+        pin: pin.trim(),
+        transactionPin: pin.trim(),
+      };
+
+      const response = await axios.post(`${BASE_URL}/airtime/buy`, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json"
-          },
-          timeout: 20000
-        },
-      );
+        timeout: 45000,
+      });
 
       const result = response.data;
       if (result.success || result.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        showAlert("Success 🎉", `₦${numericAmount} airtime successfully sent to ${phone}`, () => {
-          setPhone("");
-          setAmount("");
-        });
+        showAlert(
+          "Success",
+          `₦${numericAmount} airtime successfully sent to ${phone.trim()}`,
+          () => {
+            setPhone("");
+            setAmount("");
+          }
+        );
       } else {
-        throw new Error(result.message || "Transaction Error");
+        throw new Error(result.message || "Transaction failed");
       }
     } catch (error) {
       const errorMsg =
         error.response?.data?.message ||
+        error.response?.data?.error ||
         error.message ||
-        "Server communication failure. Please check your connection.";
+        "Transaction processing failed. Please check your connection.";
       showAlert("Transaction Failed", errorMsg);
     } finally {
       setLoading(false);
@@ -140,35 +148,42 @@ const AirtimeScreen = ({ navigation }) => {
         <Text style={styles.headerText}>Airtime Recharge Portal</Text>
       </View>
 
-      {/* Network Selection */}
       <Text style={styles.label}>Select Network</Text>
       <View style={styles.netGrid}>
-        {networks.map((net) => (
-          <TouchableOpacity
-            key={net.id}
-            style={[
-              styles.netBox,
-              {
-                backgroundColor: selectedNet === net.id ? net.color : "#f8fafc",
-                borderColor: selectedNet === net.id ? "#0a1d37" : "#e2e8f0",
-                borderWidth: selectedNet === net.id ? 2 : 1,
-              },
-            ]}
-            onPress={() => setSelectedNet(net.id)}
-          >
-            <Text
+        {networks.map((net) => {
+          const isSelected = selectedNet === net.id;
+          return (
+            <TouchableOpacity
+              key={net.id}
               style={[
-                styles.netText,
-                { color: selectedNet === net.id ? "#000" : "#64748b" },
+                styles.netBox,
+                {
+                  backgroundColor: isSelected ? net.color : "#f8fafc",
+                  borderColor: isSelected ? "#0a1d37" : "#e2e8f0",
+                  borderWidth: isSelected ? 2 : 1,
+                },
               ]}
+              onPress={() => setSelectedNet(net.id)}
             >
-              {net.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text
+                style={[
+                  styles.netText,
+                  {
+                    color: isSelected
+                      ? net.id === "MTN"
+                        ? "#000000"
+                        : "#ffffff"
+                      : "#64748b",
+                  },
+                ]}
+              >
+                {net.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
-      {/* Phone Number */}
       <Text style={styles.label}>Recipient Phone Number</Text>
       <TextInput
         style={styles.input}
@@ -180,7 +195,6 @@ const AirtimeScreen = ({ navigation }) => {
         maxLength={11}
       />
 
-      {/* Amount Input */}
       <Text style={styles.label}>Amount (₦)</Text>
       <TextInput
         style={styles.input}
@@ -191,33 +205,29 @@ const AirtimeScreen = ({ navigation }) => {
         onChangeText={setAmount}
       />
 
-      {/* Quick Selection Amounts */}
       <View style={styles.quickAmountRow}>
         {["100", "200", "500", "1000", "2000"].map((val) => (
           <TouchableOpacity
             key={val}
-            style={[
-              styles.quickBtn,
-              amount === val && styles.selectedQuickBtn
-            ]}
+            style={[styles.quickBtn, amount === val && styles.selectedQuickBtn]}
             onPress={() => setAmount(val)}
           >
-            <Text style={[styles.quickText, amount === val && styles.selectedQuickText]}>
+            <Text
+              style={[
+                styles.quickText,
+                amount === val && styles.selectedQuickText,
+              ]}
+            >
               ₦{val}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={styles.buyBtn}
-        onPress={handleInitiatePurchase}
-      >
+      <TouchableOpacity style={styles.buyBtn} onPress={handleInitiatePurchase}>
         <Text style={styles.buyBtnText}>PROCEED & BUY AIRTIME</Text>
       </TouchableOpacity>
 
-      {/* PIN Verification Modal */}
       <Modal visible={pinModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -225,7 +235,9 @@ const AirtimeScreen = ({ navigation }) => {
               <Ionicons name="shield-checkmark" size={32} color="#1e40af" />
             </View>
             <Text style={styles.modalTitle}>Enter Transaction PIN</Text>
-            <Text style={styles.modalSubtitle}>Please input your 4-digit PIN to authorize this airtime recharge</Text>
+            <Text style={styles.modalSubtitle}>
+              Please input your 4-digit PIN to authorize this airtime recharge
+            </Text>
 
             <TextInput
               style={styles.pinInput}
@@ -340,7 +352,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.6)",

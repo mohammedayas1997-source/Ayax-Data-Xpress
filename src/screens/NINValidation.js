@@ -12,40 +12,63 @@ import {
   Modal,
   Platform,
 } from "react-native";
-import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 
 const BASE_URL = "https://ayax-data-xpress-server.onrender.com/api/v1";
 
-const initialValidationTypes = [
-  { id: "no_record", name: "No Record Found", cost: 1300 },
-  { id: "sim_val", name: "SIM Validation", cost: 1300 },
-  { id: "vnin_val", name: "vNIN Validation", cost: 1300 },
-  { id: "update_record", name: "Update Records Validation", cost: 1300 },
-  { id: "bank_val", name: "Bank Validation", cost: 1300 },
-  { id: "mod_val", name: "Modification Validation", cost: 1700 },
-  { id: "photo_error", name: "Photographic Error", cost: 1400 },
+const officialValidationTypes = [
+  {
+    id: "no_record",
+    name: "No Record Found",
+    desc: "Profile synchronization & re-linking",
+    icon: "search",
+    cost: 1300,
+  },
+  {
+    id: "simbank_validation",
+    name: "SIM / Bank Validation",
+    desc: "Telco line & BVN-NIN tie clearing",
+    icon: "sim-card",
+    cost: 1300,
+  },
+  {
+    id: "modification",
+    name: "Modification Validation",
+    desc: "Clearance after Name, DOB or Phone update",
+    icon: "user-edit",
+    cost: 1700,
+  },
+  {
+    id: "photo_error",
+    name: "Photographic Error",
+    desc: "Portrait facial biometric resolution",
+    icon: "camera",
+    cost: 1400,
+  },
 ];
 
 const NINValidation = ({ navigation }) => {
-  const [validationTypes, setValidationTypes] = useState(initialValidationTypes);
-  const [selectedType, setSelectedType] = useState("No Record Found");
-  const [loading, setLoading] = useState(false);
+  const [validationTypes, setValidationTypes] = useState(officialValidationTypes);
+  const [selectedType, setSelectedType] = useState(officialValidationTypes[0]);
+  const [nin, setNin] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isTimeAgreed, setIsTimeAgreed] = useState(false);
-  const [formData, setFormData] = useState({ nin: "" });
 
-  // Admin Price Control States
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminModalVisible, setAdminModalVisible] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [newPriceInput, setNewPriceInput] = useState("");
   const [updatingPrice, setUpdatingPrice] = useState(false);
 
-  // PIN Modal States
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [pin, setPin] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Receipt State
+  const [receiptData, setReceiptData] = useState(null);
+  const [showReceipt, setShowReceipt] = useState(false);
 
   const showAlert = (title, message, onPressCallback) => {
     if (Platform.OS === "web") {
@@ -55,15 +78,12 @@ const NINValidation = ({ navigation }) => {
       Alert.alert(title, message, [
         {
           text: "OK",
-          onPress: () => {
-            if (onPressCallback) onPressCallback();
-          },
+          onPress: () => onPressCallback && onPressCallback(),
         },
       ]);
     }
   };
 
-  // 1. Fetch live prices from server & check admin role
   const fetchLivePrices = useCallback(async () => {
     try {
       const res = await axios.get(`${BASE_URL}/nin/prices`, { timeout: 10000 });
@@ -77,7 +97,7 @@ const NINValidation = ({ navigation }) => {
         );
       }
     } catch (e) {
-      console.log("NIN live prices fallback active");
+      console.log("Validation price fallback active");
     }
   }, []);
 
@@ -87,7 +107,7 @@ const NINValidation = ({ navigation }) => {
         const stored = await AsyncStorage.getItem("userData");
         if (stored) {
           const parsed = JSON.parse(stored);
-          setIsAdmin(parsed.role === "admin" || parsed.isAdmin === true);
+          setIsAdmin(parsed.role === "admin" || parsed.isAdmin === true || parsed.role === "superadmin");
         }
       } catch (e) {}
     };
@@ -95,10 +115,8 @@ const NINValidation = ({ navigation }) => {
     fetchLivePrices();
   }, [fetchLivePrices]);
 
-  const currentItem = validationTypes.find((t) => t.name === selectedType);
-  const currentCost = currentItem?.cost || 1300;
+  const currentCost = selectedType?.cost || 1300;
 
-  // 2. Admin Price Update Handler
   const handleSaveAdminPrice = async () => {
     const numericPrice = Number(newPriceInput);
     if (!newPriceInput || isNaN(numericPrice) || numericPrice < 0) {
@@ -107,7 +125,7 @@ const NINValidation = ({ navigation }) => {
 
     setUpdatingPrice(true);
     try {
-      const token = await AsyncStorage.getItem("userToken");
+      const token = (await AsyncStorage.getItem("userToken")) || (await AsyncStorage.getItem("token"));
       const res = await axios.post(
         `${BASE_URL}/admin/nin/update-price`,
         {
@@ -127,6 +145,9 @@ const NINValidation = ({ navigation }) => {
             item.id === editingItem.id ? { ...item, cost: numericPrice } : item
           )
         );
+        if (selectedType.id === editingItem.id) {
+          setSelectedType((prev) => ({ ...prev, cost: numericPrice }));
+        }
         setAdminModalVisible(false);
         setNewPriceInput("");
         showAlert("Updated", `${editingItem.name} price updated to ₦${numericPrice.toLocaleString()}`);
@@ -139,6 +160,9 @@ const NINValidation = ({ navigation }) => {
           item.id === editingItem.id ? { ...item, cost: numericPrice } : item
         )
       );
+      if (selectedType.id === editingItem.id) {
+        setSelectedType((prev) => ({ ...prev, cost: numericPrice }));
+      }
       setAdminModalVisible(false);
       setNewPriceInput("");
       showAlert("Updated", `${editingItem.name} price set to ₦${numericPrice.toLocaleString()}`);
@@ -148,22 +172,23 @@ const NINValidation = ({ navigation }) => {
   };
 
   const handleInitiateSubmit = () => {
-    if (!formData.nin.trim()) {
-      return showAlert("Required", "Please enter your 11-digit NIN.");
+    const cleanNin = nin.trim().replace(/\D/g, "");
+    if (!cleanNin) {
+      return showAlert("Required", "Please enter the 11-digit NIN.");
     }
 
-    if (formData.nin.trim().length !== 11) {
+    if (cleanNin.length !== 11) {
       return showAlert("Invalid NIN", "NIN must be exactly 11 digits.");
     }
 
     if (!isAuthorized) {
-      return showAlert("Consent Required", "Please accept the authorization consent checkbox.");
+      return showAlert("Consent Required", "Please confirm that you have user authorization.");
     }
 
     if (!isTimeAgreed) {
       return showAlert(
         "Notice Required",
-        "Please acknowledge and agree to the 48-working-hours processing period before payment."
+        "Please acknowledge the 24 - 48 working hours manual clearing window."
       );
     }
 
@@ -171,13 +196,13 @@ const NINValidation = ({ navigation }) => {
   };
 
   const handleSubmit = async () => {
-    if (!pin || pin.length !== 4) {
-      return showAlert("Security PIN", "Transaction PIN must be 4 digits.");
+    if (!pin || pin.trim().length !== 4) {
+      return showAlert("Security PIN", "Please enter your 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem("userToken");
+      const token = (await AsyncStorage.getItem("userToken")) || (await AsyncStorage.getItem("token"));
       if (!token) {
         setPinModalVisible(false);
         return showAlert("Session Expired", "Please login again.", () => {
@@ -185,55 +210,139 @@ const NINValidation = ({ navigation }) => {
         });
       }
 
-      const response = await axios.post(
-        `${BASE_URL}/nin/validate`,
-        {
-          type: selectedType,
-          serviceId: currentItem?.id,
-          nin: formData.nin.trim(),
-          pin: pin.trim(),
-          transactionPin: pin.trim(),
-          amount: currentCost,
-          timestamp: new Date().toISOString(),
-          processingWindow: "48_WORKING_HOURS",
-        },
-        {
+      const cleanNin = nin.trim().replace(/\D/g, "");
+      const requestPayload = {
+        nin: cleanNin,
+        error_type: selectedType.id,
+        issueType: selectedType.id,
+        validationType: selectedType.id,
+        type: selectedType.id,
+        serviceId: selectedType.id,
+        amount: currentCost,
+        pin: pin.trim(),
+        transactionPin: pin.trim(),
+        processingWindow: "48_WORKING_HOURS",
+      };
+
+      let response;
+      try {
+        response = await axios.post(`${BASE_URL}/validation/submit`, requestPayload, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          timeout: 30000,
+          timeout: 45000,
+        });
+      } catch (errRoute) {
+        if (errRoute.response?.status === 404) {
+          response = await axios.post(`${BASE_URL}/nin/validate`, requestPayload, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            timeout: 45000,
+          });
+        } else {
+          throw errRoute;
         }
-      );
+      }
 
-      const result = response.data;
-      if (result.success || result.status === "success") {
+      const resData = response.data;
+      if (resData.success || resData.status === "success") {
         setPinModalVisible(false);
         setPin("");
-        showAlert(
-          "Request Submitted 🎉",
-          "Your NIN validation request has been queued. Verification will be finalized within 48 working hours.",
-          () => {
-            setFormData({ nin: "" });
-            setIsAuthorized(false);
-            setIsTimeAgreed(false);
-          }
-        );
+
+        const ticketId =
+          resData.data?.ticketId ||
+          resData.ticketId ||
+          resData.reference ||
+          `TKT-${Date.now().toString().slice(-6)}`;
+
+        setReceiptData({
+          type: selectedType.name,
+          nin: cleanNin,
+          ticketId,
+          amount: currentCost,
+        });
+        setShowReceipt(true);
       } else {
-        throw new Error(result.message || "Failed to process validation request.");
+        throw new Error(resData.message || "Failed to submit validation request.");
       }
     } catch (error) {
       const errorMsg =
         error.response?.data?.message ||
         error.message ||
         "Server communication failure. Please check your connection.";
-      showAlert("Validation Failed", errorMsg);
+      showAlert("Validation Submission Error", errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
-  const isFormReady = isAuthorized && isTimeAgreed && formData.nin.trim().length === 11;
+  const handleReset = () => {
+    setNin("");
+    setIsAuthorized(false);
+    setIsTimeAgreed(false);
+    setShowReceipt(false);
+    setReceiptData(null);
+  };
+
+  const cleanNinLength = nin.trim().replace(/\D/g, "").length;
+  const isFormReady = isAuthorized && isTimeAgreed && cleanNinLength === 11;
+
+  if (showReceipt && receiptData) {
+    return (
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
+        <View style={styles.topHeaderRow}>
+          <TouchableOpacity onPress={handleReset} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#0a1d37" />
+          </TouchableOpacity>
+          <Text style={styles.screenMainTitle}>Submission Receipt</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={styles.receiptContainer}>
+          <View style={styles.receiptIconWrap}>
+            <Ionicons name="checkmark-sharp" size={32} color="#16a34a" />
+          </View>
+          <Text style={styles.receiptTitle}>Validation Request Queued!</Text>
+          <Text style={styles.receiptSub}>
+            Your request has been forwarded to the official manual clearance queue.
+          </Text>
+
+          <View style={styles.receiptDetailsCard}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Service Type:</Text>
+              <Text style={styles.detailValue}>{receiptData.type}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Validated NIN:</Text>
+              <Text style={styles.detailValue}>{receiptData.nin}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Tracking / Ticket ID:</Text>
+              <Text style={[styles.detailValue, { color: "#0284c7" }]}>{receiptData.ticketId}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Amount Deducted:</Text>
+              <Text style={styles.detailValue}>₦{receiptData.amount.toLocaleString()}</Text>
+            </View>
+            <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
+              <Text style={styles.detailLabel}>Current Status:</Text>
+              <Text style={[styles.detailValue, { color: "#d97706" }]}>
+                PENDING CLEARANCE (24-48 HRS)
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.btnDone} onPress={handleReset} activeOpacity={0.85}>
+            <Text style={styles.btnDoneText}>SUBMIT ANOTHER VALIDATION</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -242,121 +351,122 @@ const NINValidation = ({ navigation }) => {
       {/* Top Header */}
       <View style={styles.topHeaderRow}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#1e3a8a" />
+          <Ionicons name="arrow-back" size={24} color="#0a1d37" />
         </TouchableOpacity>
-        <Text style={styles.screenMainTitle}>NIN Validation Portal</Text>
+        <Text style={styles.screenMainTitle}>NIN Validation Desk</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      {/* CRITICAL 48-HOUR NOTICE BANNER */}
-      <View style={styles.redNoticeCard}>
-        <View style={styles.redNoticeHeader}>
-          <Ionicons name="alert-circle" size={22} color="#dc2626" />
-          <Text style={styles.redNoticeTitle}>MUHIMMI: SANARWAR LOKACI (48 WORKING HOURS)</Text>
+      {/* 48-Working Hours Window Notice */}
+      <View style={styles.noticeCard}>
+        <View style={styles.noticeHeader}>
+          <Ionicons name="time" size={18} color="#b45309" />
+          <Text style={styles.noticeTitle}>MANUAL QUEUE NOTICE: 24 - 48 WORKING HOURS</Text>
         </View>
-        <Text style={styles.redNoticeText}>
-          Wannan aikin tantancewa (Validation) yana ɗaukar tsawon **awanni 48 na ranakun aiki (48 Working Hours)** kafin ya kammala a uwar garken hukumar NIMC. Ba a aiki ranakun Asabar da Lahadi.
+        <Text style={styles.noticeText}>
+          NIN validation requests are submitted directly to the clearing desk. Processing takes{" "}
+          <Text style={{ fontWeight: "900" }}>24 to 48 working hours</Text>. Saturdays, Sundays, and
+          public holidays are excluded from clearing operations.
         </Text>
       </View>
 
-      {/* Service Selection Card */}
+      {/* Select Error Type Grid */}
       <View style={styles.card}>
-        <View style={styles.header}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Ionicons name="shield-checkmark-outline" size={18} color="#1e3a8a" />
-            <Text style={styles.title}>Select Validation Service</Text>
-          </View>
-          <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>Fee: ₦{currentCost?.toLocaleString()}</Text>
-          </View>
+        <View style={styles.cardTitleRow}>
+          <Ionicons name="warning-outline" size={18} color="#f59e0b" />
+          <Text style={styles.cardTitle}>Select Error / Validation Category</Text>
         </View>
 
-        <View style={styles.chipContainer}>
-          {validationTypes.map((type) => {
-            const isSelected = selectedType === type.name;
+        <View style={styles.validationGrid}>
+          {validationTypes.map((item) => {
+            const isSelected = selectedType.id === item.id;
             return (
-              <View key={type.id} style={styles.chipWrapper}>
+              <View key={item.id} style={{ marginBottom: 10 }}>
                 <TouchableOpacity
-                  style={[styles.chip, isSelected && styles.selectedChip]}
-                  onPress={() => setSelectedType(type.name)}
-                  activeOpacity={0.8}
+                  style={[styles.valOptionCard, isSelected && styles.valOptionCardSelected]}
+                  onPress={() => setSelectedType(item)}
+                  activeOpacity={0.85}
                 >
-                  <Text style={[styles.chipText, isSelected && styles.selectedChipText]}>
-                    {type.name}
-                  </Text>
-                  <Text style={[styles.chipPriceTag, isSelected && styles.selectedChipPriceTag]}>
-                    ₦{type.cost.toLocaleString()}
-                  </Text>
+                  <View style={styles.valInfoLeft}>
+                    <View style={[styles.valIconBox, isSelected && styles.valIconBoxSelected]}>
+                      <FontAwesome5
+                        name={item.icon}
+                        size={16}
+                        color={isSelected ? "#b45309" : "#f59e0b"}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.valName}>{item.name}</Text>
+                      <Text style={styles.valDesc}>{item.desc}</Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.valPriceTag}>₦{item.cost.toLocaleString()}</Text>
+                    {isAdmin && (
+                      <TouchableOpacity
+                        style={styles.adminEditBadge}
+                        onPress={() => {
+                          setEditingItem(item);
+                          setNewPriceInput(String(item.cost));
+                          setAdminModalVisible(true);
+                        }}
+                      >
+                        <Ionicons name="pencil" size={11} color="#f59e0b" />
+                        <Text style={styles.adminEditText}>Edit</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </TouchableOpacity>
-
-                {isAdmin && (
-                  <TouchableOpacity
-                    style={styles.adminEditBtn}
-                    onPress={() => {
-                      setEditingItem(type);
-                      setNewPriceInput(String(type.cost));
-                      setAdminModalVisible(true);
-                    }}
-                  >
-                    <Ionicons name="pencil" size={12} color="#f59e0b" />
-                  </TouchableOpacity>
-                )}
               </View>
             );
           })}
         </View>
       </View>
 
-      {/* NIN Input Card */}
+      {/* Target NIN Input */}
       <View style={styles.card}>
-        <Text style={styles.label}>NIN Number (11 Digits)</Text>
+        <Text style={styles.fieldLabel}>National Identification Number (11 Digits) *</Text>
         <TextInput
-          style={styles.input}
+          style={styles.textInput}
           placeholder="Enter 11-digit NIN"
           placeholderTextColor="#94a3b8"
           keyboardType="numeric"
           maxLength={11}
-          value={formData.nin}
-          onChangeText={(v) => setFormData({ ...formData, nin: v })}
+          value={nin}
+          onChangeText={setNin}
         />
       </View>
 
-      {/* Authorization & 48-Hour Agreement Card */}
+      {/* Consent and Acknowledgement */}
       <View style={styles.card}>
-        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-          <MaterialCommunityIcons name="shield-lock" size={20} color="#1e3a8a" />
-          <Text style={styles.authTitle}>Consent & Terms of Service</Text>
-        </View>
-
-        {/* Checkbox 1: Consent */}
         <TouchableOpacity
           style={styles.checkboxRow}
           onPress={() => setIsAuthorized(!isAuthorized)}
-          activeOpacity={0.9}
+          activeOpacity={0.85}
         >
           <MaterialCommunityIcons
             name={isAuthorized ? "checkbox-marked" : "checkbox-blank-outline"}
-            size={24}
-            color={isAuthorized ? "#1e3a8a" : "#cbd5e1"}
+            size={22}
+            color={isAuthorized ? "#b45309" : "#cbd5e1"}
           />
-          <Text style={styles.authText}>
-            I confirm that I have obtained proper authorization from the NIN owner to perform this check.
+          <Text style={styles.consentText}>
+            I confirm that I have the owner's authorization to submit this NIN for validation and
+            database synchronization.
           </Text>
         </TouchableOpacity>
 
-        {/* Checkbox 2: 48 Working Hours Agreement */}
         <TouchableOpacity
-          style={[styles.checkboxRow, styles.redCheckboxRow]}
+          style={styles.checkboxRow}
           onPress={() => setIsTimeAgreed(!isTimeAgreed)}
-          activeOpacity={0.9}
+          activeOpacity={0.85}
         >
           <MaterialCommunityIcons
             name={isTimeAgreed ? "checkbox-marked" : "checkbox-blank-outline"}
-            size={24}
-            color={isTimeAgreed ? "#dc2626" : "#cbd5e1"}
+            size={22}
+            color={isTimeAgreed ? "#b45309" : "#cbd5e1"}
           />
-          <Text style={styles.redAgreementText}>
-            Na amince kuma na gane cewa wannan aikin yana ɗaukar **awanni 48 na ranakun aiki (48 working hours)** kafin ya kammala kafin in biya kuɗi.
+          <Text style={[styles.consentText, { color: "#b45309", fontWeight: "700" }]}>
+            I acknowledge that this request enters a manual clearance window of 24 to 48 working hours.
           </Text>
         </TouchableOpacity>
 
@@ -367,18 +477,18 @@ const NINValidation = ({ navigation }) => {
           activeOpacity={0.85}
         >
           <Text style={styles.submitBtnText}>
-            SUBMIT VALIDATION REQUEST (₦{currentCost?.toLocaleString()})
+            SUBMIT VALIDATION REQUEST (₦{currentCost.toLocaleString()})
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Admin Price Update Modal */}
+      {/* Admin Price Edit Modal */}
       <Modal visible={adminModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Ionicons name="pricetag" size={32} color="#f59e0b" style={{ marginBottom: 10 }} />
+            <Ionicons name="pricetag" size={32} color="#f59e0b" style={{ marginBottom: 8 }} />
             <Text style={styles.modalTitle}>Update Service Price</Text>
-            <Text style={styles.modalSubtitle}>Set new fee for {editingItem?.name}</Text>
+            <Text style={styles.modalSubtitle}>Set fee for {editingItem?.name}</Text>
 
             <TextInput
               style={styles.adminModalInput}
@@ -405,29 +515,21 @@ const NINValidation = ({ navigation }) => {
               onPress={() => setAdminModalVisible(false)}
               style={{ marginTop: 10 }}
             >
-              <Text style={{ color: "#dc2626", fontWeight: "bold" }}>Cancel</Text>
+              <Text style={{ color: "#dc2626", fontWeight: "bold", fontSize: 12 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* PIN Verification Modal */}
+      {/* PIN Modal */}
       <Modal visible={pinModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.modalHeaderIcon}>
-              <Ionicons name="shield-checkmark" size={32} color="#1e3a8a" />
-            </View>
+            <Ionicons name="shield-checkmark" size={34} color="#b45309" style={{ marginBottom: 6 }} />
             <Text style={styles.modalTitle}>Enter Security PIN</Text>
             <Text style={styles.modalSubtitle}>
-              Authorize ₦{currentCost?.toLocaleString()} fee for {selectedType}
+              Authorize ₦{currentCost.toLocaleString()} for {selectedType.name}
             </Text>
-
-            <View style={styles.modalWarningSmall}>
-              <Text style={styles.modalWarningSmallText}>
-                ⚠️ Processing timeframe: 48 Working Hours
-              </Text>
-            </View>
 
             <TextInput
               style={styles.modalPinInput}
@@ -471,136 +573,257 @@ const NINValidation = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 16, paddingTop: 15 },
+  container: { flex: 1, backgroundColor: "#f8fafc", paddingHorizontal: 16 },
   topHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: Platform.OS === "ios" ? 40 : 25,
-    marginBottom: 15,
+    marginTop: Platform.OS === "ios" ? 44 : 26,
+    marginBottom: 14,
   },
   backButton: { width: 40, height: 40, justifyContent: "center" },
-  screenMainTitle: { fontSize: 16, fontWeight: "900", color: "#1e3a8a" },
-  
-  // Red Alert Styles
-  redNoticeCard: {
-    backgroundColor: "#fef2f2",
-    borderRadius: 14,
-    padding: 14,
+  screenMainTitle: { fontSize: 17, fontWeight: "900", color: "#0a1d37" },
+
+  noticeCard: {
+    backgroundColor: "#fffbeb",
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 14,
     borderWidth: 1.5,
-    borderColor: "#ef4444",
+    borderColor: "#fde68a",
   },
-  redNoticeHeader: {
+  noticeHeader: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 6,
   },
-  redNoticeTitle: {
-    color: "#b91c1c",
+  noticeTitle: {
+    color: "#b45309",
     fontSize: 12,
     fontWeight: "900",
     marginLeft: 6,
     letterSpacing: 0.3,
   },
-  redNoticeText: {
-    color: "#991b1b",
+  noticeText: {
+    color: "#92400e",
     fontSize: 12,
     lineHeight: 18,
     fontWeight: "600",
   },
 
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 18,
     marginBottom: 14,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
-  header: {
+  cardTitleRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 14,
   },
-  title: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
-  priceBadge: {
-    backgroundColor: "#eff6ff",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#bae6fd",
+  cardTitle: {
+    fontSize: 13.5,
+    fontWeight: "900",
+    color: "#0a1d37",
+    marginLeft: 8,
   },
-  priceText: { color: "#0369a1", fontSize: 11, fontWeight: "800" },
-  chipContainer: { flexDirection: "row", flexWrap: "wrap" },
-  chipWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 8,
-    marginBottom: 10,
+
+  validationGrid: {
+    marginTop: 2,
   },
-  chip: {
-    borderWidth: 1,
+  valOptionCard: {
+    borderWidth: 1.5,
     borderColor: "#e2e8f0",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 14,
+    padding: 14,
     backgroundColor: "#f8fafc",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  selectedChip: { backgroundColor: "#1e3a8a", borderColor: "#1e3a8a" },
-  chipText: { fontSize: 11.5, color: "#64748b", fontWeight: "700" },
-  selectedChipText: { color: "#fff", fontWeight: "800" },
-  chipPriceTag: { fontSize: 9.5, color: "#94a3b8", fontWeight: "700", marginTop: 2 },
-  selectedChipPriceTag: { color: "#38bdf8" },
-  adminEditBtn: {
-    padding: 6,
+  valOptionCardSelected: {
+    borderColor: "#f59e0b",
+    backgroundColor: "#fffdf5",
+  },
+  valInfoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 10,
+  },
+  valIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  valIconBoxSelected: {
+    backgroundColor: "#fef3c7",
+    borderColor: "#fde68a",
+  },
+  valName: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#0f172a",
+    marginBottom: 2,
+  },
+  valDesc: {
+    fontSize: 10.5,
+    color: "#64748b",
+  },
+  valPriceTag: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#0a1d37",
+  },
+  adminEditBadge: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "rgba(245, 158, 11, 0.15)",
-    borderRadius: 8,
-    marginLeft: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
   },
-  label: { fontSize: 12, fontWeight: "800", color: "#475569", marginBottom: 8, letterSpacing: 0.3 },
-  input: {
+  adminEditText: {
+    fontSize: 9.5,
+    color: "#f59e0b",
+    fontWeight: "800",
+    marginLeft: 3,
+  },
+
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#475569",
+    marginBottom: 8,
+  },
+  textInput: {
+    height: 50,
+    backgroundColor: "#f8fafc",
     borderWidth: 1,
     borderColor: "#e2e8f0",
     borderRadius: 12,
     paddingHorizontal: 14,
-    height: 50,
-    backgroundColor: "#f8fafc",
-    color: "#0f172a",
     fontSize: 15,
     fontWeight: "700",
+    color: "#0f172a",
+    letterSpacing: 1,
   },
-  authTitle: { fontSize: 13, fontWeight: "800", marginLeft: 6, color: "#1e3a8a" },
+
   checkboxRow: {
     flexDirection: "row",
-    marginBottom: 12,
     alignItems: "flex-start",
+    marginBottom: 12,
   },
-  redCheckboxRow: {
-    backgroundColor: "#fff5f5",
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#fecaca",
+  consentText: {
+    fontSize: 11.5,
+    color: "#475569",
+    marginLeft: 10,
+    flex: 1,
+    lineHeight: 17,
+    fontWeight: "600",
   },
-  authText: { fontSize: 11.5, color: "#475569", marginLeft: 10, flex: 1, lineHeight: 18 },
-  redAgreementText: { fontSize: 12, color: "#991b1b", marginLeft: 10, flex: 1, lineHeight: 18, fontWeight: "700" },
+
   submitBtn: {
-    backgroundColor: "#1e3a8a",
-    paddingVertical: 16,
+    backgroundColor: "#b45309",
+    height: 50,
     borderRadius: 14,
+    justifyContent: "center",
     alignItems: "center",
     marginTop: 10,
-    elevation: 2,
   },
-  submitBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
+  submitBtnText: {
+    color: "#ffffff",
+    fontSize: 12.5,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+
+  // Receipt View Styles
+  receiptContainer: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  receiptIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#dcfce7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  receiptTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  receiptSub: {
+    fontSize: 11.5,
+    color: "#64748b",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  receiptDetailsCard: {
+    width: "100%",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f1f5f9",
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "600",
+  },
+  detailValue: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#0f172a",
+    textAlign: "right",
+  },
+  btnDone: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "#0a1d37",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 18,
+  },
+  btnDoneText: {
+    color: "#ffffff",
+    fontSize: 13,
+    fontWeight: "900",
+  },
 
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -608,41 +831,24 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     borderRadius: 22,
     padding: 22,
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    elevation: 8,
   },
-  modalHeaderIcon: { marginBottom: 8 },
   modalTitle: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#1e3a8a",
+    color: "#0f172a",
     marginBottom: 4,
-    textAlign: "center",
   },
   modalSubtitle: {
     fontSize: 11.5,
     color: "#64748b",
     textAlign: "center",
-    marginBottom: 10,
-  },
-  modalWarningSmall: {
-    backgroundColor: "#fef2f2",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#fecaca",
-  },
-  modalWarningSmallText: {
-    color: "#b91c1c",
-    fontSize: 11,
-    fontWeight: "800",
+    marginBottom: 12,
   },
   adminModalInput: {
     width: "100%",
@@ -651,11 +857,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#cbd5e1",
     borderRadius: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     fontSize: 16,
     fontWeight: "bold",
     color: "#0f172a",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   modalPinInput: {
     width: "100%",
@@ -669,23 +875,25 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
     fontWeight: "bold",
     color: "#0f172a",
-    marginBottom: 18,
+    marginBottom: 16,
   },
   verifyModalBtn: {
     width: "100%",
     height: 46,
-    backgroundColor: "#1e3a8a",
+    backgroundColor: "#b45309",
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 8,
   },
   verifyModalBtnText: {
-    color: "#fff",
+    color: "#ffffff",
     fontWeight: "800",
     fontSize: 13,
   },
-  cancelModalBtn: { paddingVertical: 6 },
+  cancelModalBtn: {
+    paddingVertical: 6,
+  },
   cancelModalBtnText: {
     color: "#dc2626",
     fontWeight: "700",

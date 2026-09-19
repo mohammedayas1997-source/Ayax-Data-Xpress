@@ -7,11 +7,11 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  Image,
   ActivityIndicator,
   StatusBar,
   Modal,
   Platform,
-  Linking,
 } from "react-native";
 import {
   Ionicons,
@@ -19,6 +19,7 @@ import {
   FontAwesome5,
 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Clipboard from "expo-clipboard";
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -81,58 +82,92 @@ const BVNScreen = ({ navigation }) => {
   };
 
   const handleVerifyBVN = async () => {
-    if (!pin || pin.length < 4) {
+    if (!pin || pin.trim().length !== 4) {
       return showAlert("Security PIN", "Please enter your 4-digit Transaction PIN.");
     }
 
     setLoading(true);
     try {
-      const token = await AsyncStorage.getItem("userToken");
+      const token =
+        (await AsyncStorage.getItem("userToken")) ||
+        (await AsyncStorage.getItem("token"));
+
       if (!token) {
         setPinModalVisible(false);
-        return showAlert("Session Expired", "Please login again.");
+        return showAlert("Session Expired", "Please login again.", () => {
+          navigation?.reset({ index: 0, routes: [{ name: "Login" }] });
+        });
       }
 
       const activeAmount = prices[selectedTier] || 150;
       const cleanBvn = bvnNumber.replace(/\D/g, "").trim();
 
-      const res = await axios.post(
-        `${BASE_URL}/bvn/verify-and-generate`,
-        {
-          bvn: cleanBvn,
-          bvnNumber: cleanBvn,
-          serviceType: selectedTier,
-          amount: activeAmount,
-          pin: pin.trim(),
-        },
-        {
+      const payload = {
+        bvn: cleanBvn,
+        bvnNumber: cleanBvn,
+        serviceType: selectedTier,
+        type: selectedTier,
+        amount: activeAmount,
+        pin: pin.trim(),
+        transactionPin: pin.trim(),
+        format: "pdf",
+        generatePdf: true,
+      };
+
+      let res;
+      try {
+        res = await axios.post(`${BASE_URL}/bvn/verify-and-generate`, payload, {
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            Accept: "application/json",
           },
           timeout: 65000,
+        });
+      } catch (postErr) {
+        if (postErr.response?.status === 404) {
+          res = await axios.post(`${BASE_URL}/bvn/verify`, payload, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            timeout: 65000,
+          });
+        } else {
+          throw postErr;
         }
-      );
+      }
 
       const result = res.data;
-
       const isOk =
         result.success === true ||
         result.status === "success" ||
         String(result.message || "").toLowerCase().includes("pdf generated") ||
         String(result.message || "").toLowerCase().includes("successful");
 
-      const base64Content = result.pdf_base64 || result.pdfBase64 || result.data?.pdf_base64;
+      const base64Content =
+        result.pdf_base64 ||
+        result.pdfBase64 ||
+        result.data?.pdf_base64 ||
+        result.data?.pdf;
 
-      if (isOk && base64Content) {
+      const profileData =
+        result.data?.userData ||
+        result.userData ||
+        result.data ||
+        result.user_data ||
+        {};
+
+      if (isOk) {
         setPinModalVisible(false);
         setPin("");
 
         setSlipResult({
           bvn: cleanBvn,
           slipType: selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip",
-          base64: base64Content,
-          userData: result.userData || null,
+          base64: base64Content || null,
+          userData: profileData,
         });
 
         setView("result");
@@ -142,7 +177,10 @@ const BVNScreen = ({ navigation }) => {
     } catch (err) {
       showAlert(
         "Verification Notice",
-        err.response?.data?.message || err.message || "Service request timed out."
+        err.response?.data?.message ||
+          err.response?.data?.desc ||
+          err.message ||
+          "Service request timed out."
       );
     } finally {
       setLoading(false);
@@ -151,29 +189,60 @@ const BVNScreen = ({ navigation }) => {
 
   const downloadSlipFile = () => {
     if (!slipResult?.base64) {
-      return showAlert("Notice", "Document data is missing.");
+      const directPdf =
+        slipResult?.userData?.pdfUrl ||
+        slipResult?.userData?.slipUrl ||
+        slipResult?.userData?.downloadUrl;
+
+      if (directPdf && typeof directPdf === "string" && directPdf.startsWith("http")) {
+        if (Platform.OS === "web") {
+          window.open(directPdf, "_blank");
+        } else {
+          Linking.openURL(directPdf);
+        }
+        return;
+      }
+      return showAlert("Notice", "Official PDF data is not available for this record.");
     }
 
     setDownloading(true);
     try {
+      let base64String = slipResult.base64;
+      if (base64String.startsWith("data:application/pdf;base64,")) {
+        base64String = base64String.replace("data:application/pdf;base64,", "");
+      }
+
       const fileName = `BVN_Slip_${slipResult?.bvn || "DOCUMENT"}.pdf`;
 
-      if (Platform.OS === "web") {
-        const linkSource = `data:application/pdf;base64,${slipResult.base64}`;
-        const downloadLink = document.createElement("a");
-        downloadLink.href = linkSource;
-        downloadLink.download = fileName;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const byteCharacters = atob(base64String);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "application/pdf" });
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
       } else {
-        showAlert("Notice", "Document ready on your device.");
+        showAlert("Document Ready", "Your official BVN PDF slip is ready.");
       }
     } catch (err) {
       showAlert("Download Notice", "Could not trigger download: " + err.message);
     } finally {
-      setTimeout(() => setDownloading(false), 1000);
+      setTimeout(() => setDownloading(false), 800);
     }
+  };
+
+  const copyToClipboard = async (text, label) => {
+    if (!text || text === "N/A") return;
+    await Clipboard.setStringAsync(text);
+    showAlert("Copied", `${label || "Value"} copied to clipboard.`);
   };
 
   // ==========================================
@@ -187,17 +256,30 @@ const BVNScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color="#f8fafc" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>BVN Verification</Text>
+          <Text style={styles.headerTitle}>BVN Verification Desk</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-          <Text style={styles.pageSub}>
-            Verify a Bank Verification Number (BVN) using your preferred method. Enter the required details and your transaction PIN.
-          </Text>
+          <LinearGradient
+            colors={["#0369a1", "#0f172a"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.heroBanner}
+          >
+            <View style={styles.bannerIconWrap}>
+              <MaterialCommunityIcons name="shield-account" size={30} color="#00f0ff" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <Text style={styles.bannerTitle}>BVN Verification & Reprint</Text>
+              <Text style={styles.bannerSub}>
+                Verify banking identity records and print verified regular or premium BVN slips.
+              </Text>
+            </View>
+          </LinearGradient>
 
           <View style={styles.card}>
-            <Text style={styles.sectionLabel}>Select Slip Type</Text>
+            <Text style={styles.sectionLabel}>Select Verification Slip Format</Text>
 
             <View style={styles.tierContainer}>
               {bvnTiers.map((tier) => {
@@ -217,11 +299,12 @@ const BVNScreen = ({ navigation }) => {
                         size={20}
                         color={isSelected ? "#00f0ff" : "#64748b"}
                       />
-                      <View style={{ marginLeft: 12 }}>
+                      <View style={{ marginLeft: 12, flex: 1 }}>
                         <Text style={[styles.tierTitle, isSelected && { color: "#fff" }]}>
                           {tier.name}
                         </Text>
-                        <Text style={styles.tierPrice}>NGN {cost}</Text>
+                        <Text style={styles.tierDesc}>{tier.desc}</Text>
+                        <Text style={styles.tierPrice}>Fee: ₦{cost.toLocaleString()}</Text>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -229,7 +312,7 @@ const BVNScreen = ({ navigation }) => {
               })}
             </View>
 
-            <Text style={[styles.sectionLabel, { marginTop: 22 }]}>BVN Number</Text>
+            <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Bank Verification Number (11 Digits)</Text>
             <TextInput
               placeholder="Enter 11-digit BVN"
               placeholderTextColor="#64748b"
@@ -240,19 +323,40 @@ const BVNScreen = ({ navigation }) => {
               keyboardType="numeric"
             />
 
+            <View style={styles.feeBreakdownBox}>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeRowLabel}>Category Desk</Text>
+                <Text style={[styles.feeRowVal, { color: "#38bdf8" }]}>BVN IDENTITY LOOKUP</Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeRowLabel}>Document Format</Text>
+                <Text style={styles.feeRowVal}>
+                  {selectedTier === "bvn_premium" ? "Premium Card Slip" : "Full Details Slip"}
+                </Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeRowLabel}>Official Portal Fee</Text>
+                <Text style={[styles.feeRowVal, { color: "#10b981" }]}>
+                  ₦{(prices[selectedTier] || 150).toLocaleString()}
+                </Text>
+              </View>
+            </View>
+
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={handleInitiate}
               activeOpacity={0.85}
             >
               <LinearGradient
-                colors={["#dc2626", "#b91c1c"]}
+                colors={["#0284c7", "#2563eb"]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.actionBtnGradient}
               >
-                <FontAwesome5 name="check-circle" size={16} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.actionBtnText}>Verify BVN (NGN {prices[selectedTier] || 150})</Text>
+                <FontAwesome5 name="print" size={16} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={styles.actionBtnText}>
+                  VERIFY & PRINT BVN SLIP (₦{(prices[selectedTier] || 150).toLocaleString()})
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
@@ -262,9 +366,9 @@ const BVNScreen = ({ navigation }) => {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Ionicons name="shield-checkmark" size={36} color="#00f0ff" style={{ marginBottom: 10 }} />
-              <Text style={styles.modalTitle}>Transaction PIN</Text>
+              <Text style={styles.modalTitle}>Enter Security PIN</Text>
               <Text style={styles.modalSubtitle}>
-                Authorize NGN {prices[selectedTier] || 150} for {selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip"}
+                Authorize ₦{(prices[selectedTier] || 150).toLocaleString()} fee for {selectedTier === "bvn_premium" ? "Premium Slip" : "Full Details Slip"}
               </Text>
 
               <TextInput
@@ -286,7 +390,7 @@ const BVNScreen = ({ navigation }) => {
                 {loading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.modalSubmitBtnText}>Authorize & Generate</Text>
+                  <Text style={styles.modalSubmitBtnText}>Confirm & Authorize</Text>
                 )}
               </TouchableOpacity>
 
@@ -307,8 +411,33 @@ const BVNScreen = ({ navigation }) => {
   }
 
   // ==========================================
-  // VIEW 2: SUCCESS & DIRECT DOWNLOAD SCREEN
+  // VIEW 2: PROFILE & SLIP RESULT SCREEN
   // ==========================================
+  const rawUser = slipResult?.userData || {};
+  const fullName =
+    rawUser.fullName ||
+    rawUser.name ||
+    `${rawUser.firstName || rawUser.firstname || ""} ${rawUser.middleName || rawUser.middlename || ""} ${rawUser.lastName || rawUser.surname || ""}`.trim() ||
+    "Verified Citizen";
+
+  const resolvedBvn = String(
+    rawUser.bvn ||
+    rawUser.bvnNumber ||
+    slipResult?.bvn ||
+    bvnNumber ||
+    "N/A"
+  ).trim();
+
+  const photo = rawUser.photo || rawUser.image || rawUser.base64Image;
+
+  const resolvedAddress = String(
+    rawUser.address ||
+    rawUser.residentialAddress ||
+    rawUser.residence_address ||
+    [rawUser.lga, rawUser.state].filter(Boolean).join(", ") ||
+    "N/A"
+  ).trim();
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#050811" />
@@ -323,37 +452,62 @@ const BVNScreen = ({ navigation }) => {
         >
           <Ionicons name="close" size={24} color="#f8fafc" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Official BVN Document</Text>
+        <Text style={styles.headerTitle}>Verified BVN Profile</Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 50 }}>
         <View style={styles.resultCard}>
-          <View style={styles.successIconCircle}>
-            <Ionicons name="checkmark-done-circle" size={54} color="#10b981" />
-          </View>
-
-          <Text style={styles.resultTitle}>Verification Successful!</Text>
-          <Text style={styles.resultSub}>
-            Your official government-standard BVN slip has been generated and is ready for immediate download.
-          </Text>
-
-          <View style={styles.infoBox}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>BVN Number</Text>
-              <Text style={styles.infoValue}>{slipResult?.bvn}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Document Tier</Text>
-              <Text style={styles.infoValue}>{slipResult?.slipType}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Status</Text>
-              <Text style={[styles.infoValue, { color: "#10b981" }]}>Verified & Available</Text>
+          <View style={styles.photoContainer}>
+            {photo ? (
+              <Image
+                source={{
+                  uri: String(photo).startsWith("data:image")
+                    ? photo
+                    : `data:image/jpeg;base64,${photo}`,
+                }}
+                style={styles.userPhoto}
+              />
+            ) : (
+              <View style={styles.photoPlaceholder}>
+                <Ionicons name="person" size={54} color="#64748b" />
+              </View>
+            )}
+            <View style={styles.statusVerifiedBadge}>
+              <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+              <Text style={styles.statusVerifiedText}>BVN VERIFIED</Text>
             </View>
           </View>
 
-          {/* MABALLIN DOWNLOAD NA KAI TSAYE (BABU BUDE SHAFI) */}
+          <View style={styles.detailsList}>
+            <ResultRow label="Full Legal Name" value={fullName} />
+            <ResultRow
+              label="Bank Verification Number (BVN)"
+              value={resolvedBvn}
+              copyable
+              onCopy={() => copyToClipboard(resolvedBvn, "BVN")}
+            />
+            <ResultRow
+              label="NIN Number"
+              value={rawUser.nin || rawUser.ninNumber || "N/A"}
+              copyable
+              onCopy={() => copyToClipboard(rawUser.nin || rawUser.ninNumber, "NIN")}
+            />
+            <ResultRow
+              label="Registration Date of Birth"
+              value={rawUser.dob || rawUser.dateOfBirth || rawUser.birthdate || "N/A"}
+            />
+            <ResultRow
+              label="Gender"
+              value={(rawUser.gender || "N/A").toUpperCase()}
+            />
+            <ResultRow
+              label="Document Format"
+              value={slipResult?.slipType || "Full Details Slip"}
+            />
+            <ResultRow label="Residential Address" value={resolvedAddress} />
+          </View>
+
           <TouchableOpacity
             style={[styles.downloadBigBtn, downloading && { opacity: 0.7 }]}
             onPress={downloadSlipFile}
@@ -363,10 +517,10 @@ const BVNScreen = ({ navigation }) => {
             {downloading ? (
               <ActivityIndicator color="#fff" style={{ marginRight: 8 }} />
             ) : (
-              <MaterialCommunityIcons name="download" size={22} color="#fff" style={{ marginRight: 8 }} />
+              <MaterialCommunityIcons name="file-download-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
             )}
             <Text style={styles.downloadBigBtnText}>
-              {downloading ? "DOWNLOADING SLIP..." : "DOWNLOAD OFFICIAL SLIP (PDF)"}
+              {downloading ? "PREPARING SLIP..." : "DOWNLOAD OFFICIAL SLIP (PDF)"}
             </Text>
           </TouchableOpacity>
 
@@ -386,6 +540,20 @@ const BVNScreen = ({ navigation }) => {
   );
 };
 
+const ResultRow = ({ label, value, copyable, onCopy }) => (
+  <View style={styles.resultRowContainer}>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.resultLabel}>{label}</Text>
+      <Text style={styles.resultValue}>{value}</Text>
+    </View>
+    {copyable && value !== "N/A" && (
+      <TouchableOpacity onPress={onCopy} style={styles.copySmallBtn}>
+        <Ionicons name="copy-outline" size={14} color="#00f0ff" />
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#050811", paddingHorizontal: 16 },
   headerBar: {
@@ -393,11 +561,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: Platform.OS === "ios" ? 52 : 38,
-    paddingBottom: 12,
+    paddingBottom: 15,
   },
-  headerTitle: { color: "#f8fafc", fontSize: 17, fontWeight: "900" },
+  headerTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "900" },
   backBtn: { width: 40, height: 40, justifyContent: "center" },
-  pageSub: { color: "#94a3b8", fontSize: 12, lineHeight: 18, marginBottom: 18 },
+  heroBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 18,
+    borderRadius: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#00f0ff",
+  },
+  bannerIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(0, 240, 255, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  bannerTitle: { color: "#fff", fontSize: 15.5, fontWeight: "900" },
+  bannerSub: { color: "#cbd5e1", fontSize: 11, marginTop: 3, lineHeight: 16 },
   card: {
     backgroundColor: "#0b1120",
     padding: 18,
@@ -405,21 +591,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#1e293b",
   },
-  sectionLabel: { color: "#cbd5e1", fontSize: 12, fontWeight: "800", marginBottom: 10 },
-  tierContainer: { gap: 12 },
+  sectionLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "800", marginBottom: 10, letterSpacing: 0.5 },
+  tierContainer: { gap: 10 },
   tierBox: {
     backgroundColor: "#050811",
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: "#1e293b",
-    padding: 16,
+    padding: 14,
     borderRadius: 14,
   },
   tierBoxActive: {
     borderColor: "#00f0ff",
     backgroundColor: "rgba(0, 240, 255, 0.05)",
   },
-  tierTitle: { color: "#94a3b8", fontSize: 14, fontWeight: "800" },
-  tierPrice: { color: "#dc2626", fontSize: 13, fontWeight: "900", marginTop: 2 },
+  tierTitle: { color: "#94a3b8", fontSize: 13.5, fontWeight: "800" },
+  tierDesc: { color: "#64748b", fontSize: 10.5, marginTop: 2, lineHeight: 14 },
+  tierPrice: { color: "#10b981", fontSize: 12.5, fontWeight: "900", marginTop: 4 },
   textInput: {
     backgroundColor: "#050811",
     paddingHorizontal: 14,
@@ -427,66 +614,93 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#1e293b",
-    fontSize: 16,
+    fontSize: 15,
     color: "#fff",
-    fontWeight: "bold",
-    marginBottom: 20,
+    fontWeight: "700",
   },
-  actionBtn: { borderRadius: 12, overflow: "hidden" },
+  feeBreakdownBox: {
+    backgroundColor: "#070c18",
+    padding: 14,
+    borderRadius: 12,
+    marginVertical: 18,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  feeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginVertical: 4,
+  },
+  feeRowLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
+  feeRowVal: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  actionBtn: { borderRadius: 14, overflow: "hidden" },
   actionBtnGradient: {
-    paddingVertical: 15,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
   },
-  actionBtnText: { color: "#fff", fontWeight: "900", fontSize: 14 },
+  actionBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
   resultCard: {
     backgroundColor: "#0b1120",
-    padding: 24,
+    padding: 18,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#1e293b",
     alignItems: "center",
-    marginTop: 10,
   },
-  successIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
+  photoContainer: { alignItems: "center", marginBottom: 16 },
+  userPhoto: {
+    width: 110,
+    height: 125,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#00f0ff",
+  },
+  photoPlaceholder: {
+    width: 110,
+    height: 125,
+    borderRadius: 14,
+    backgroundColor: "#071328",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-  },
-  resultTitle: { color: "#f8fafc", fontSize: 18, fontWeight: "900" },
-  resultSub: { color: "#94a3b8", fontSize: 12, textAlign: "center", marginTop: 6, lineHeight: 18 },
-  infoBox: {
-    width: "100%",
-    backgroundColor: "#050811",
-    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#1e293b",
-    padding: 14,
-    marginVertical: 20,
   },
-  infoRow: {
+  statusVerifiedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  statusVerifiedText: { color: "#10b981", fontSize: 10, fontWeight: "900", marginLeft: 4 },
+  detailsList: { width: "100%", marginVertical: 6 },
+  resultRowContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginVertical: 5,
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
   },
-  infoLabel: { color: "#64748b", fontSize: 12, fontWeight: "600" },
-  infoValue: { color: "#f8fafc", fontSize: 13, fontWeight: "bold" },
+  resultLabel: { color: "#64748b", fontSize: 10.5, fontWeight: "700", textTransform: "uppercase" },
+  resultValue: { color: "#f8fafc", fontSize: 13, fontWeight: "800", marginTop: 2, textAlign: "right" },
+  copySmallBtn: { padding: 6, backgroundColor: "rgba(0, 240, 255, 0.1)", borderRadius: 6, marginLeft: 8 },
   downloadBigBtn: {
     width: "100%",
-    backgroundColor: "#dc2626",
-    paddingVertical: 15,
-    borderRadius: 12,
+    backgroundColor: "#16a34a",
     flexDirection: "row",
+    paddingVertical: 15,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 18,
   },
-  downloadBigBtnText: { color: "#fff", fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
-  newSearchBtn: { marginTop: 16, padding: 8 },
+  downloadBigBtnText: { color: "#fff", fontWeight: "900", fontSize: 12.5, letterSpacing: 0.5 },
+  newSearchBtn: { marginTop: 14, padding: 8 },
   newSearchBtnText: { color: "#00f0ff", fontSize: 12, fontWeight: "bold" },
   modalOverlay: {
     flex: 1,
@@ -497,7 +711,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "100%",
-    maxWidth: 320,
+    maxWidth: 340,
     backgroundColor: "#0b1120",
     borderRadius: 20,
     padding: 22,
@@ -523,7 +737,7 @@ const styles = StyleSheet.create({
   },
   modalSubmitBtn: {
     width: "100%",
-    backgroundColor: "#dc2626",
+    backgroundColor: "#0284c7",
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
